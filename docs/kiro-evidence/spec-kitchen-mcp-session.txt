@@ -1,0 +1,765 @@
+
+=== session 2026-11-11T07:03:50Z ===
+$ kiro-cli chat --output-format stream-json --v3 --mode spec --trust-all-tools --trust-workspace --model claude-opus-5.5 "$(cat docs/kiro-evidence/prompts/12-spec-kitchen-mcp.md)"
+--- prompt ---
+Write the spec `kitchen-mcp` in .kiro/specs/kitchen-mcp/: requirements.md, then design.md, then tasks.md. No code in this session.
+
+The scheduler is deterministic core code, so any agent should be able to use it as a tool. This spec adds an MCP server (stdio) in src/mcp that exposes the core and nothing else, registers it in .kiro/settings/mcp.json for this workspace, and uses it during development: Kiro itself can then answer "schedule the Sunday roast with one burner" or "does every sample still land within its holds after this change" by calling the real scheduler instead of reasoning about it. Read the steering (structure.md names the tools: check_plan, schedule_plan, rebuild_plan, export_dinnerfile, import_dinnerfile; product.md: no model calls here), the specs recipe-graph, scheduler, rebuild and dinnerfile (exact core signatures), and the installed @modelcontextprotocol/sdk version's real API (look in node_modules before fixing signatures). Follow the format of the earlier specs.
+
+Scope:
+- Tools with zod input schemas and structured results: check_plan(plan) -> issues; schedule_plan(plan, kitchen) -> schedule or typed error; rebuild_plan(schedule, progress, now) -> rebuilt or typed error; export_dinnerfile(plan, options?) -> text; import_dinnerfile(text) -> plan or line-numbered errors; plus list_samples() and get_sample(id) -> the recorded plan, so an agent has something to schedule without pasting JSON. Each tool also returns a short human-readable text block (for schedule_plan: the plan list as text, one line per step with relative minutes, lanes and marks).
+- Errors are tool results with isError, never thrown protocol errors, and never contain stack traces.
+- No network, no file writes, no environment access beyond reading samples/ and recordings/ relative to the package root.
+- `npm run mcp` starts it from source with tsx; the build emits dist/mcp/index.js; .kiro/settings/mcp.json registers it for this workspace under the name `make-dinner`.
+- Tests: in-process tests using the SDK's in-memory transport pair (client and server linked without a process) for every tool, success and error; one test that spawns the built server over stdio, lists the tools and calls schedule_plan on a sample.
+- A custom agent .kiro/agents/taster.json that uses only this MCP server and read access: given a sample id or a plan, it schedules it under two or three kitchens and reports, as a cook would read it, anything odd (a dish waiting past its hold, a cook double-booked according to the text, a start time that makes no sense), quoting the tool results. Its config and a recorded run are part of the tasks.
+- The README section that tells a user how to add the server to their own MCP client.
+
+Keep tasks.md to about 12 to 16 sub-tasks.
+
+Length: this is a thin adapter over core. Aim for requirements.md under 110 lines, design.md under 260 lines and tasks.md under 130 lines. Read only what you need: the core index.ts exports, the Schedule, Progress and Dinnerfile types, and the MCP SDK's server and in-memory transport typings. Do not run exploratory scripts beyond confirming the SDK's import paths.
+--- transcript (rendered from the event stream by scripts/kiro-render.mjs) ---
+[steering] {"steeringDocuments":["file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/kiro-conduct.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/product.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/scheduler-guarantees.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/structure.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/tech.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/testing.md"],"kind":"steering_inclusion"}
+[tool:search] List Directory ~/hackathons-2026/kiroween/makedinner/.kiro
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/index.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/package.json
+[tool:search] List Directory ~/hackathons-2026/kiroween/makedinner/.kiro/specs
+[tool:search] List Directory ~/hackathons-2026/kiroween/makedinner/.kiro/agents
+[tool:search] List Directory ~/hackathons-2026/kiroween/makedinner/src
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/agents/expediter.json
+[tool:execute] $ ls -R src/mcp src/core src/server .kiro/specs .kiro/hooks recordings samples test scripts; cat tsconfig.mcp.json; ls .kiro/settings 2>&1; wc -l .kiro/specs/*/*.md
+    … (165 earlier lines not shown)
+        "lib": ["ES2023"],
+        "types": ["node"],
+        "rootDir": "src",
+        "outDir": "dist"
+      },
+      "include": ["src/mcp/**/*.ts"]
+    }
+    ls: .kiro/settings: No such file or directory
+         460 .kiro/specs/cooking-mode/design.md
+         198 .kiro/specs/cooking-mode/requirements.md
+         245 .kiro/specs/cooking-mode/tasks.md
+         820 .kiro/specs/dinnerfile/design.md
+         287 .kiro/specs/dinnerfile/requirements.md
+         158 .kiro/specs/dinnerfile/tasks.md
+         618 .kiro/specs/plan-ui/design.md
+         259 .kiro/specs/plan-ui/requirements.md
+         352 .kiro/specs/plan-ui/tasks.md
+         427 .kiro/specs/rebuild/design.md
+         158 .kiro/specs/rebuild/requirements.md
+         176 .kiro/specs/rebuild/tasks.md
+         518 .kiro/specs/recipe-graph/design.md
+         249 .kiro/specs/recipe-graph/requirements.md
+         257 .kiro/specs/recipe-graph/tasks.md
+        1009 .kiro/specs/recipe-reader/design.md
+         333 .kiro/specs/recipe-reader/requirements.md
+         229 .kiro/specs/recipe-reader/tasks.md
+         649 .kiro/specs/scheduler/design.md
+         220 .kiro/specs/scheduler/requirements.md
+         265 .kiro/specs/scheduler/tasks.md
+        7887 total
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/mcp/index.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/rebuild/requirements.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/rebuild/tasks.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/scripts/hooks/tasks-lint.sh
+[tool:search] Grep Search
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/rebuild.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/dinnerfile.ts
+[tool:search] Grep Search
+
+Now the schema shapes for Schedule, Progress, Kitchen, ServeTime.
+
+[tool:search] Grep Search
+[tool:search] Grep Search
+[tool:search] Grep Search
+[tool:execute] $ wc -l src/core/schema.ts; grep -n "Schema\b* =\|^export const\|^const" src/core/schema.ts | head -60
+    … (4 earlier lines not shown)
+    29:const text = (max: number) => z.string().max(max).regex(/\S/);
+    31:export const DishIdSchema = z.string().max(LIMITS.dishIdMax).regex(DISH_ID_PATTERN);
+    32:export const StepIdSchema = z.string().max(LIMITS.stepIdMax).regex(STEP_ID_PATTERN);
+    33:export const ApplianceSchema = z.enum(['burner', 'oven', 'none']);
+    35:export const StepSchema = z.strictObject({
+    47:export const DishSchema = z.strictObject({
+    52:export const PlanSchema = z.strictObject({
+    58:export const KitchenSchema = z.strictObject({
+    65:export const SERVE_TIME_PATTERN = /^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/;
+    66:export const ServeTimeSchema = z.string().regex(SERVE_TIME_PATTERN);
+    75:const message = z.string().min(1);
+    78:const variant = <S extends 'error' | 'warning', C extends string, F extends z.ZodRawShape>(
+    90:const HoldExceededIssueSchema = variant('warning', 'hold_exceeded', {
+    96:export const IssueSchema = z.discriminatedUnion('code', [
+    142:export const ERROR_CODES: readonly ErrorCode[] = [
+    158:export const WARNING_CODES: readonly WarningCode[] = [
+    191:export const AXIS_MIN = -(LIMITS.stepsMax * LIMITS.minutesMax);
+    193:export const StepLanesSchema = z.strictObject({
+    199:export const ScheduledStepSchema = z.strictObject({
+    212:export const ScheduleSchema = z.strictObject({
+    225:export const REBUILD_LIMITS = { servingMax: 1440, extraMax: 1440 } as const;
+    226:const rebuildMinute = z.int().min(AXIS_MIN).max(REBUILD_LIMITS.servingMax);
+    227:const rebuildLength = z
+    232:export const ProgressEntrySchema = z.discriminatedUnion('state', [
+    241:export const ProgressSchema = z.record(z.string(), ProgressEntrySchema);
+    243:export const RebuiltStepSchema = ScheduledStepSchema.extend({
+    250:export const RebuiltScheduleSchema = ScheduleSchema.extend({
+    256:export const StepMoveSchema = z.strictObject({
+    261:export const RebuildDiffSchema = z.strictObject({
+    266:export const RebuiltSchema = z.strictObject({
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/schema.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/schema.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/schema.ts
+[tool:search] Grep Search
+[tool:execute] $ grep -c "\- \[x\]" .kiro/specs/*/tasks.md; grep -c "\- \[ \]" .kiro/specs/*/tasks.md; ls src/server/parse 2>&1; git log --oneline | head -5
+    .kiro/specs/cooking-mode/tasks.md:0
+    .kiro/specs/dinnerfile/tasks.md:17
+    .kiro/specs/plan-ui/tasks.md:0
+    .kiro/specs/rebuild/tasks.md:22
+    .kiro/specs/recipe-graph/tasks.md:36
+    .kiro/specs/recipe-reader/tasks.md:0
+    .kiro/specs/scheduler/tasks.md:39
+    .kiro/specs/cooking-mode/tasks.md:32
+    .kiro/specs/dinnerfile/tasks.md:0
+    .kiro/specs/plan-ui/tasks.md:40
+    .kiro/specs/rebuild/tasks.md:0
+    .kiro/specs/recipe-graph/tasks.md:0
+    .kiro/specs/recipe-reader/tasks.md:27
+    .kiro/specs/scheduler/tasks.md:0
+    ls: src/server/parse: No such file or directory
+    a439151 Dinnerfile export/import with D1, D2 and P-DF properties; R7 property (sous-chef, auto)
+    88d7117 Spec cooking-mode (Kiro spec mode, opus) and its review: no automatic rebuild, Start wording
+    9793fef rebuild T5-T7: rebuild(), properties R1-R6 and P-RB (sous-chef, auto); R7 and its task added by hand
+    241424c Spec plan-ui (Kiro spec mode, opus) and its review: Critical wording, No slack label
+    e756dd7 G9 property (pass-3 mutation now caught); rebuild T1-T4 (sous-chef, auto)
+    exit 0
+[tool:search] Grep Search
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/recipe-reader/design.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/recipe-reader/design.md
+[tool:execute] $ cd node_modules/@modelcontextprotocol/sdk && cat package.json | grep -n '"version"\|"zod"\|"\./\*"\|"exports"' ; ls dist/esm/server dist/esm/inMemory* dist/esm/client | head -40; grep -n "registerTool\|^    tool(" dist/esm/server/mcp.d.ts | head
+    … (25 earlier lines not shown)
+    middleware.d.ts.map
+    middleware.js
+    middleware.js.map
+    sse.d.ts
+    sse.d.ts.map
+    sse.js
+    sse.js.map
+    stdio.d.ts
+    stdio.d.ts.map
+    stdio.js
+    stdio.js.map
+    streamableHttp.d.ts
+    streamableHttp.d.ts.map
+    streamableHttp.js
+    streamableHttp.js.map
+    websocket.d.ts
+    websocket.d.ts.map
+    websocket.js
+    websocket.js.map
+    
+    dist/esm/server:
+    121:     * @deprecated Use `registerTool` instead.
+    123:    tool(name: string, cb: ToolCallback): RegisteredTool;
+    126:     * @deprecated Use `registerTool` instead.
+    128:    tool(name: string, description: string, cb: ToolCallback): RegisteredTool;
+    135:     * @deprecated Use `registerTool` instead.
+    145:     * @deprecated Use `registerTool` instead.
+    150:     * @deprecated Use `registerTool` instead.
+    155:     * @deprecated Use `registerTool` instead.
+    161:    registerTool<OutputArgs extends ZodRawShapeCompat | AnySchema, InputArgs extends undefined | ZodRawShapeCompat | AnySchema = undefined>(name: string, config: {
+    exit 0
+[tool:execute] $ cd node_modules/@modelcontextprotocol/sdk && sed -n 155,185p dist/esm/server/mcp.d.ts; grep -n "ToolCallback\b.*=\|export type BaseToolCallback" -A6 dist/esm/server/mcp.d.ts | head -30; cat dist/esm/inMemory.d.ts | grep -v "^\s*\*\|/\*\*"; grep -n "class StdioServerTransport\|constructor" dist/esm/server/stdio.d.ts; grep -n "export declare class StdioClientTransport\|command\|args\|cwd\|env\|stderr" dist/esm/client/stdio.d.ts | head; grep -n "class McpServer" -A12 dist/esm/server/mcp.d.ts | head -20
+    … (62 earlier lines not shown)
+            relatedRequestId?: RequestId;
+            authInfo?: AuthInfo;
+        }): Promise<void>;
+    }
+    //# sourceMappingURL=inMemory.d.ts.map
+    9:export declare class StdioServerTransport implements Transport {
+    14:    constructor(_stdin?: Readable, _stdout?: Writable, options?: {
+    9:    command: string;
+    13:    args?: string[];
+    15:     * The environment to use when spawning the process.
+    19:    env?: Record<string, string>;
+    21:     * How to handle stderr of the child process. This matches the semantics of Node's `child_process.spawn`.
+    23:     * The default is "inherit", meaning messages to stderr will be printed to the parent process's stderr.
+    25:    stderr?: IOType | Stream | number;
+    31:    cwd?: string;
+    41: * Environment variables to inherit by default, if an environment is not explicitly given.
+    45: * Returns a default environment object including only environment variables deemed safe to inherit.
+    24:export declare class McpServer {
+    25-    /**
+    26-     * The underlying Server instance, useful for advanced operations like sending notifications.
+    27-     */
+    28-    readonly server: Server;
+    29-    private readonly _maxToolInputElements;
+    30-    private _registeredResources;
+    31-    private _registeredResourceTemplates;
+    32-    private _registeredTools;
+    33-    private _registeredPrompts;
+    34-    private _experimental?;
+    35-    constructor(serverInfo: Implementation, options?: McpServerOptions);
+    36-    /**
+    exit 0
+[tool:execute] $ cd node_modules/@modelcontextprotocol/sdk && sed -n 21,30p package.json; sed -n 60,70p package.json; grep -n "Input validation error\|Output validation error\|createToolError\|isError\|McpError(" dist/esm/server/mcp.js | head -30; grep -n "maxToolInputElements\|McpServerOptions" -A3 dist/esm/server/mcp.d.ts | head -20
+    … (33 earlier lines not shown)
+    318:                throw new McpError(ErrorCode.InternalError, `Task ${taskId} not found during polling`);
+    342:                    throw new McpError(ErrorCode.InvalidParams, `Invalid completion reference: ${request.params.ref}`);
+    350:            throw new McpError(ErrorCode.InvalidParams, `Prompt ${ref.name} not found`);
+    353:            throw new McpError(ErrorCode.InvalidParams, `Prompt ${ref.name} disabled`);
+    377:            throw new McpError(ErrorCode.InvalidParams, `Resource template ${request.params.ref.uri} not found`);
+    436:                    throw new McpError(ErrorCode.InvalidParams, `Resource ${uri} disabled`);
+    447:            throw new McpError(ErrorCode.InvalidParams, `Resource ${uri} not found`);
+    477:                throw new McpError(ErrorCode.InvalidParams, `Prompt ${request.params.name} not found`);
+    480:                throw new McpError(ErrorCode.InvalidParams, `Prompt ${request.params.name} disabled`);
+    488:                    throw new McpError(ErrorCode.InvalidParams, `Invalid arguments for prompt ${request.params.name}: ${errorMessage}`);
+    10: * Options for `McpServer`: everything `ServerOptions` accepts, plus `maxToolInputElements`.
+    11- */
+    12:export type McpServerOptions = ServerOptions & {
+    13-    /**
+    14-     * Largest combined number of array elements and object members a single `tools/call` `arguments` payload may contain.
+    15-     * A number of at least 1; unset or `Infinity` means no limit.
+    --
+    17:    maxToolInputElements?: number;
+    18-};
+    19-/**
+    20- * High-level MCP server that provides a simpler API for working with resources, tools, and prompts.
+    --
+    29:    private readonly _maxToolInputElements;
+    30-    private _registeredResources;
+    31-    private _registeredResourceTemplates;
+    32-    private _registeredTools;
+    --
+    35:    constructor(serverInfo: Implementation, options?: McpServerOptions);
+    36-    /**
+    37-     * Access experimental features.
+    exit 0
+[tool:execute] $ cd node_modules/@modelcontextprotocol/sdk && sed -n 170,262p dist/esm/server/mcp.js
+    … (63 earlier lines not shown)
+            }
+            return parseResult.data;
+        }
+        /**
+         * Validates tool output against the tool's output schema.
+         */
+        async validateToolOutput(tool, result, toolName) {
+            if (!tool.outputSchema) {
+                return;
+            }
+            // Only validate CallToolResult, not CreateTaskResult
+            if (!('content' in result)) {
+                return;
+            }
+            if (result.isError) {
+                return;
+            }
+            if (!result.structuredContent) {
+                throw new McpError(ErrorCode.InvalidParams, `Output validation error: Tool ${toolName} has an output schema but no structured content was provided`);
+            }
+            // if the tool has an output schema, validate structured content
+            const outputObj = normalizeObjectSchema(tool.outputSchema);
+            const parseResult = await safeParseAsync(outputObj, result.structuredContent);
+            if (!parseResult.success) {
+                const error = 'error' in parseResult ? parseResult.error : 'Unknown error';
+                const errorMessage = getParseErrorMessage(error);
+                throw new McpError(ErrorCode.InvalidParams, `Output validation error: Invalid structured content for tool ${toolName}: ${errorMessage}`);
+            }
+        }
+        /**
+    exit 0
+[tool:search] Grep Search
+[tool:execute] $ cd node_modules/@modelcontextprotocol/sdk && sed -n 140,156p dist/esm/server/mcp.js; grep -n "callTool\|listTools" dist/esm/client/index.d.ts | head -5; grep -rn "zod" ../../../src/server/*.ts | head -3
+                        if (obj) {
+                            toolDefinition.outputSchema = toJsonSchemaCompat(obj, {
+                                strictUnions: true,
+                                pipeStrategy: 'output'
+                            });
+                        }
+                    }
+                    return toolDefinition;
+                })
+            }));
+            this.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+                try {
+                    const tool = this._registeredTools[request.params.name];
+                    if (!tool) {
+                        throw new McpError(ErrorCode.InvalidParams, `Tool ${request.params.name} not found`);
+                    }
+                    if (!tool.enabled) {
+    429:     * For task-based execution with streaming behavior, use client.experimental.tasks.callToolStream() instead.
+    431:    callTool(params: CallToolRequest['params'], resultSchema?: typeof CallToolResultSchema | typeof CompatibilityCallToolResultSchema, options?: RequestOptions): Promise<{
+    532:     * Called after listTools() to pre-compile validators for better performance.
+    539:    listTools(params?: ListToolsRequest['params'], options?: RequestOptions): Promise<{
+    ../../../src/server/env.ts:1:import { z } from 'zod';
+    exit 0
+[tool:execute] $ grep -n "^export const" test/support/fixtures.ts | head -50; grep -n "createLinkedPair\|InMemory" -r test | head
+    … (20 earlier lines not shown)
+    734:export const RB_A_NOW = -60;
+    741:export const RB_B_PROGRESS: Progress = {
+    746:export const RB_B_NOW = -12;
+    752:export const RB_B2_PROGRESS: Progress = {
+    756:export const RB_B2_NOW = -92;
+    762:export const RB_C_PROGRESS: Progress = {
+    766:export const RB_C_NOW = -60;
+    769:export const E1_PROGRESS: Progress = {
+    773:export const E1_NOW = -35;
+    779:export const E2_PROGRESS: Progress = {
+    783:export const E2_NOW = -100;
+    790:export const E3_PROGRESS: Progress = {
+    794:export const E3_NOW = -20;
+    797:export const E4_PROGRESS: Progress = {
+    802:export const E4_NOW = -88;
+    808:export const E5_PROGRESS: Progress = {
+    812:export const E5_NOW = 3;
+    815:export const E5_EARLY_PROGRESS: Progress = {
+    819:export const E5_EARLY_NOW = -2;
+    826:export const E6_PROGRESS: Progress = {
+    830:export const E6_NOW = -2;
+    836:export const E7_PROGRESS: Progress = {
+    842:export const E7_NOW = -50;
+    848:export const E8_PROGRESS: Progress = Object.fromEntries(
+    851:export const E8_NOW = 0;
+    863:export const WORST_CASE: Plan = {
+    906:export const DINNERFILE_HEADER: readonly string[] = [
+    919:export const SUNDAY_ROAST_DINNERFILE: string =
+    981:export const SUNDAY_ROAST_MAKE_DINNER: readonly string[] = [
+    998:export const SUNDAY_ROAST_MAKE_GRAVY: readonly string[] = [
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/support/fixtures.ts
+[tool:execute] $ sed -n 55,70p test/support/fixtures.ts; grep -n "title:\|holdMin\|handsOn\|id: '" test/support/fixtures.ts | sed -n 1,60p | grep -v "^ *$" | head -60
+    … (46 earlier lines not shown)
+    130:      handsOn: true,
+    132:      holdMin: 5,
+    135:      id: 'chicken.roast',
+    137:      title: 'Roast the chicken',
+    140:      handsOn: false,
+    142:      holdMin: 5,
+    145:      id: 'greens.shred',
+    147:      title: 'Shred the greens',
+    150:      handsOn: true,
+    152:      holdMin: null,
+    155:      id: 'chicken.prep',
+    157:      title: 'Season and truss the chicken',
+    160:      handsOn: true,
+    162:      holdMin: null,
+    189:  title: 'Mezze',
+    191:    { id: 'flatbread', name: 'Flatbread' },
+    192:    { id: 'hummus', name: 'Hummus' },
+    193:    { id: 'salad', name: 'Chopped salad' },
+    197:      id: 'salad.toss',
+    199:      title: 'Toss the salad with the dressing',
+    202:      handsOn: true,
+    204:      holdMin: 5,
+    207:      id: 'flatbread.cook',
+    209:      title: 'Cook the flatbreads one by one',
+    212:      handsOn: true,
+    214:      holdMin: 10,
+    217:      id: 'salad.dressing',
+    219:      title: 'Whisk the dressing',
+    222:      handsOn: true,
+    224:      holdMin: null,
+    exit 0
+[tool:search] Grep Search
+[tool:search] Grep Search
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/agents/sous-chef.json
+[tool:execute] $ sed -n 1,40p scripts/kiro-run.sh; cat .gitignore; cat tsconfig.base.json | head -30; grep -n "mcp" eslint.config.js vitest.config.ts README.md | head -20
+    … (50 earlier lines not shown)
+    playwright-report/
+    coverage/
+    # NOTE: never ignore .kiro/ (hackathon requirement: specs, hooks and steering must be committed)
+    {
+      "compilerOptions": {
+        "target": "ES2023",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "strict": true,
+        "noUncheckedIndexedAccess": true,
+        "exactOptionalPropertyTypes": true,
+        "noImplicitOverride": true,
+        "noFallthroughCasesInSwitch": true,
+        "verbatimModuleSyntax": true,
+        "isolatedModules": true,
+        "forceConsistentCasingInFileNames": true,
+        "skipLibCheck": true
+      }
+    }
+    eslint.config.js:7:const OTHER_PACKAGES = ['**/server/**', '**/web/**', '**/mcp/**', '**/test/**', '**/e2e/**'];
+    eslint.config.js:13:/** server, web and mcp reach core only through src/core/index.js. */
+    eslint.config.js:109:  // src/server: core through index only; never web or mcp.
+    eslint.config.js:119:              group: ['**/web/**', '**/mcp/**'],
+    eslint.config.js:120:              message: 'src/server never imports src/web or src/mcp.',
+    eslint.config.js:129:  // src/web: core through index only; never server, mcp, Node, the SDK or hono.
+    eslint.config.js:140:              group: ['**/server/**', '**/mcp/**'],
+    eslint.config.js:141:              message: 'src/web never imports src/server or src/mcp.',
+    eslint.config.js:155:  // src/mcp: core through index only; neither server nor web.
+    eslint.config.js:157:    files: ['src/mcp/**/*.ts'],
+    eslint.config.js:166:              message: 'src/mcp imports neither src/server nor src/web.',
+    exit 0
+[tool:execute] $ cd node_modules/@modelcontextprotocol/sdk && grep -n "isError\|structuredContent" dist/esm/client/index.js | head; grep -n "export declare function getDefaultEnvironment\|DEFAULT_INHERITED_ENV_VARS" dist/esm/client/stdio.d.ts
+    488:            // If tool has outputSchema, it MUST return structuredContent (unless it's an error)
+    489:            if (!result.structuredContent && !result.isError) {
+    493:            if (result.structuredContent) {
+    496:                    const validationResult = validator(result.structuredContent);
+    43:export declare const DEFAULT_INHERITED_ENV_VARS: string[];
+    47:export declare function getDefaultEnvironment(): Record<string, string>;
+    exit 0
+[tool:execute] $ cd node_modules/@modelcontextprotocol/sdk && sed -n 480,510p dist/esm/client/index.js
+    … (1 earlier lines not shown)
+            if (this.isToolTaskRequired(params.name)) {
+                throw new McpError(ErrorCode.InvalidRequest, `Tool "${params.name}" requires task-based execution. Use client.experimental.tasks.callToolStream() instead.`);
+            }
+            const result = await this.request({ method: 'tools/call', params }, resultSchema, options);
+            // Check if the tool has an outputSchema
+            const validator = this.getToolOutputValidator(params.name);
+            if (validator) {
+                // If tool has outputSchema, it MUST return structuredContent (unless it's an error)
+                if (!result.structuredContent && !result.isError) {
+                    throw new McpError(ErrorCode.InvalidRequest, `Tool ${params.name} has an output schema but did not return structured content`);
+                }
+                // Only validate structured content if present (not when there's an error)
+                if (result.structuredContent) {
+                    try {
+                        // Validate the structured content against the schema
+                        const validationResult = validator(result.structuredContent);
+                        if (!validationResult.valid) {
+                            throw new McpError(ErrorCode.InvalidParams, `Structured content does not match the tool's output schema: ${validationResult.errorMessage}`);
+                        }
+                    }
+                    catch (error) {
+                        if (error instanceof McpError) {
+                            throw error;
+                        }
+                        throw new McpError(ErrorCode.InvalidParams, `Failed to validate structured content: ${error instanceof Error ? error.message : String(error)}`);
+                    }
+                }
+            }
+            return result;
+        }
+    exit 0
+[tool:execute] $ cat vitest.config.ts tsconfig.test.json; sed -n 150,175p eslint.config.js; grep -n "^#\|^##" README.md
+    … (30 earlier lines not shown)
+      },
+      "include": ["test/**/*.ts", "test/**/*.tsx", "e2e/**/*.ts"]
+    }
+            },
+          ],
+        },
+      },
+    
+      // src/mcp: core through index only; neither server nor web.
+      {
+        files: ['src/mcp/**/*.ts'],
+        rules: {
+          'no-restricted-imports': [
+            'error',
+            {
+              patterns: [
+                coreOnlyThroughIndex,
+                {
+                  group: ['**/server/**', '**/web/**'],
+                  message: 'src/mcp imports neither src/server nor src/web.',
+                },
+                noTestImports,
+              ],
+            },
+          ],
+        },
+      },
+    
+      // Vitest tests: nothing disabled, nothing focused.
+    1:# Make Dinner
+    exit 0
+[tool:execute] $ node -e "Promise.all(['server/mcp.js','server/stdio.js','inMemory.js','client/index.js','client/stdio.js','types.js'].map(p=>import('@modelcontextprotocol/sdk/'+p).then(m=>p+': '+Object.keys(m).filter(k=>/^(McpServer|StdioServerTransport|InMemoryTransport|Client|StdioClientTransport|getDefaultEnvironment|CallToolResultSchema)$/.test(k)).join(','))) ).then(r=>console.log(r.join('\n')))"
+    server/mcp.js: McpServer
+    server/stdio.js: StdioServerTransport
+    inMemory.js: InMemoryTransport
+    client/index.js: Client
+    client/stdio.js: StdioClientTransport,getDefaultEnvironment
+    types.js: CallToolResultSchema
+    exit 0
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/requirements.md
+[tool:execute] $ wc -l .kiro/specs/kitchen-mcp/requirements.md
+         140 .kiro/specs/kitchen-mcp/requirements.md
+    exit 0
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/requirements.md
+[tool:execute] $ wc -l .kiro/specs/kitchen-mcp/requirements.md
+         126 .kiro/specs/kitchen-mcp/requirements.md
+    exit 0
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/requirements.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/requirements.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/requirements.md
+[tool:execute] $ wc -l .kiro/specs/kitchen-mcp/requirements.md
+         121 .kiro/specs/kitchen-mcp/requirements.md
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/requirements.md
+
+Tightening the top half.
+
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/requirements.md
+[tool:execute] $ wc -l .kiro/specs/kitchen-mcp/requirements.md
+         118 .kiro/specs/kitchen-mcp/requirements.md
+    exit 0
+[tool:execute] $ wc -l .kiro/specs/kitchen-mcp/requirements.md
+         118 .kiro/specs/kitchen-mcp/requirements.md
+    exit 0
+[tool:execute] $ wc -l .kiro/specs/kitchen-mcp/requirements.md
+         118 .kiro/specs/kitchen-mcp/requirements.md
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/requirements.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/requirements.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/requirements.md
+[tool:execute] $ wc -l .kiro/specs/kitchen-mcp/requirements.md
+         114 .kiro/specs/kitchen-mcp/requirements.md
+    exit 0
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/requirements.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/requirements.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/requirements.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/requirements.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/requirements.md
+[tool:execute] $ wc -l .kiro/specs/kitchen-mcp/requirements.md
+         109 .kiro/specs/kitchen-mcp/requirements.md
+    exit 0
+[tool:execute FAILED] $ wc -l .kiro/specs/kitchen-mcp/design.md
+    wc: .kiro/specs/kitchen-mcp/design.md: open: No such file or directory
+    exit 1
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/design.md
+[tool:execute] $ wc -l .kiro/specs/kitchen-mcp/*.md
+         265 .kiro/specs/kitchen-mcp/design.md
+         109 .kiro/specs/kitchen-mcp/requirements.md
+         374 total
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/support/fixtures.ts
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/design.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/design.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/design.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/design.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/design.md
+[tool:execute] $ wc -l .kiro/specs/kitchen-mcp/design.md
+         264 .kiro/specs/kitchen-mcp/design.md
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/design.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/design.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/design.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/design.md
+[tool:execute] $ wc -l .kiro/specs/kitchen-mcp/design.md
+         260 .kiro/specs/kitchen-mcp/design.md
+    exit 0
+[tool:execute] $ wc -l .kiro/specs/kitchen-mcp/design.md
+         260 .kiro/specs/kitchen-mcp/design.md
+    exit 0
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/design.md
+[tool:execute] $ wc -l .kiro/specs/kitchen-mcp/design.md; grep -n "storage fakes" .kiro/specs/kitchen-mcp/design.md
+         259 .kiro/specs/kitchen-mcp/design.md
+    238:  `memorySamples` maps paths to texts; a throwing variant fakes a broken disk (storage fakes only).
+    exit 0
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/tasks.md
+[tool:execute] $ wc -l .kiro/specs/kitchen-mcp/*.md; bash scripts/hooks/tasks-lint.sh .kiro/specs/kitchen-mcp/tasks.md; grep -c "^- \[ \] T" .kiro/specs/kitchen-mcp/tasks.md
+         259 .kiro/specs/kitchen-mcp/design.md
+         109 .kiro/specs/kitchen-mcp/requirements.md
+         140 .kiro/specs/kitchen-mcp/tasks.md
+         508 total
+    [tasks-lint] ok: 1 file(s)
+    16
+    exit 0
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/tasks.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/tasks.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/tasks.md
+[tool:execute] $ wc -l .kiro/specs/kitchen-mcp/tasks.md
+         133 .kiro/specs/kitchen-mcp/tasks.md
+    exit 0
+[tool:execute] $ wc -l .kiro/specs/kitchen-mcp/tasks.md
+         133 .kiro/specs/kitchen-mcp/tasks.md
+    exit 0
+
+Four more lines to cut.
+
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/tasks.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/tasks.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/tasks.md
+[tool:execute] $ sleep 1; wc -l .kiro/specs/kitchen-mcp/*.md
+         259 .kiro/specs/kitchen-mcp/design.md
+         109 .kiro/specs/kitchen-mcp/requirements.md
+         131 .kiro/specs/kitchen-mcp/tasks.md
+         499 total
+    exit 0
+[tool:execute] $ sleep 1; wc -l .kiro/specs/kitchen-mcp/*.md; bash scripts/hooks/tasks-lint.sh .kiro/specs/kitchen-mcp/tasks.md; npx prettier --check .kiro/specs/kitchen-mcp/ 2>&1 | tail -3
+         259 .kiro/specs/kitchen-mcp/design.md
+         109 .kiro/specs/kitchen-mcp/requirements.md
+         131 .kiro/specs/kitchen-mcp/tasks.md
+         499 total
+    [tasks-lint] ok: 1 file(s)
+    Checking formatting...
+    All matched files use Prettier code style!
+    exit 0
+[tool:execute] $ wc -l .kiro/specs/kitchen-mcp/*.md && bash scripts/hooks/tasks-lint.sh .kiro/specs/kitchen-mcp/tasks.md && npx prettier --check .kiro/specs/kitchen-mcp/ && grep -c "^- \[ \] T" .kiro/specs/kitchen-mcp/tasks.md
+         259 .kiro/specs/kitchen-mcp/design.md
+         109 .kiro/specs/kitchen-mcp/requirements.md
+         131 .kiro/specs/kitchen-mcp/tasks.md
+         499 total
+    [tasks-lint] ok: 1 file(s)
+    Checking formatting...
+    All matched files use Prettier code style!
+    16
+    exit 0
+[tool:execute] $ wc -l .kiro/specs/kitchen-mcp/tasks.md
+         131 .kiro/specs/kitchen-mcp/tasks.md
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/tasks.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/tasks.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/tasks.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/tasks.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/tasks.md
+[tool:execute] $ wc -l .kiro/specs/kitchen-mcp/*.md && bash scripts/hooks/tasks-lint.sh .kiro/specs/kitchen-mcp/tasks.md && npx prettier --check .kiro/specs/kitchen-mcp/ && grep -c "^- \[ \] T" .kiro/specs/kitchen-mcp/tasks.md && git status --short
+    … (8 earlier lines not shown)
+     M .env.example
+     M .kiro/specs/recipe-reader/design.md
+     M .kiro/specs/recipe-reader/tasks.md
+     M docs/kiro-evidence/hook-fires.log
+     M docs/kiro-evidence/prompts/12-spec-kitchen-mcp.md
+     M src/core/index.ts
+     M src/server/env.ts
+     M src/server/errors.ts
+     M test/core/index.test.ts
+     M test/meta/oracles.test.ts
+     M test/server/env.test.ts
+     M test/support/arbitraries.ts
+     M test/support/fakes.ts
+     M test/support/oracles.ts
+    ?? .kiro/specs/kitchen-mcp/
+    ?? docs/kiro-evidence/impl-recipe-reader-session.txt
+    ?? docs/kiro-evidence/prompts/17a-impl-plan-ui.md
+    ?? docs/kiro-evidence/prompts/17b-impl-plan-ui.md
+    ?? docs/kiro-evidence/prompts/17c-impl-plan-ui.md
+    ?? docs/kiro-evidence/prompts/17d-impl-plan-ui.md
+    ?? docs/kiro-evidence/prompts/17e-impl-plan-ui.md
+    ?? docs/kiro-evidence/spec-kitchen-mcp-session.txt
+    ?? samples/index.json
+    ?? src/core/api.ts
+    ?? src/server/parse/
+    ?? test/core/api.test.ts
+    ?? test/fixtures/
+    ?? test/meta/fakes.test.ts
+    ?? test/server/parse/
+    ?? test/support/server.ts
+    exit 0
+[tool:execute] $ git diff src/core/index.ts; ls src/server/parse recordings 2>&1 | head
+    … (3 earlier lines not shown)
+    +++ b/src/core/index.ts
+    @@ -90,3 +90,22 @@ export type {
+       DinnerfileOptions,
+       MetadataKeyword,
+     } from './dinnerfile.js';
+    +
+    +export {
+    +  API_ERROR_CODES,
+    +  ApiErrorSchema,
+    +  ParseRequestSchema,
+    +  ParseResponseSchema,
+    +  RECIPE_TEXT_MAX,
+    +  SampleEntrySchema,
+    +  SampleItemSchema,
+    +  SamplesResponseSchema,
+    +} from './api.js';
+    +export type {
+    +  ApiErrorCode,
+    +  ParseRequest,
+    +  ParseResponse,
+    +  SampleEntry,
+    +  SampleItem,
+    +  SamplesResponse,
+    +} from './api.js';
+    ls: recordings: No such file or directory
+    src/server/parse:
+    anthropic-client.ts
+    limits.ts
+    prompt.ts
+    recordings.ts
+    exit 0
+[tool:search] Grep Search
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/design.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/design.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/design.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/tasks.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/tasks.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/tasks.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/design.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/design.md
+[tool:execute] $ wc -l .kiro/specs/kitchen-mcp/*.md && bash scripts/hooks/tasks-lint.sh .kiro/specs/kitchen-mcp/tasks.md && npx prettier --check .kiro/specs/kitchen-mcp/
+         260 .kiro/specs/kitchen-mcp/design.md
+         109 .kiro/specs/kitchen-mcp/requirements.md
+         130 .kiro/specs/kitchen-mcp/tasks.md
+         499 total
+    [tasks-lint] ok: 1 file(s)
+    Checking formatting...
+    All matched files use Prettier code style!
+    exit 0
+[tool:execute] $ wc -l .kiro/specs/kitchen-mcp/*.md
+         260 .kiro/specs/kitchen-mcp/design.md
+         109 .kiro/specs/kitchen-mcp/requirements.md
+         130 .kiro/specs/kitchen-mcp/tasks.md
+         499 total
+    exit 0
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/tasks.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/tasks.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/tasks.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/design.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/design.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/design.md
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/design.md
+[tool:execute] $ wc -l .kiro/specs/kitchen-mcp/*.md
+         259 .kiro/specs/kitchen-mcp/design.md
+         109 .kiro/specs/kitchen-mcp/requirements.md
+         130 .kiro/specs/kitchen-mcp/tasks.md
+         498 total
+    exit 0
+[tool:execute] $ sleep 1 && wc -l .kiro/specs/kitchen-mcp/*.md && bash scripts/hooks/tasks-lint.sh .kiro/specs/kitchen-mcp/tasks.md && npx prettier --check .kiro/specs/kitchen-mcp/ && grep -c "^- \[ \] T" .kiro/specs/kitchen-mcp/tasks.md
+         259 .kiro/specs/kitchen-mcp/design.md
+         109 .kiro/specs/kitchen-mcp/requirements.md
+         130 .kiro/specs/kitchen-mcp/tasks.md
+         498 total
+    [tasks-lint] ok: 1 file(s)
+    Checking formatting...
+    All matched files use Prettier code style!
+    16
+    exit 0
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/kitchen-mcp/tasks.md
+[tool:execute] $ sleep 1 && wc -l .kiro/specs/kitchen-mcp/*.md && bash scripts/hooks/tasks-lint.sh .kiro/specs/kitchen-mcp/tasks.md && npx prettier --check .kiro/specs/kitchen-mcp/
+         259 .kiro/specs/kitchen-mcp/design.md
+         109 .kiro/specs/kitchen-mcp/requirements.md
+         129 .kiro/specs/kitchen-mcp/tasks.md
+         497 total
+    [tasks-lint] ok: 1 file(s)
+    Checking formatting...
+    All matched files use Prettier code style!
+    exit 0
+
+I've written the `kitchen-mcp` spec as three files in `.kiro/specs/kitchen-mcp/`. No code was written. All three are under your length limits: requirements.md is 109 lines, design.md 259 and tasks.md 129. `tasks.md` has 16 sub-tasks; `scripts/hooks/tasks-lint.sh` and `npx prettier --check .kiro/specs/kitchen-mcp/` both pass on it. Those are the only checks I ran; no tests were run, because there is no code yet.
+
+Reading the installed SDK (1.32.2) changed four parts of the design:
+
+- **Error results:** the SDK client checks `structuredContent` against the tool's success schema even when `isError` is set. So a tool error carries no `structuredContent`. It returns two text blocks instead: a plain-English message, then a JSON block with `{ error: { code, message, ...details } }`.
+- **Thrown errors:** the SDK catches every throw in `tools/call` (unknown tool, input validation, input-size limit) and turns it into an `isError` result. So no protocol error ever reaches the agent.
+- **Input schemas:** the tools advertise the real core schemas, so the SDK rejects badly shaped arguments with its own "Input validation error" message before our code runs. `check_plan` takes any value, so an agent can still get a broken plan's problems one by one.
+- **Success results:** each success returns `structuredContent` plus two text blocks, the readable summary and the JSON. That way a client that ignores `structuredContent` can still pass a schedule on to `rebuild_plan`.
+
+The design also includes:
+- the plan-list text worked out by hand for the Sunday roast example, line by line;
+- the table of error codes and messages;
+- the lint rules that block network, file writes and `process.env` in `src/mcp`;
+- the taster's three kitchens (the sample's suggested one, one burner, one oven and one cook) and its prompt.
+
+Things that changed while I worked, or that you need to know:
+
+- **Another session is editing the same tree.** At the start, `samples/index.json` and `src/server/parse/` didn't exist. They now do, uncommitted, from what looks like a recipe-reader implementation session. That session moved `SampleEntrySchema` into `src/core/api.ts`. The design follows that: `src/mcp` imports `SampleEntrySchema` from core, and copies `SampleIndexSchema` and `RecordingSchema`, because `src/mcp` may not import from `src/server`. A parity test keeps the copies equal. `recordings/` still doesn't exist.
+- **Three tasks need the recordings,** which only you can make with `npm run record`: T3.2 (the stdio test), the by-hand part of T3.3 and T4.2 (the recorded taster run).
+- **T4.2 is yours to run,** because only `scripts/kiro-run.sh` may write to `docs/kiro-evidence/`. Prompt number 17 is already used by the plan-ui prompts, so the design asks you to pick the next free number.
+- **The `invalid_now` message gives no numbers.** `AXIS_MIN` and `REBUILD_LIMITS` aren't exported from `src/core/index.ts`, and this spec doesn't change core.
+- **After a change to `src/core`,** reconnect `make-dinner` from Kiro's MCP panel before asking whether every sample still lands within its holds. The server runs from source and doesn't reload itself.
+
+Questions for you, listed at the end of `design.md`:
+1. Should `SampleIndexSchema` and `RecordingSchema` move into `src/core/api.ts` next to `SampleEntrySchema`? Then nothing needs copying.
+2. Does Kiro start workspace MCP servers from the workspace root? The `mcp.json` entry uses the relative path `src/mcp/index.ts`; T3.3 checks this by hand.
+3. Do `tools: ["read", "@make-dinner"]` and `includeMcpJson: true` really keep your user-level MCP servers away from the taster? T4.1 checks the Kiro agent docs before writing the file.
+
+--- run success (end_turn); credits reported by this session: 63.57 ---

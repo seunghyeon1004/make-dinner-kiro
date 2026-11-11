@@ -12,3 +12,5 @@ Scope:
 - The README section that tells a user how to add the server to their own MCP client.
 
 Keep tasks.md to about 12 to 16 sub-tasks.
+
+Length: this is a thin adapter over core. Aim for requirements.md under 110 lines, design.md under 260 lines and tasks.md under 130 lines. Read only what you need: the core index.ts exports, the Schedule, Progress and Dinnerfile types, and the MCP SDK's server and in-memory transport typings. Do not run exploratory scripts beyond confirming the SDK's import paths.
