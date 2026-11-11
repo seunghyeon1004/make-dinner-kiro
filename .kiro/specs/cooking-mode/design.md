@@ -27,7 +27,7 @@ Imports: `cook-slot.ts` → `cook-session.ts` → `clock.ts`, `../../core/index.
 | name | value | meaning |
 | ---- | ----- | ------- |
 | `SLIP_MIN` | 2 | a start or end more than 2 min from the schedule's rebuilds; within it the fact is only recorded |
-| `OVERDUE_MIN` | 5 | a running step 5 min past its scheduled end, or a pending step 5 min (or its slack, if larger) past its start, triggers a rebuild |
+| `OVERDUE_MIN` | 5 | a running step 5 min past its scheduled end, or a pending step 5 min (or its slack, if larger) past its start, is shown late; it never triggers a rebuild (review Q4) |
 | `UNDO_MS` | 10 000 | "Undo" is offered for 10 s after an action |
 | `STALE_MS` | 8 h | a session whose last action is older asks to resume or discard |
 | `UP_NEXT_COUNT` | 3 | items in "Up next" |
@@ -49,7 +49,6 @@ export type StepFact =
 export type LogCause =
   | { kind: 'begin-late'; byMin: number } | { kind: 'start' | 'done'; stepId: string; byMin: number } // + late, - early
   | { kind: 'extra'; stepId: string; minutes: 5 | 10 | 15 } | { kind: 'behind' }
-  | { kind: 'overdue'; stepIds: string[] };                         // sorted by compareIds
 export type LogResult =
   | { ok: true; moved: StepMove[]; unchanged: string[]; servingFromMin: number; servingToMin: number;
       newWarnings: HoldExceededIssue[] }                             // moved sorted by (toStartMin, id)
@@ -130,20 +129,23 @@ and `lastActiveMs = t`.
 
 | action | valid when | facts | rebuild when | undo label |
 | ------ | ---------- | ----- | ------------ | ---------- |
-| `start-now` | no fact, no log entry, `t < startMs` | none; `d = round((startMs - t) / MINUTE_MS)`, at least 1; `axisMs -= d` min, `plannedServingMs` alike | never | `start-now` |
+| `start-now` | no fact, no log entry, `t < startMs` | none; `d = ceil((startMs - t) / MINUTE_MS)`, at least 1 (rounded up so the start is reached; decided in implementation); `axisMs -= d` min, `plannedServingMs` alike | never | `start-now` |
 | `start {s}` | `s` pending | `running { t, extraMin 0 }` | `abs(n - sched(s).startMin) > SLIP_MIN`, cause `start` | `start` |
 | `done {s}` | `s` running | `done { startedAtMs, t }` | `abs(n - sched(s).endMin) > SLIP_MIN`, cause `done` | `done` |
 | `extra {s, m}` | `s` running | `extraMin += m` (capped at `extraMax`) | always, cause `extra` | `extra` |
 | `behind` | phase cooking | none | always, cause `behind` | `behind` |
 | `undo` | `undo` set, `t < untilMs` | `core = undo.before` | never | slot cleared |
-| `tick` | phase cooking | none | `overdueIds(core, t)` non-empty, cause `overdue` | slot kept |
+| `tick` | always | none | never (display only: late steps come from the clock; review Q4) | slot kept |
 | `resume` | always | none | never | `lastActiveMs = t` only |
 | `alerts {wanted}` | always | none | never | `alertsWanted` only |
 
 An invalid action returns `state` itself (CM3.7). `byMin` is `n - sched(s).startMin` (or `endMin`).
 `overdueIds`: running `s` with `n >= sched(s).endMin + OVERDUE_MIN`, and pending `s` with `n >=
 sched(s).startMin + max(OVERDUE_MIN, sched(s).slackMin)`. After the rebuild a pending step starts
-`>= n` and a running overrun ends at `n`, so a second tick at the same `n` finds nothing (P-CM6).
+`>= n` and a running overrun ends at `n`, so after "I'm behind" nothing is late at that `n`. `overdueIds` only
+feeds the view: `CardStep.lateByMin` (`n - endMin` for a running step, `n - startMin` for a due one, set only
+for the ids `overdueIds` returns) and `CookView.emphasiseBehind` (phase cooking and any id late). Added
+for review Q4.
 
 **Rebuild and log.** `r = rebuild(core.schedule, progressOf(core'), n)`. `ok`: `schedule =
 r.value.schedule`; entry `{ atMs: t, cause, result: { ok: true, moved: diff.moved` sorted by
@@ -163,6 +165,7 @@ export interface CardStep {
   state: 'due' | 'running'; startedAtMs: number | null; endsAtMs: number | null; // running only
   remainingMs: number | null;        // endsAtMs - nowMs, negative when over
   waitsFor: string[];                // titles of prerequisites not done, in plan order (due only)
+  lateByMin: number | null;          // set while the step is late by the overdue rule (review Q4)
 }
 export interface LaneCard { cookLane: number; current: CardStep | null; also: CardStep[]; next: { title: string; startMs: number } | null }
 export interface UpNextItem { stepId: string; title: string; dishName: string; startMs: number; inMin: number }
@@ -172,6 +175,7 @@ export interface CookView {
   phase: Phase; nowMs: number; servingMs: number; plannedServingMs: number; startMs: number;
   lanes: LaneCard[]; toStart: CardStep[]; running: CardStep[]; upNext: UpNextItem[]; dishes: DishState[];
   dock: { stepId: string; action: 'start' | 'done' } | null;
+  emphasiseBehind: boolean;          // phase cooking and some step is late (review Q4)
   undo: { label: UndoLabel; untilMs: number } | null;
   finished: { servedMs: number; plannedMs: number } | null;
   log: LogEntry[];                   // newest first
@@ -274,6 +278,7 @@ seconds with unbounded minutes (`69:00`), overrun `+02:10`; `<t>` a step title.
 | header | `<clock>`; `Serve at <time>`; `Planned for <time>` when different |
 | countdown | h2 `Cooking starts at <time>`; timer label `Time until cooking starts`; `First: <t> (<dish>)` (two at most, `; `-joined); `Start now to serve at <time>, <d> earlier.`; button `Start now` |
 | sections | h2 `Do now`, `Running`, `Up next`, `Dishes`, `Build log`, `Sound and screen` |
+| late (review Q4) | on a card with `lateByMin`: `! Late by <duration>`; the dock's `I'm behind` is emphasised |
 | lane card | label `Cook <n>` (several cooks only); h3 `<t>`; detail; `<dish> · <duration> · due <time>` / `· due since <time>` / `· done at <time>`; `! Waits for <titles, “” each>, not done yet.`; timer label `Time left`; free: h3 `Nothing to do now`, `Next: <t> at <time>, in <d>.` / `Nothing more for this cook.`; also-due heading `Also due` |
 | start card | label `Start, then leave it`; h3 `<t>`; `<dish> · <duration> · due <time>` |
 | running card | h3 `<t>`; `<dish> · ready at <time>`; timer label `Time left`; up: `! Time is up` |
@@ -295,7 +300,7 @@ visually-hidden span, `ui.md` "Gravy moved from 18:40 to 18:55", with the mono t
 
 | line | mono text | sentence |
 | ---- | --------- | -------- |
-| cause | `<atTime> rebuild: started <d> late` / `<id> started <d> late` (`early`) / `<id> done <d> late` (`early`) / `<id> needs <m> more min` / `I'm behind` / `overdue <ids, ", ">` | `Rebuilt at <time>: …` the same words with titles |
+| cause | `<atTime> rebuild: started <d> late` / `<id> started <d> late` (`early`) / `<id> done <d> late` (`early`) / `<id> needs <m> more min` / `I'm behind` | `Rebuilt at <time>: …` the same words with titles |
 | move | `<id> <from> -> <to>` | `<t> moved from <from> to <to>.` |
 | unchanged | `<n> step(s) up to date` (omitted at 0) | same |
 | serving | `serve <from> -> <to>` (only when changed) | `Serving moved from <from> to <to>.` |
@@ -343,19 +348,20 @@ finished `Everything is done. Dinner is served.` Nothing else is announced.
 - **CM-d I'm behind.** Prep done 17:40–17:50, roast started 17:50, shred not started; `behind` at
   17:53 (`n = -97`, checked with core): only shred moves, to `[-97,-92)`. Log `17:53 rebuild: I'm
   behind`, `greens.shred 17:50 -> 17:53`, `9 steps up to date`, no serve line. Announcement `Plan
-  rebuilt: 1 step moved. Serving stays at 19:30.` Not overdue before: `-97 < -100 + max(5, 75)`.
+  rebuilt: 1 step moved. Serving stays at 19:30.` Not late before: `-97 < -100 + max(5, 75)`.
 - **CM-e thresholds.** Start roast at 17:52 (`byMin 2`): no entry, the schedule object unchanged;
   at 17:53 (`3`): one entry, cause `chicken.roast started 3 min late`, roast pinned at −97.
 - **CM-f nothing due** (CM-c's facts without the +15, 17:56): lanes `[{ current: null, next: roux
   19:10 }]`, `toStart []`, running roast `69:00` to 19:05, up next rest 19:05 (`in 1 h 9 min`), roux
   19:10, simmer 19:12; dishes `Roast chicken: 1 of 4 done` cooking, `Gravy: 0 of 3 done` next at
   19:10, `Spring greens: 1 of 3 done` next at 19:20; dock null.
-- **CM-g overdue.** CM-f untouched until a tick at 19:10:00 (`n = -20`): roast `-20 >= -25 + 5`,
-  rest `-20 >= -25 + max(5, 0)`; the tick at 19:09:45 (`n = -21`) does nothing. The rebuild is E3:
-  log `19:10 rebuild: overdue chicken.rest, chicken.roast`; `chicken.rest 19:05 -> 19:10`,
+- **CM-g late (changed by review Q4: no automatic rebuild).** CM-f untouched until 19:10:00 (`n = -20`): roast `-20 >= -25 + 5`,
+  rest `-20 >= -25 + max(5, 0)`: both cards read late by 5 min, "I'm behind" is emphasised and nothing
+  moves; at 19:09:45 (`n = -21`) nothing is late, and a tick never changes the state. Tapping "I'm
+  behind" at 19:10:00 gives the E3 rebuild: log `19:10 rebuild: I'm behind`; `chicken.rest 19:05 -> 19:10`,
   `gravy.roux 19:10 -> 19:15`, `gravy.simmer 19:12 -> 19:17`, `greens.boil 19:20 -> 19:25`,
   `gravy.strain 19:22 -> 19:27`, `greens.toss 19:24 -> 19:29`, `chicken.carve 19:25 -> 19:30`; `3
-  steps up to date`; `serve 19:30 -> 19:35`; no warnings. A second tick at 19:10:00 changes nothing.
+  steps up to date`; `serve 19:30 -> 19:35`; no warnings. A second tap at 19:10:00 logs `Everything is on time`.
 - **CM-h undo.** After CM-c, `undo` at 18:30:05: `core` deep-equals the core before the +15 (H1
   schedule, roast `extraMin 0`, empty log); at 18:30:10 `undo` is a no-op and the view has no undo.
 - **CM-i several cooks.** `schedule(SUNDAY_ROAST, TWO_COOK_KITCHEN)` (checked with core): prep
@@ -395,8 +401,8 @@ In `test/web/state/cook-session.pbt.ts` and `cook-view.pbt.ts`, `fcParams()`, 60
 | P-CM2 undo | for every undoable action in a trace, `undo` within `UNDO_MS` gives `core` deep-equal to `before.core` and the same `alertsWanted`; after `UNDO_MS` it returns the state itself | CM3.4, CM5.8 |
 | P-CM3 honest view | at every trace point and `now + 0..120 min`: no done step in `lanes`, `toStart`, `running`, `upNext`; due and running ids equal `oracleCookSections`, each once; `upNext` = the oracle's first three; `finished` iff every terminal step is done | CM2.2–CM2.8 |
 | P-CM4 reload | `CookStateSchema.parse(JSON.parse(JSON.stringify(s)))` deep-equals `s`, and through plan-ui `toPersisted`/`loadState` the `cookView` at the same `now` deep-equals the original's | CM7.1, CM7.2 |
-| P-CM5 clock | every running card's `remainingMs = startedAtMs + (minutes + extraMin) × 60 000 - now`; inserting `tick`s where `oracleOverdue` is empty changes no state | CM4.1 |
-| P-CM6 triggers | an action adds a log entry iff the table's rebuild condition holds (thresholds by an independent `abs` check); a tick rebuilds iff `oracleOverdue` is non-empty; two ticks at one `now` give at most one entry | CM5.1 |
+| P-CM5 clock | every running card's `remainingMs = startedAtMs + (minutes + extraMin) × 60 000 - now`; the cards with `lateByMin` set are exactly `oracleOverdue`'s ids, `emphasiseBehind` iff cooking and any is late; a `tick` returns the state itself | CM4.1, CM2.9 |
+| P-CM6 triggers | an action adds a log entry iff the table's rebuild condition holds (thresholds by an independent `abs` check); a tick never adds an entry or changes the state, whatever is late (review Q4) | CM5.1 |
 | P-CM7 total | `progressOf` passes `ProgressSchema`; no logged rebuild is `err` other than `serving_out_of_range`; `reduceCook` with `fc.anything()` ids, minutes and times never throws | CM3.7, CM5.2, CM5.7 |
 
 ## Test plan

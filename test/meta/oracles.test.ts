@@ -9,7 +9,10 @@ import type {
   Step,
 } from '../../src/core/schema.js';
 import {
+  AXIS_MS,
   BARE_KITCHEN,
+  CM_F_FACTS,
+  cmAt,
   E7_NOW,
   E7_PROGRESS,
   H1_SCHEDULE,
@@ -48,6 +51,8 @@ import {
   oracleMakeLines,
   oracleNeededSteps,
   oracleCompletenessViolations,
+  oracleCookSections,
+  oracleOverdue,
   oracleHoldExceeded,
   oracleLaneViolations,
   oracleLatestPosition,
@@ -1497,5 +1502,49 @@ describe('recipe-reader oracles, hand-worked', () => {
     expect(oracleUtcDay(Date.UTC(2026, 10, 11, 23, 59, 59, 999))).toBe('2026-11-11');
     expect(oracleUtcDay(Date.UTC(2026, 10, 12, 0, 0, 0, 0))).toBe('2026-11-12');
     expect(oracleUtcDay(0)).toBe('1970-01-01');
+  });
+});
+
+describe('cooking-mode oracles, hand-worked (CM-f and CM-g)', () => {
+  const facts = Object.fromEntries(
+    Object.entries(CM_F_FACTS).map(([id, fact]) => [id, { state: fact.state }]),
+  );
+
+  it('CM-f at 17:56: nothing is due, the roast runs, rest, roux and simmer are next', () => {
+    expect(oracleCookSections(H1_SCHEDULE, facts, AXIS_MS, cmAt(17, 56))).toEqual({
+      due: [],
+      running: ['chicken.roast'],
+      upNext: ['chicken.rest', 'gravy.roux', 'gravy.simmer'],
+    });
+  });
+  it('CM-f broken input: without the roast fact the roast is due at 17:56, not running', () => {
+    const broken = { 'chicken.prep': facts['chicken.prep'], 'greens.shred': facts['greens.shred'] };
+    const sections = oracleCookSections(
+      H1_SCHEDULE,
+      broken as Record<string, { state: 'running' | 'done' }>,
+      AXIS_MS,
+      cmAt(17, 56),
+    );
+    expect(sections.due).toEqual(['chicken.roast']);
+    expect(sections.running).toEqual([]);
+  });
+  it('CM-g: at 19:10:00 (n = -20) the rest and the roast are late; at 19:09:45 nothing is', () => {
+    expect(oracleOverdue(H1_SCHEDULE, facts, AXIS_MS, cmAt(19, 10))).toEqual([
+      'chicken.rest',
+      'chicken.roast',
+    ]);
+    expect(oracleOverdue(H1_SCHEDULE, facts, AXIS_MS, cmAt(19, 9, 45))).toEqual([]);
+  });
+  it('CM-g broken input: a done roast is never late', () => {
+    const broken = { ...facts, 'chicken.roast': { state: 'done' as const } };
+    expect(oracleOverdue(H1_SCHEDULE, broken, AXIS_MS, cmAt(19, 10))).toEqual(['chicken.rest']);
+  });
+  it('the shred, with 75 minutes of slack, is late only from -25 (19:05)', () => {
+    const ds = {
+      'chicken.prep': { state: 'done' as const },
+      'chicken.roast': { state: 'running' as const },
+    };
+    expect(oracleOverdue(H1_SCHEDULE, ds, AXIS_MS, cmAt(19, 4, 59))).toEqual([]);
+    expect(oracleOverdue(H1_SCHEDULE, ds, AXIS_MS, cmAt(19, 5))).toEqual(['greens.shred']);
   });
 });

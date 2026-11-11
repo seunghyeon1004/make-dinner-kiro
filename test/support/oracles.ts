@@ -1480,3 +1480,73 @@ export function oracleNeutraliseTags(text: string): string {
   }
   return out;
 }
+
+// ---------------------------------------------------------------------------------------
+// Cooking-mode oracles (cooking-mode spec). Plain loops over steps; the minute of an instant is
+// written out here, not taken from src/web/state/clock.ts.
+
+/** What the cooking oracles need of a schedule: planned starts, ends and slack per step. */
+export interface CookOracleSchedule {
+  steps: readonly { id: string; startMin: number; endMin: number; slackMin: number }[];
+}
+
+/** What the cooking oracles need of a fact: only whether the step is running or done. */
+export type CookOracleFacts = Readonly<Record<string, { state: 'running' | 'done' }>>;
+
+const MS_PER_MINUTE = 60_000;
+
+/**
+ * CM2.2 to CM2.6: the ids of the steps that are due (pending, planned start at or before now),
+ * running, and the first three pending steps that are not due by (planned start, id).
+ */
+export function oracleCookSections(
+  schedule: CookOracleSchedule,
+  facts: CookOracleFacts,
+  axisMs: number,
+  nowMs: number,
+): { due: string[]; running: string[]; upNext: string[] } {
+  const due: string[] = [];
+  const running: string[] = [];
+  const later: { id: string; startMs: number }[] = [];
+  for (const row of schedule.steps) {
+    const fact = facts[row.id];
+    if (fact?.state === 'done') continue;
+    if (fact?.state === 'running') {
+      running.push(row.id);
+      continue;
+    }
+    const startMs = axisMs + row.startMin * MS_PER_MINUTE;
+    if (startMs <= nowMs) due.push(row.id);
+    else later.push({ id: row.id, startMs });
+  }
+  later.sort((a, b) => a.startMs - b.startMs || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return {
+    due: due.sort(),
+    running: running.sort(),
+    upNext: later.slice(0, 3).map((x) => x.id),
+  };
+}
+
+/**
+ * The late steps, sorted by id. With `n` the floor of the minutes since the axis instant: a
+ * running step is late when `n >= endMin + 5`; a pending one when `n >= startMin + max(5, slack)`.
+ */
+export function oracleOverdue(
+  schedule: CookOracleSchedule,
+  facts: CookOracleFacts,
+  axisMs: number,
+  nowMs: number,
+): string[] {
+  const n = Math.floor((nowMs - axisMs) / MS_PER_MINUTE);
+  const late: string[] = [];
+  for (const row of schedule.steps) {
+    const fact = facts[row.id];
+    if (fact?.state === 'done') continue;
+    if (fact?.state === 'running') {
+      if (n >= row.endMin + 5) late.push(row.id);
+    } else if (n >= row.startMin + Math.max(5, row.slackMin)) {
+      late.push(row.id);
+    }
+  }
+  return late.sort();
+}

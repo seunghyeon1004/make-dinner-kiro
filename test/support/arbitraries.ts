@@ -1808,3 +1808,135 @@ export function arbPerturbedText(text: string): fc.Arbitrary<string> {
       return before + out.join(eol) + after;
     });
 }
+
+// ---------------------------------------------------------------------------------------
+// Cooking-mode generators (cooking-mode spec, "Test support").
+
+/** Minute 0 of the cooking-mode properties: Wed 2026-11-11 19:30 London (19:30Z). */
+const COOK_AXIS_MS = Date.UTC(2026, 10, 11, 19, 30);
+
+export interface CookBegin {
+  schedule: Schedule;
+  axisMs: number;
+  beginMs: number;
+}
+
+/** A schedule, the axis, and a begin time from 30 min before the first start to 30 min after. */
+export function arbCookBegin(): fc.Arbitrary<CookBegin> {
+  return fc
+    .tuple(
+      arbScheduled(),
+      fc.oneof(
+        { weight: 1, arbitrary: fc.constant({ minutes: 0, seconds: 0 }) },
+        {
+          weight: 2,
+          arbitrary: fc.record({
+            minutes: fc.integer({ min: -30, max: 30 }),
+            seconds: fc.integer({ min: 0, max: 59 }),
+          }),
+        },
+      ),
+    )
+    .map(([sched, offset]) => {
+      const first = Math.min(...sched.steps.map((s) => s.startMin));
+      return {
+        schedule: sched,
+        axisMs: COOK_AXIS_MS,
+        beginMs: COOK_AXIS_MS + (first + offset.minutes) * 60_000 + offset.seconds * 1000,
+      };
+    });
+}
+
+export type CookIntentKind =
+  'start' | 'done' | 'extra' | 'behind' | 'undo' | 'tick' | 'start-now' | 'alerts' | 'resume';
+
+export interface CookIntent {
+  advanceSec: number;
+  kind: CookIntentKind;
+  pick: number;
+  minutes: 5 | 10 | 15;
+}
+
+/** Up to 60 intents; a quarter advance no time, so several land on one instant. */
+export function arbCookIntents(): fc.Arbitrary<CookIntent[]> {
+  return fc.array(
+    fc.record({
+      advanceSec: fc.oneof(
+        { weight: 1, arbitrary: fc.constant(0) },
+        { weight: 3, arbitrary: fc.integer({ min: 0, max: 1800 }) },
+      ),
+      kind: fc.constantFrom<CookIntentKind>(
+        'start',
+        'start',
+        'start',
+        'done',
+        'done',
+        'done',
+        'extra',
+        'behind',
+        'undo',
+        'tick',
+        'start-now',
+        'alerts',
+        'resume',
+      ),
+      pick: fc.nat({ max: 79 }),
+      minutes: fc.constantFrom<5 | 10 | 15>(5, 10, 15),
+    }),
+    { maxLength: 60 },
+  );
+}
+
+/** What `cookActionFor` needs of a session: its schedule's step ids and its facts. */
+export interface CookActionSource {
+  core: {
+    schedule: { steps: readonly { id: string }[] };
+    facts: Readonly<Record<string, { state: 'running' | 'done' }>>;
+  };
+}
+
+export type CookActionOut =
+  | {
+      type: 'cook/start-now' | 'cook/behind' | 'cook/undo' | 'cook/tick' | 'cook/resume';
+      nowMs: number;
+    }
+  | { type: 'cook/start' | 'cook/done'; stepId: string; nowMs: number }
+  | { type: 'cook/extra'; stepId: string; minutes: 5 | 10 | 15; nowMs: number }
+  | { type: 'cook/alerts'; wanted: boolean };
+
+/**
+ * The action an intent stands for: the `pick`-th (modulo) pending id for a start, running id for
+ * a done or extra, by id, from the schedule and facts. With none to pick, an id that is not in
+ * the schedule, which the reducer must ignore. Never goes through `cookView`.
+ */
+export function cookActionFor(
+  state: CookActionSource,
+  nowMs: number,
+  intent: CookIntent,
+): CookActionOut {
+  const ids = state.core.schedule.steps.map((s) => s.id).sort();
+  const pending = ids.filter((id) => state.core.facts[id] === undefined);
+  const running = ids.filter((id) => state.core.facts[id]?.state === 'running');
+  const choose = (list: string[]): string =>
+    list.length === 0 ? 'ghost.step' : (list[intent.pick % list.length] ?? 'ghost.step');
+  switch (intent.kind) {
+    case 'start':
+      return { type: 'cook/start', stepId: choose(pending), nowMs };
+    case 'done':
+      return { type: 'cook/done', stepId: choose(running), nowMs };
+    case 'extra':
+      return { type: 'cook/extra', stepId: choose(running), minutes: intent.minutes, nowMs };
+    case 'alerts':
+      return { type: 'cook/alerts', wanted: intent.pick % 2 === 0 };
+    case 'behind':
+      return { type: 'cook/behind', nowMs };
+    case 'undo':
+      return { type: 'cook/undo', nowMs };
+    case 'tick':
+      return { type: 'cook/tick', nowMs };
+    case 'start-now':
+      return { type: 'cook/start-now', nowMs };
+    case 'resume':
+      return { type: 'cook/resume', nowMs };
+  }
+}

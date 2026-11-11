@@ -422,3 +422,39 @@ export const EXPORT_COPY = {
 export function shareTooLong(length: number): string {
   return `This plan is too long for a link (${length.toLocaleString('en-US')} characters; the limit is 8,000). Share the Dinnerfile instead.`;
 }
+
+// Cooking mode announcements (cooking-mode design, "Announcements"). The polite live region
+// reads these; countdown ticks are never announced.
+export const COOK_ANNOUNCE = {
+  rebuildFailed: 'The plan could not be rebuilt.',
+  rebuiltOnTime: 'Plan rebuilt: everything is on time.',
+  finished: 'Everything is done. Dinner is served.',
+} as const;
+
+const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
+
+/** "Plan rebuilt: 7 steps moved. Serving is now 19:45. 1 new warning." */
+export function cookRebuilt(
+  movedCount: number,
+  servingMoved: boolean,
+  servingTime: string,
+  newWarningCount: number,
+): string {
+  const warnings =
+    newWarningCount > 0 ? ` ${plural(newWarningCount, 'new warning', 'new warnings')}.` : '';
+  if (movedCount === 0 && !servingMoved) return `${COOK_ANNOUNCE.rebuiltOnTime}${warnings}`;
+  const serving = servingMoved
+    ? `Serving is now ${servingTime}.`
+    : `Serving stays at ${servingTime}.`;
+  return `Plan rebuilt: ${plural(movedCount, 'step', 'steps')} moved. ${serving}${warnings}`;
+}
+
+/** "Undone: +15 min on Roast the chicken." */
+export function cookUndone(words: string): string {
+  return `Undone: ${words}.`;
+}
+
+/** "Time is up: Roast the chicken." (several titles joined with a comma). */
+export function cookTimeUp(titles: readonly string[]): string {
+  return `Time is up: ${titles.join(', ')}.`;
+}

@@ -223,3 +223,15 @@
 2026-11-11T10:21:49Z after-write ran=typecheck,test:props typecheck=0 props=0
 2026-11-11T10:21:58Z after-write ran=typecheck typecheck=0 props=skipped
 2026-11-11T10:24:50Z on-stop test=0 (Test Files 47 passed (47);Tests 1882 passed (1882)) test:props=0 (Test Files 18 passed (18);Tests 98 passed (98)) lint=0
+2026-11-11T10:25:14Z on-spawn changed_files=1 unticked_shown=20
+2026-11-11T10:28:13Z after-write ran=typecheck,test:props typecheck=0 props=0
+2026-11-11T10:28:17Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T10:28:38Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T10:28:50Z after-write ran=typecheck,test:props typecheck=0 props=0
+2026-11-11T10:29:06Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T10:29:12Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T10:35:23Z after-write ran=typecheck,test:props typecheck=0 props=0
+2026-11-11T10:36:07Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T10:38:13Z after-write ran=typecheck,test:props typecheck=0 props=0
+2026-11-11T10:40:37Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T10:44:32Z on-stop test=0 (Test Files 50 passed (50);Tests 1984 passed (1984)) test:props=0 (Test Files 20 passed (20);Tests 106 passed (106)) lint=0

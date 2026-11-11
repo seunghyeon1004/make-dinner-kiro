@@ -1,0 +1,3481 @@
+
+=== session 2026-11-11T10:25:12Z ===
+$ kiro-cli chat --output-format stream-json --v3 --agent sous-chef --trust-all-tools --trust-workspace --model auto "$(cat docs/kiro-evidence/prompts/18a-impl-cooking-mode.md)"
+--- prompt ---
+Spec: cooking-mode. Implement T1 (session state and transitions, pure) and T2 (the view, pure), in order, and nothing after. The plan-ui spec is fully implemented.
+
+Read .kiro/specs/cooking-mode/requirements.md, design.md (including the review notes at the end: there is no automatic rebuild for overdue steps; adjust the affected requirement, example, property wording and tasks as the note says and list what you changed) and tasks.md in full first, and ui.md. Use the exact copy, tokens, signatures and file paths the design gives. The recordings now exist (recordings/*.json, made from real model calls), so the server starts and `npm run test:e2e` works.
+
+Each sub-task: test first (unit test or e2e as the task says), see it fail on an assertion, implement, run the proving command the task names, tick the sub-task only when it passed in this session. Keep tests proportionate: the cases the task names, not a matrix. E2E runs are slow, so while iterating run the single spec file and project you are working on (`npx playwright test e2e/<file> --project=phone`), then the task's full command once before ticking.
+
+Look at what you build: after each screen works, take a screenshot at 390x844 in light and dark with Playwright (a throwaway script outside the repo's tracked files, or `page.screenshot` in a scratch spec you delete) and check it against ui.md with your own eyes: spacing rhythm, type scale, targets at least 48 px, nothing overflowing, no horizontal page scroll. Fix what looks wrong before ticking. Say in your report what you looked at and what you changed.
+
+Working rule: when the design is ambiguous or slightly off in a way that touches no requirement's intent, choose the reading closest to the requirement and to ui.md, write it under "Decisions I made", and continue. Stop and ask only when a requirement would have to change.
+
+Do not commit. Do not start `npm run dev`. End with the report kiro-conduct.md asks for, with the real counts from `npm test`, `npm run test:props`, `npm run typecheck`, `npm run lint`, `npx prettier --check .`, `npm run build` and `npm run test:e2e`.
+--- transcript (rendered from the event stream by scripts/kiro-render.mjs) ---
+[steering] {"steeringDocuments":["file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/kiro-conduct.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/product.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/scheduler-guarantees.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/structure.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/tech.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/testing.md"],"kind":"steering_inclusion"}
+
+I'll start by reading the spec files in full.
+
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/cooking-mode/requirements.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/cooking-mode/design.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/cooking-mode/tasks.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/cooking-mode/design.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/web/state/cook-slot.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && git status --short | head; ls src/web src/web/state src/web/screens src/web/components test test/web test/web/state test/support e2e 2>&1 | head -120; cat package.json | head -40; cat vitest.config.ts
+    … (146 earlier lines not shown)
+        "@axe-core/playwright": "4.14.0",
+        "@playwright/test": "1.60.0",
+        "@types/node": "22.20.5",
+        "@vitest/eslint-plugin": "1.6.28",
+        "esbuild": "0.28.2",
+        "eslint": "10.14.0",
+        "eslint-plugin-import-x": "4.18.1",
+        "fast-check": "4.10.2",
+    import { defineConfig } from 'vitest/config';
+    
+    export default defineConfig({
+      test: {
+        projects: [
+          {
+            test: {
+              name: 'examples',
+              include: ['test/**/*.test.ts'],
+              environment: 'node',
+            },
+          },
+          {
+            test: {
+              name: 'props',
+              include: ['test/**/*.pbt.ts'],
+              environment: 'node',
+            },
+          },
+        ],
+      },
+    });
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/web/state/clock.ts
+[steering] {"steeringDocuments":["file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/ui.md"],"kind":"steering_inclusion"}
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/web/state/store.ts
+[tool:execute FAILED] $ cd ~/hackathons-2026/kiroween/makedinner && cat src/core/index.ts; grep -n "cook\|Cook" -r src/web --include=*.ts --include=*.tsx -il; wc -l src/core/rebuild*.ts src/core/schema.ts test/support/*.ts; ls src/core src/core/rebuild 2>/dev/null
+    … (109 earlier lines not shown)
+      ParseResponse,
+      SampleEntry,
+      SampleItem,
+      SamplesResponse,
+    } from './api.js';
+    zsh:1: no matches found: --include=*.ts
+         173 src/core/rebuild.ts
+         277 src/core/schema.ts
+        1810 test/support/arbitraries.ts
+         149 test/support/fakes.ts
+          21 test/support/fc-params.ts
+        1050 test/support/fixtures.ts
+          65 test/support/make.ts
+        1482 test/support/oracles.ts
+          96 test/support/server.ts
+        5123 total
+    src/core:
+    api.ts
+    critical-path.ts
+    dinnerfile.ts
+    graph.ts
+    index.ts
+    normalise.ts
+    passes
+    rebuild.ts
+    result.ts
+    sanity.ts
+    schedule.ts
+    schema.ts
+    timeline.ts
+    exit 1
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/rebuild.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/schema.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && ls src/core/passes; grep -rn "REBUILD_LIMITS" src test | head; grep -n "^export" test/support/fixtures.ts | head -80; cat src/web/state/persist.ts | head -120
+    … (152 earlier lines not shown)
+        const check = validatePlan(stored.dinner.plan);
+        if (check.plan === null) return fresh();
+        dinner = {
+          plan: check.plan,
+          source: stored.dinner.source,
+          kitchen: stored.dinner.kitchen,
+          serving: stored.dinner.serving,
+        };
+      }
+      const loaded: AppState = {
+        ...initialState(),
+        theme: stored.theme,
+        dinner,
+        recipeText: stored.recipeText,
+        dinnerfileText: stored.dinnerfileText,
+        cook: stored.cook,
+      };
+      const state = reduce(loaded, { type: 'navigate', route: stored.route, cookRegistered });
+      return { state, notice: null };
+    }
+    
+    /** Writes the persisted state; false when the storage refuses (R9.6). */
+    export function saveState(storage: Pick<Storage, 'setItem'>, state: AppState): boolean {
+      try {
+        storage.setItem(STATE_KEY, JSON.stringify(toPersisted(state)));
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/support/fixtures.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/support/fixtures.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && grep -n "AXIS_MS\|Europe/London\|TZ" -r test vitest.config.ts package.json playwright.config.ts | head; sed -n 1,60p test/web/state/store.test.ts; cat test/support/fc-params.ts
+    … (61 earlier lines not shown)
+        });
+      });
+    });
+    
+    describe('reachable (R9.2 table)', () => {
+      it('menu is always reachable; the others need a dinner', () => {
+        expect(reachable(initialState(), false)).toEqual({
+          menu: { ok: true },
+          steps: { ok: false, reason: 'Pick a dinner first' },
+    import type { Parameters } from 'fast-check';
+    
+    const DEFAULT_NUM_RUNS = 200;
+    const DEFAULT_MAKE_RUNS = 50;
+    
+    /**
+     * The shared fast-check parameters: 200 runs, or `FC_NUM_RUNS` when it is a positive
+     * integer. No property file sets `numRuns` itself (testing.md).
+     */
+    export function fcParams(): Parameters<unknown[]> {
+      const requested = Number(process.env.FC_NUM_RUNS);
+      const numRuns = Number.isInteger(requested) && requested > 0 ? requested : DEFAULT_NUM_RUNS;
+      return { numRuns };
+    }
+    
+    /** For properties that spawn make: `FC_MAKE_RUNS` when it is a positive integer, else 50. */
+    export function fcMakeParams(): Parameters<unknown[]> {
+      const requested = Number(process.env.FC_MAKE_RUNS);
+      const numRuns = Number.isInteger(requested) && requested > 0 ? requested : DEFAULT_MAKE_RUNS;
+      return { numRuns };
+    }
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 1,60p src/web/copy.ts; grep -n "formatClock\|LANG\|en-GB" -r test/web src/web | head -20; grep -n "REBUILD_LIMITS\|index" test/core/*.test.ts | grep -i "index" | head; cat tsconfig.web.json; ls test/web/components; sed -n 1,50p test/web/state/persist.test.ts
+    … (123 earlier lines not shown)
+      source: { kind: 'sample', sampleId: 'sunday-roast' },
+      kitchen: HOME_KITCHEN,
+      serving: { time: '19:30', atMs: 1_762_889_400_000 },
+    };
+    
+    const SAVED: AppState = {
+      ...initialState(),
+      route: 'plan',
+      theme: 'dark',
+      recipeText: 'Roast a chicken.',
+      dinnerfileText: '# plan "x"',
+      dinner: SAVED_DINNER,
+    };
+    
+    describe('loadState (R9.5, R9.6)', () => {
+      it('R9.5 a missing key starts fresh without a notice', () => {
+        expect(loadState(storageOf(null), false)).toEqual({ state: initialState(), notice: null });
+      });
+      it('R9.6 getItem throwing starts fresh with the notice', () => {
+        expect(loadState(storageOf('throw'), false)).toEqual({
+          state: initialState(),
+          notice: UNREADABLE,
+        });
+      });
+      it('R9.6 bad JSON starts fresh with the notice', () => {
+        expect(loadState(storageOf('{not json'), false)).toEqual({
+          state: initialState(),
+          notice: UNREADABLE,
+        });
+      });
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/core/index.test.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && grep -n "=>" src/web/copy.ts | head -40; wc -l src/web/copy.ts; tail -40 src/web/copy.ts; sed -n 1,40p test/web/copy.test.ts; grep -n "COPY\b" test/web/copy.test.ts | head -5
+    … (56 earlier lines not shown)
+    /** Every constant string of copy.ts, by name. */
+    function constants(): [string, string][] {
+      const tables = {
+        COPY: copy.COPY,
+        EDIT_ERRORS: copy.EDIT_ERRORS,
+        STEPS_COPY: copy.STEPS_COPY,
+        EDITOR_COPY: copy.EDITOR_COPY,
+        MANAGE_COPY: copy.MANAGE_COPY,
+        PASTE_COPY: copy.PASTE_COPY,
+        DINNERFILE_COPY: copy.DINNERFILE_COPY,
+        SHARE_COPY: copy.SHARE_COPY,
+        EXPORT_COPY: copy.EXPORT_COPY,
+      };
+      return Object.entries(tables).flatMap(([table, entries]) =>
+        Object.entries(entries).map(([key, value]): [string, string] => [`${table}.${key}`, value]),
+      );
+    }
+    
+    /** Every copy function on fixed arguments, singular and plural, by call. */
+    function results(): [string, string][] {
+      const failures = [
+        { kind: 'bad_request' },
+        { kind: 'input_too_long' },
+        { kind: 'model_unavailable' },
+        { kind: 'model_refused' },
+    19:    COPY: copy.COPY,
+    21:    STEPS_COPY: copy.STEPS_COPY,
+    22:    EDITOR_COPY: copy.EDITOR_COPY,
+    23:    MANAGE_COPY: copy.MANAGE_COPY,
+    24:    PASTE_COPY: copy.PASTE_COPY,
+    exit 0
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/test/support/fixtures.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/support/fixtures.ts'
+s=open(p).read()
+a=s.index("export const CM_C_FACTS")
+b=s.index("/** CM-f at 17:56")
+new='''type CmFact =
+  | { state: 'running'; startedAtMs: number; extraMin: number }
+  | { state: 'done'; startedAtMs: number; endedAtMs: number };
+
+const CM_PREP: CmFact = { state: 'done', startedAtMs: cmAt(17, 40), endedAtMs: cmAt(17, 50) };
+const CM_SHRED: CmFact = { state: 'done', startedAtMs: cmAt(17, 50), endedAtMs: cmAt(17, 55) };
+const CM_ROAST: CmFact = { state: 'running', startedAtMs: cmAt(17, 50), extraMin: 0 };
+
+export const CM_C_FACTS: Record<string, CmFact> = {
+  'chicken.prep': CM_PREP,
+  'greens.shred': CM_SHRED,
+  'chicken.roast': CM_ROAST,
+};
+
+/** CM-d: prep done 17:40 to 17:50, the roast started 17:50, the shred not started. */
+export const CM_D_FACTS: Record<string, CmFact> = {
+  'chicken.prep': CM_PREP,
+  'chicken.roast': CM_ROAST,
+};
+
+'''
+s=s[:a]+new+s[b:]
+s=s.replace("export const CM_F_FACTS: typeof CM_C_FACTS = CM_C_FACTS;","export const CM_F_FACTS: Record<string, CmFact> = CM_C_FACTS;")
+open(p,'w').write(s)
+EOF
+    
+    exit 0
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/src/web/state/cook-slot.ts
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/src/web/state/cook-session.ts
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/test/web/state/cook-session.test.ts
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/test/web/state/cook-slot.test.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx vitest run --project examples test/web/state/cook-session.test.ts test/web/state/cook-slot.test.ts 2>&1 | grep -v "^$" | head -60
+    … (30 earlier lines not shown)
+     FAIL  |examples| test/web/state/cook-session.test.ts > effectiveNow (design, "Time mapping") > CM5.2 the start of the session wins over an earlier clock
+    AssertionError: expected 1794416400000 to be 1794418200000 // Object.is equality
+    - Expected
+    + Received
+    - 1794418200000
+    + 1794416400000
+     ❯ test/web/state/cook-session.test.ts:46:53
+         44|   });
+         45|   it('CM5.2 the start of the session wins over an earlier clock', () =…
+         46|     expect(effectiveNow(coreWith({}), cmAt(17, 0))).toBe(cmAt(17, 30));
+           |                                                     ^
+         47|   });
+         48| });
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+     FAIL  |examples| test/web/state/cook-session.test.ts > progressOf (CM5.2, CM-c facts) > maps prep, shred and the running roast to axis minutes
+    AssertionError: expected {} to deeply equal { 'chicken.prep': { …(3) }, …(2) }
+    - Expected
+    + Received
+    - {
+    -   "chicken.prep": {
+    -     "endMin": -100,
+    -     "startMin": -110,
+    -     "state": "done",
+    -   },
+    -   "chicken.roast": {
+    -     "extraMin": 0,
+    -     "startMin": -100,
+    -     "state": "running",
+    -   },
+    -   "greens.shred": {
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/web/state/cook-session.ts'
+open(p,'w').write('''import type { Progress, ProgressEntry, Step } from '../../core/index.js';
+import { clockAt, MINUTE_MS, minuteAt } from './clock.js';
+import type { CookCore, StepFact } from './cook-slot.js';
+
+/** A start or end more than this many minutes from the schedule's rebuilds; within it the fact is only recorded. */
+export const SLIP_MIN = 2;
+/** A step this many minutes past its planned time is shown late (never rebuilt by itself). */
+export const OVERDUE_MIN = 5;
+/** "Undo" is offered for this long after an action. */
+export const UNDO_MS = 10_000;
+/** A session whose last action is older asks to resume or discard. */
+export const STALE_MS = 8 * 60 * MINUTE_MS;
+/** Items in "Up next". */
+export const UP_NEXT_COUNT = 3;
+/** Build log entries kept, oldest dropped. */
+export const LOG_MAX = 20;
+/** `cook/tick` interval, for display. */
+export const TICK_MS = 15_000;
+export const EXTRA_CHOICES = [5, 10, 15] as const;
+/** Equals core's `REBUILD_LIMITS.extraMax`, which `src/core/index.ts` does not export (checked in a test). */
+export const EXTRA_MAX = 1440;
+
+/**
+ * The instant every action records its facts at: the clock, but never before the session began
+ * or before any recorded fact, so a clock set backwards cannot make a fact end before it started.
+ */
+export function effectiveNow(core: CookCore, nowMs: number): number {
+  let t = Math.max(nowMs, core.beganAtMs);
+  for (const fact of Object.values(core.facts)) {
+    t = Math.max(t, fact.startedAtMs);
+    if (fact.state === 'done') t = Math.max(t, fact.endedAtMs);
+  }
+  return t;
+}
+
+/** The facts as core `Progress` on the session's axis. */
+export function progressOf(core: CookCore): Progress {
+  const progress: Progress = {};
+  for (const [id, fact] of Object.entries(core.facts)) {
+    const startMin = minuteAt(core.axisMs, fact.startedAtMs);
+    const entry: ProgressEntry =
+      fact.state === 'done'
+        ? { state: 'done', startMin, endMin: minuteAt(core.axisMs, fact.endedAtMs) }
+        : { state: 'running', startMin, extraMin: fact.extraMin };
+    progress[id] = entry;
+  }
+  return progress;
+}
+
+/** When a running step is ready: its recorded start plus its minutes plus the extra minutes. */
+export function endsAtMs(step: Step, fact: Extract<StepFact, { state: 'running' }>): number {
+  return clockAt(fact.startedAtMs, step.minutes + fact.extraMin);
+}
+''')
+EOF
+python3 - <<'EOF'
+p='~/hackathons-2026/kiroween/makedinner/src/web/state/cook-slot.ts'
+s=open(p).read()
+s=s.replace("""import type {
+  HoldExceededIssue,
+  RebuildError,
+  RebuiltSchedule,
+  Schedule,
+  StepMove,
+} from '../../core/index.js';""","""import {
+  IssueSchema,
+  RebuiltScheduleSchema,
+  StepIdSchema,
+  StepMoveSchema,
+} from '../../core/index.js';
+import type {
+  HoldExceededIssue,
+  RebuildError,
+  RebuiltSchedule,
+  Schedule,
+  StepMove,
+} from '../../core/index.js';
+import { EXTRA_MAX } from './cook-session.js';""")
+a=s.index("// STUB (T1.1): replaced in T1.2.")
+b=s.index("// STUB (T1.1): replaced in T1.8.")
+schema='''const ms = z.int().min(0);
+const stepId = StepIdSchema;
+
+const HoldExceededSchema = IssueSchema.refine(
+  (issue): issue is HoldExceededIssue => issue.code === 'hold_exceeded',
+);
+
+const StepFactSchema = z.discriminatedUnion('state', [
+  z.strictObject({
+    state: z.literal('running'),
+    startedAtMs: ms,
+    extraMin: z.int().min(0).max(EXTRA_MAX),
+  }),
+  z.strictObject({ state: z.literal('done'), startedAtMs: ms, endedAtMs: ms }),
+]);
+
+const LogCauseSchema = z.union([
+  z.strictObject({ kind: z.literal('begin-late'), byMin: z.int() }),
+  z.strictObject({ kind: z.enum(['start', 'done']), stepId, byMin: z.int() }),
+  z.strictObject({
+    kind: z.literal('extra'),
+    stepId,
+    minutes: z.union([z.literal(5), z.literal(10), z.literal(15)]),
+  }),
+  z.strictObject({ kind: z.literal('behind') }),
+]);
+
+const LogResultSchema = z.union([
+  z.strictObject({
+    ok: z.literal(true),
+    moved: z.array(StepMoveSchema),
+    unchanged: z.array(stepId),
+    servingFromMin: z.int(),
+    servingToMin: z.int(),
+    newWarnings: z.array(HoldExceededSchema),
+  }),
+  z.strictObject({
+    ok: z.literal(false),
+    error: z.enum([
+      'invalid_schedule',
+      'invalid_now',
+      'invalid_progress',
+      'unknown_step',
+      'done_ends_before_start',
+      'done_after_now',
+      'running_starts_after_now',
+      'serving_out_of_range',
+    ]),
+  }),
+]);
+
+const LogEntrySchema = z.strictObject({ atMs: ms, cause: LogCauseSchema, result: LogResultSchema });
+
+/** Every fact and log id must be a step of the core's own schedule. */
+const CookCoreSchema = z
+  .strictObject({
+    axisMs: z.int(),
+    plannedServingMs: z.int(),
+    beganAtMs: ms,
+    schedule: RebuiltScheduleSchema,
+    facts: z.record(z.string(), StepFactSchema),
+    log: z.array(LogEntrySchema).max(LOG_MAX),
+  })
+  .refine((core) => {
+    const ids = new Set(core.schedule.steps.map((s) => s.id));
+    const known = (id: string): boolean => ids.has(id);
+    return (
+      Object.keys(core.facts).every(known) &&
+      core.log.every((entry) => {
+        const { cause, result } = entry;
+        const causeOk = 'stepId' in cause ? known(cause.stepId) : true;
+        const resultOk = result.ok
+          ? result.moved.every((m) => known(m.stepId)) && result.unchanged.every(known)
+          : true;
+        return causeOk && resultOk;
+      })
+    );
+  });
+
+const UndoLabelSchema = z.union([
+  z.strictObject({ kind: z.enum(['start', 'done']), stepId }),
+  z.strictObject({ kind: z.literal('extra'), stepId, minutes: z.int() }),
+  z.strictObject({ kind: z.literal('behind') }),
+  z.strictObject({ kind: z.literal('start-now') }),
+]);
+
+/** The undo slot holds a `CookCore`, never a `CookState`, so slots never nest. */
+export const CookStateSchema: z.ZodType<CookState> = z.strictObject({
+  version: z.literal(1),
+  core: CookCoreSchema,
+  lastActiveMs: ms,
+  alertsWanted: z.boolean(),
+  undo: z
+    .strictObject({ label: UndoLabelSchema, untilMs: ms, before: CookCoreSchema })
+    .nullable(),
+});
+
+'''
+s=s[:a]+schema+s[b:]
+s=s.replace("import { EXTRA_MAX } from './cook-session.js';","import { EXTRA_MAX, LOG_MAX } from './cook-session.js';")
+open(p,'w').write(s)
+EOF
+cd ~/hackathons-2026/kiroween/makedinner && cat >> test/web/state/cook-session.test.ts <<'EOF'
+
+describe('thresholds that mirror core', () => {
+  it('CM5.2 EXTRA_MAX equals core REBUILD_LIMITS.extraMax', async () => {
+    const { EXTRA_MAX } = await import('../../../src/web/state/cook-session.js');
+    const { REBUILD_LIMITS } = await import('../../../src/core/schema.js');
+    expect(EXTRA_MAX).toBe(REBUILD_LIMITS.extraMax);
+  });
+});
+EOF
+npx vitest run --project examples test/web/state/cook-session.test.ts test/web/state/cook-slot.test.ts 2>&1 | grep -v "^$" | head -40; npm run typecheck 2>&1 | tail -20
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+     Test Files  2 passed (2)
+          Tests  12 passed (12)
+       Start at  19:29:31
+       Duration  114ms (import 54%, transform 35%, tests 8%, worker 3%)
+    
+    > make-dinner@0.0.0 typecheck
+    > tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit
+    exit 0
+[tool:execute FAILED] $ cd ~/hackathons-2026/kiroween/makedinner && sed -i 's/^- \[ \] T1\.1 /- [x] T1.1 /; s/^- \[ \] T1\.2 /- [x] T1.2 /' .kiro/specs/cooking-mode/tasks.md && grep -n "T1.1 \|T1.2 " .kiro/specs/cooking-mode/tasks.md
+    sed: 1: ".kiro/specs/cooking-mod ...": invalid command code .
+    exit 1
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -i '' 's/^- \[ \] T1\.1 /- [x] T1.1 /; s/^- \[ \] T1\.2 /- [x] T1.2 /' .kiro/specs/cooking-mode/tasks.md && grep -n "T1.1 \|T1.2 " .kiro/specs/cooking-mode/tasks.md
+    18:- [x] T1.1 Example tests for the time mapping: `effectiveNow` (a fact later than `nowMs`, a clock
+    27:- [x] T1.2 Implement the types, `CookStateSchema`, the thresholds and the time mapping until T1.1
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/web/state/cook-session.ts'
+s=open(p).read()
+s=s.replace("import type { Progress, ProgressEntry, Step } from '../../core/index.js';","import { err, ok } from '../../core/index.js';\nimport type {\n  Progress,\n  ProgressEntry,\n  RebuiltSchedule,\n  Result,\n  Schedule,\n  Step,\n} from '../../core/index.js';")
+s=s.replace("import type { CookCore, StepFact } from './cook-slot.js';","import type { CookAction, CookCore, CookState, StepFact } from './cook-slot.js';")
+s+='''
+export type BeginError = { kind: 'too_late' } | { kind: 'invalid_schedule' };
+
+// STUBS (T1.3): replaced in T1.4.
+export function canBegin(
+  schedule: Schedule | RebuiltSchedule,
+  axisMs: number,
+  nowMs: number,
+): Result<null, BeginError> {
+  void schedule;
+  void axisMs;
+  void nowMs;
+  return ok(null);
+}
+
+export function beginSession(
+  schedule: Schedule | RebuiltSchedule,
+  axisMs: number,
+  nowMs: number,
+): Result<CookState, BeginError> {
+  void schedule;
+  void axisMs;
+  void nowMs;
+  return err({ kind: 'invalid_schedule' });
+}
+
+export function applyCook(
+  state: CookState,
+  action: Exclude<CookAction, { type: 'cook/begin' | 'cook/stop' }>,
+): CookState {
+  void action;
+  return { ...state };
+}
+'''
+open(p,'w').write(s)
+EOF
+python3 - <<'EOF'
+p='~/hackathons-2026/kiroween/makedinner/test/web/state/cook-session.test.ts'
+s=open(p).read()
+s=s.replace("import { effectiveNow, endsAtMs, progressOf } from '../../../src/web/state/cook-session.js';","""import {
+  applyCook,
+  beginSession,
+  canBegin,
+  effectiveNow,
+  endsAtMs,
+  progressOf,
+} from '../../../src/web/state/cook-session.js';""")
+s=s.replace("import type { CookCore, StepFact } from","import type { CookCore, CookState, StepFact } from")
+s+='''
+function begun(nowMs: number): CookState {
+  const result = beginSession(H1, AXIS_MS, nowMs);
+  if (!result.ok) throw new Error(`could not begin: ${result.error.kind}`);
+  return result.value;
+}
+
+describe('CM-a canBegin, beginSession and start-now (CM1.1 to CM1.3)', () => {
+  it('CM1.1 begins at 17:30 against the schedule, with no fact and no log entry', () => {
+    const state = begun(cmAt(17, 30));
+    expect(state.version).toBe(1);
+    expect(state.core.axisMs).toBe(AXIS_MS);
+    expect(state.core.plannedServingMs).toBe(AXIS_MS);
+    expect(state.core.beganAtMs).toBe(cmAt(17, 30));
+    expect(state.core.facts).toEqual({});
+    expect(state.core.log).toEqual([]);
+    expect(state.core.schedule.servingMin).toBe(0);
+    expect(state.core.schedule.steps.map((s) => s.startMin).sort((a, b) => a - b)[0]).toBe(-110);
+    expect(state.lastActiveMs).toBe(cmAt(17, 30));
+    expect(state.alertsWanted).toBe(false);
+    expect(state.undo).toBeNull();
+  });
+
+  it('CM1.4 begins exactly at the first start (17:40) with no entry', () => {
+    const state = begun(cmAt(17, 40));
+    expect(state.core.log).toEqual([]);
+    expect(state.core.schedule.servingMin).toBe(0);
+  });
+
+  it('CM1.4 one minute late (17:41) logs begin-late by 1', () => {
+    const state = begun(cmAt(17, 41));
+    expect(state.core.log).toHaveLength(1);
+    expect(state.core.log[0]?.cause).toEqual({ kind: 'begin-late', byMin: 1 });
+  });
+
+  it('CM1.5 canBegin is ok at 17:52 and too_late on Fri 19:30 (n = 2880 > 1440)', () => {
+    expect(canBegin(H1, AXIS_MS, cmAt(17, 52))).toEqual({ ok: true, value: null });
+    expect(canBegin(H1, AXIS_MS, cmAt(19 + 48, 30))).toEqual({
+      ok: false,
+      error: { kind: 'too_late' },
+    });
+    const late = beginSession(H1, AXIS_MS, cmAt(19 + 48, 30));
+    expect(late).toEqual({ ok: false, error: { kind: 'too_late' } });
+  });
+
+  it('CM1.5 a schedule that fails its schema is invalid_schedule', () => {
+    const broken = { ...H1, steps: [] } as unknown as RebuiltSchedule;
+    expect(beginSession(broken, AXIS_MS, cmAt(17, 30))).toEqual({
+      ok: false,
+      error: { kind: 'invalid_schedule' },
+    });
+  });
+
+  it('CM1.3 start-now at 17:30:00 moves the axis and the planned serving 10 min earlier', () => {
+    const before = begun(cmAt(17, 30));
+    const after = applyCook(before, { type: 'cook/start-now', nowMs: cmAt(17, 30) });
+    expect(after.core.axisMs).toBe(cmAt(19, 20));
+    expect(after.core.plannedServingMs).toBe(cmAt(19, 20));
+    expect(after.core.schedule).toBe(before.core.schedule);
+    expect(after.core.log).toEqual([]);
+    expect(after.lastActiveMs).toBe(cmAt(17, 30));
+    expect(after.undo?.label).toEqual({ kind: 'start-now' });
+    expect(after.undo?.untilMs).toBe(cmAt(17, 30, 10));
+    expect(after.undo?.before).toEqual(before.core);
+  });
+
+  it('CM1.3 start-now at 17:30:20 moves by the 10 whole minutes that reach the start (decided: rounded up)', () => {
+    const after = applyCook(begun(cmAt(17, 30)), {
+      type: 'cook/start-now',
+      nowMs: cmAt(17, 30, 20),
+    });
+    expect(after.core.axisMs).toBe(cmAt(19, 20));
+  });
+
+  it('CM1.3 start-now after the start has passed returns the state itself', () => {
+    const state = begun(cmAt(17, 30));
+    expect(applyCook(state, { type: 'cook/start-now', nowMs: cmAt(17, 40) })).toBe(state);
+  });
+
+  it('CM1.3 start-now after a fact returns the state itself', () => {
+    const state = begun(cmAt(17, 30));
+    const withFact: CookState = {
+      ...state,
+      core: { ...state.core, facts: { 'chicken.prep': CM_C_FACTS['chicken.prep'] as StepFact } },
+    };
+    expect(applyCook(withFact, { type: 'cook/start-now', nowMs: cmAt(17, 31) })).toBe(withFact);
+  });
+
+  it('CM1.3 start-now after a log entry returns the state itself', () => {
+    const late = begun(cmAt(17, 41));
+    expect(applyCook(late, { type: 'cook/start-now', nowMs: cmAt(17, 41) })).toBe(late);
+  });
+});
+
+describe('CM-b begin 12 minutes late (CM1.4, CM5.3)', () => {
+  const state = begun(cmAt(17, 52));
+  const rows = Object.fromEntries(state.core.schedule.steps.map((s) => [s.id, s]));
+  const interval = (id: string): [number, number] => [rows[id]?.startMin ?? NaN, rows[id]?.endMin ?? NaN];
+
+  it('CM1.4 rebuilds with no facts: every interval of the hand-worked table', () => {
+    expect(interval('chicken.prep')).toEqual([-98, -88]);
+    expect(interval('chicken.roast')).toEqual([-88, -13]);
+    expect(interval('greens.shred')).toEqual([-88, -83]);
+    expect(interval('chicken.rest')).toEqual([-13, 7]);
+    expect(interval('gravy.roux')).toEqual([-7, -5]);
+    expect(interval('gravy.simmer')).toEqual([-5, 5]);
+    expect(interval('greens.boil')).toEqual([0, 4]);
+    expect(interval('greens.toss')).toEqual([4, 5]);
+    expect(interval('gravy.strain')).toEqual([5, 7]);
+    expect(interval('chicken.carve')).toEqual([7, 12]);
+    expect(state.core.schedule.servingMin).toBe(12);
+    expect(rows['greens.shred']?.slackMin).toBe(76);
+  });
+
+  it('CM1.4 keeps the planned serving time of before the rebuild', () => {
+    expect(state.core.plannedServingMs).toBe(AXIS_MS);
+  });
+
+  it('CM5.3 logs one begin-late entry, moves in (toStartMin, id) order, serving 0 -> 12', () => {
+    expect(state.core.log).toHaveLength(1);
+    const entry = state.core.log[0];
+    expect(entry?.atMs).toBe(cmAt(17, 52));
+    expect(entry?.cause).toEqual({ kind: 'begin-late', byMin: 12 });
+    if (entry === undefined || !entry.result.ok) throw new Error('rebuild did not succeed');
+    expect(entry.result.moved).toEqual([
+      { stepId: 'chicken.prep', fromStartMin: -110, toStartMin: -98 },
+      { stepId: 'chicken.roast', fromStartMin: -100, toStartMin: -88 },
+      { stepId: 'greens.shred', fromStartMin: -100, toStartMin: -88 },
+      { stepId: 'chicken.rest', fromStartMin: -25, toStartMin: -13 },
+      { stepId: 'gravy.roux', fromStartMin: -20, toStartMin: -7 },
+      { stepId: 'gravy.simmer', fromStartMin: -18, toStartMin: -5 },
+      { stepId: 'greens.boil', fromStartMin: -10, toStartMin: 0 },
+      { stepId: 'greens.toss', fromStartMin: -6, toStartMin: 4 },
+      { stepId: 'gravy.strain', fromStartMin: -8, toStartMin: 5 },
+      { stepId: 'chicken.carve', fromStartMin: -5, toStartMin: 7 },
+    ]);
+    expect(entry.result.unchanged).toEqual([]);
+    expect(entry.result.servingFromMin).toBe(0);
+    expect(entry.result.servingToMin).toBe(12);
+  });
+
+  it('CM5.5 the only new warning is greens.toss, ready 7 min early with a hold of 5', () => {
+    const entry = state.core.log[0];
+    if (entry === undefined || !entry.result.ok) throw new Error('rebuild did not succeed');
+    expect(entry.result.newWarnings.map((w) => [w.stepId, w.waitMin, w.holdMin])).toEqual([
+      ['greens.toss', 7, 5],
+    ]);
+  });
+});
+'''
+open(p,'w').write(s)
+EOF
+cd ~/hackathons-2026/kiroween/makedinner && npx vitest run --project examples test/web/state/cook-session.test.ts 2>&1 | grep -E "✓|×|Tests|Assertion|passed|failed" | head -40
+     Test Files  1 failed (1)
+          Tests  no tests
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx vitest run --project examples test/web/state/cook-session.test.ts 2>&1 | head -30
+    
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+    
+     ❯ |examples| test/web/state/cook-session.test.ts (0 test)
+    
+    ⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+    
+     FAIL  |examples| test/web/state/cook-session.test.ts [ test/web/state/cook-session.test.ts ]
+    Error: could not begin: invalid_schedule
+     ❯ begun test/web/state/cook-session.test.ts:102:25
+        100| function begun(nowMs: number): CookState {
+        101|   const result = beginSession(H1, AXIS_MS, nowMs);
+        102|   if (!result.ok) throw new Error(`could not begin: ${result.error.kin…
+           |                         ^
+        103|   return result.value;
+        104| }
+     ❯ test/web/state/cook-session.test.ts:194:17
+    
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+    
+    
+     Test Files  1 failed (1)
+          Tests  no tests
+       Start at  19:30:21
+       Duration  98ms (worker 96%, environment 4%)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/web/state/cook-session.test.ts'
+s=open(p).read()
+s=s.replace("""  if (!result.ok) throw new Error(`could not begin: ${result.error.kind}`);
+  return result.value;""","""  expect(result.ok).toBe(true);
+  if (!result.ok) throw new Error(`could not begin: ${result.error.kind}`);
+  return result.value;""")
+a=s.index("describe('CM-b begin 12 minutes late")
+head=s[:a]; tail=s[a:]
+tail=tail.replace("""  const state = begun(cmAt(17, 52));
+  const rows = Object.fromEntries(state.core.schedule.steps.map((s) => [s.id, s]));
+  const interval = (id: string): [number, number] => [rows[id]?.startMin ?? NaN, rows[id]?.endMin ?? NaN];
+""","""  const lateState = (): CookState => begun(cmAt(17, 52));
+  const rowsOf = (state: CookState): Record<string, RebuiltStep> =>
+    Object.fromEntries(state.core.schedule.steps.map((s) => [s.id, s]));
+  const intervalOf = (id: string): [number, number] => {
+    const row = rowsOf(lateState())[id];
+    return [row?.startMin ?? NaN, row?.endMin ?? NaN];
+  };
+""")
+tail=tail.replace("interval('","intervalOf('")
+tail=tail.replace("expect(state.core.schedule.servingMin).toBe(12);\n    expect(rows['greens.shred']?.slackMin).toBe(76);","expect(lateState().core.schedule.servingMin).toBe(12);\n    expect(rowsOf(lateState())['greens.shred']?.slackMin).toBe(76);")
+tail=tail.replace("expect(state.core.plannedServingMs)","expect(lateState().core.plannedServingMs)")
+tail=tail.replace("""    expect(state.core.log).toHaveLength(1);
+    const entry = state.core.log[0];
+    expect(entry?.atMs)""","""    const state = lateState();
+    expect(state.core.log).toHaveLength(1);
+    const entry = state.core.log[0];
+    expect(entry?.atMs)""")
+tail=tail.replace("""    const entry = state.core.log[0];
+    if (entry === undefined || !entry.result.ok) throw new Error('rebuild did not succeed');
+    expect(entry.result.newWarnings""","""    const entry = lateState().core.log[0];
+    expect(entry?.result.ok).toBe(true);
+    if (entry === undefined || !entry.result.ok) throw new Error('rebuild did not succeed');
+    expect(entry.result.newWarnings""")
+tail=tail.replace("""    if (entry === undefined || !entry.result.ok) throw new Error('rebuild did not succeed');
+    expect(entry.result.moved)""","""    expect(entry?.result.ok).toBe(true);
+    if (entry === undefined || !entry.result.ok) throw new Error('rebuild did not succeed');
+    expect(entry.result.moved)""")
+s=head+tail
+s=s.replace("import type { RebuiltSchedule } from","import type { RebuiltSchedule, RebuiltStep } from")
+open(p,'w').write(s)
+EOF
+npx vitest run --project examples test/web/state/cook-session.test.ts 2>&1 | grep -E "✓|×|Tests |passed|failed|Error" | head -40
+    … (10 earlier lines not shown)
+         × CM1.4 rebuilds with no facts: every interval of the hand-worked table 0ms
+         × CM1.4 keeps the planned serving time of before the rebuild 0ms
+         × CM5.3 logs one begin-late entry, moves in (toStartMin, id) order, serving 0 -> 12 0ms
+         × CM5.5 the only new warning is greens.toss, ready 7 min early with a hold of 5 0ms
+    ⎯⎯⎯⎯⎯⎯ Failed Tests 13 ⎯⎯⎯⎯⎯⎯⎯
+    AssertionError: expected false to be true // Object.is equality
+        103|   if (!result.ok) throw new Error(`could not begin: ${result.error.kin…
+    AssertionError: expected false to be true // Object.is equality
+        103|   if (!result.ok) throw new Error(`could not begin: ${result.error.kin…
+    AssertionError: expected false to be true // Object.is equality
+        103|   if (!result.ok) throw new Error(`could not begin: ${result.error.kin…
+    AssertionError: expected { ok: true, value: null } to deeply equal { ok: false, …(1) }
+    AssertionError: expected false to be true // Object.is equality
+        103|   if (!result.ok) throw new Error(`could not begin: ${result.error.kin…
+    AssertionError: expected false to be true // Object.is equality
+        103|   if (!result.ok) throw new Error(`could not begin: ${result.error.kin…
+     FAIL  |examples| test/web/state/cook-session.test.ts > CM-a canBegin, beginSession and start-now (CM1.1 to CM1.3) > CM1.3 start-now after the start has passed returns the state itself
+    AssertionError: expected false to be true // Object.is equality
+        103|   if (!result.ok) throw new Error(`could not begin: ${result.error.kin…
+    AssertionError: expected false to be true // Object.is equality
+        103|   if (!result.ok) throw new Error(`could not begin: ${result.error.kin…
+    AssertionError: expected false to be true // Object.is equality
+        103|   if (!result.ok) throw new Error(`could not begin: ${result.error.kin…
+    AssertionError: expected false to be true // Object.is equality
+        103|   if (!result.ok) throw new Error(`could not begin: ${result.error.kin…
+    AssertionError: expected false to be true // Object.is equality
+        103|   if (!result.ok) throw new Error(`could not begin: ${result.error.kin…
+    AssertionError: expected false to be true // Object.is equality
+        103|   if (!result.ok) throw new Error(`could not begin: ${result.error.kin…
+    AssertionError: expected false to be true // Object.is equality
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/web/state/cook-session.ts'
+s=open(p).read()
+a=s.index("export type BeginError")
+s=s[:a]
+s=s.replace("import { err, ok } from '../../core/index.js';","import { compareIds, err, ok, rebuild, RebuiltScheduleSchema } from '../../core/index.js';")
+s=s.replace("import type { CookAction, CookCore, CookState, StepFact } from './cook-slot.js';","import type {\n  CookAction,\n  CookCore,\n  CookState,\n  LogCause,\n  LogEntry,\n  StepFact,\n} from './cook-slot.js';")
+s=s.replace("  Progress,\n  ProgressEntry,\n","  Progress,\n  ProgressEntry,\n  Rebuilt,\n")
+s+='''export type BeginError = { kind: 'too_late' } | { kind: 'invalid_schedule' };
+
+/** The log entry of one rebuild, against the schedule it replaced. */
+function entryFor(atMs: number, cause: LogCause, old: RebuiltSchedule, built: Rebuilt): LogEntry {
+  const oldWaits = new Map(old.warnings.map((w) => [w.stepId, w.waitMin]));
+  return {
+    atMs,
+    cause,
+    result: {
+      ok: true,
+      moved: built.diff.moved.toSorted(
+        (a, b) => a.toStartMin - b.toStartMin || compareIds(a.stepId, b.stepId),
+      ),
+      unchanged: built.diff.unchanged,
+      servingFromMin: old.servingMin,
+      servingToMin: built.schedule.servingMin,
+      newWarnings: built.schedule.warnings.filter((w) => {
+        const before = oldWaits.get(w.stepId);
+        return before === undefined || before < w.waitMin;
+      }),
+    },
+  };
+}
+
+/**
+ * Rebuilds `core` against its facts at axis minute `n` and appends the log entry. A failed
+ * rebuild keeps the schedule and the facts and logs the error kind (CM5.7).
+ */
+function rebuildCore(core: CookCore, cause: LogCause, t: number): CookCore {
+  const n = minuteAt(core.axisMs, t);
+  const result = rebuild(core.schedule, progressOf(core), n);
+  const entry: LogEntry = result.ok
+    ? entryFor(t, cause, core.schedule, result.value)
+    : { atMs: t, cause, result: { ok: false, error: result.error.kind } };
+  return {
+    ...core,
+    schedule: result.ok ? result.value.schedule : core.schedule,
+    log: [...core.log, entry].slice(-LOG_MAX),
+  };
+}
+
+function earliestStartMin(schedule: RebuiltSchedule): number {
+  return Math.min(...schedule.steps.map((s) => s.startMin));
+}
+
+/** The session a cook would begin now, or why not. `too_late`: the rebuild is out of range. */
+export function beginSession(
+  schedule: Schedule | RebuiltSchedule,
+  axisMs: number,
+  nowMs: number,
+): Result<CookState, BeginError> {
+  const parsed = RebuiltScheduleSchema.safeParse(schedule);
+  if (!parsed.success) return err({ kind: 'invalid_schedule' });
+  const planned = parsed.data;
+  let core: CookCore = {
+    axisMs,
+    plannedServingMs: clockAt(axisMs, planned.servingMin),
+    beganAtMs: nowMs,
+    schedule: planned,
+    facts: {},
+    log: [],
+  };
+  const n = minuteAt(axisMs, nowMs);
+  const startMin = earliestStartMin(planned);
+  if (n > startMin) {
+    const result = rebuild(planned, {}, n);
+    if (!result.ok) {
+      const kind = result.error.kind;
+      return err({
+        kind: kind === 'invalid_now' || kind === 'serving_out_of_range' ? 'too_late' : 'invalid_schedule',
+      });
+    }
+    core = {
+      ...core,
+      schedule: result.value.schedule,
+      log: [entryFor(nowMs, { kind: 'begin-late', byMin: n - startMin }, planned, result.value)],
+    };
+  }
+  return ok({ version: 1, core, lastActiveMs: nowMs, alertsWanted: false, undo: null });
+}
+
+export function canBegin(
+  schedule: Schedule | RebuiltSchedule,
+  axisMs: number,
+  nowMs: number,
+): Result<null, BeginError> {
+  const result = beginSession(schedule, axisMs, nowMs);
+  return result.ok ? ok(null) : result;
+}
+
+type Undoable = { label: UndoLabel; core: CookCore; t: number };
+
+/** The state after an undoable action: the new core, the undo slot holding the old one. */
+function undoable(state: CookState, change: Undoable): CookState {
+  return {
+    ...state,
+    core: change.core,
+    lastActiveMs: change.t,
+    undo: { label: change.label, untilMs: change.t + UNDO_MS, before: state.core },
+  };
+}
+
+/** "Start now": the minutes until the first start, rounded up so the start is reached. */
+export function startNowShiftMin(core: CookCore, nowMs: number): number {
+  const startMs = clockAt(core.axisMs, earliestStartMin(core.schedule));
+  return Math.max(1, Math.ceil((startMs - nowMs) / MINUTE_MS));
+}
+
+/** One action on a session. An action that cannot apply returns `state` itself (CM3.7). */
+export function applyCook(
+  state: CookState,
+  action: Exclude<CookAction, { type: 'cook/begin' | 'cook/stop' }>,
+): CookState {
+  const { core } = state;
+  const t = effectiveNow(core, 'nowMs' in action ? action.nowMs : state.lastActiveMs);
+  switch (action.type) {
+    case 'cook/start-now': {
+      const startMs = clockAt(core.axisMs, earliestStartMin(core.schedule));
+      if (Object.keys(core.facts).length > 0 || core.log.length > 0 || t >= startMs) return state;
+      const shiftMs = startNowShiftMin(core, t) * MINUTE_MS;
+      return undoable(state, {
+        label: { kind: 'start-now' },
+        t,
+        core: {
+          ...core,
+          axisMs: core.axisMs - shiftMs,
+          plannedServingMs: core.plannedServingMs - shiftMs,
+        },
+      });
+    }
+    default:
+      // STUB (T1.3): the other actions arrive with T1.5 to T1.8.
+      return { ...state };
+  }
+}
+'''
+s=s.replace("  LogEntry,\n  StepFact,","  LogEntry,\n  StepFact,\n  UndoLabel,")
+open(p,'w').write(s)
+EOF
+npx prettier --write src/web/state/cook-session.ts test/web/state/cook-session.test.ts >/dev/null; npx vitest run --project examples test/web/state/cook-session.test.ts 2>&1 | grep -E "✓|×|Tests |passed|failed|Error" | head -40; npm run typecheck 2>&1 | tail -15
+     Test Files  1 passed (1)
+          Tests  21 passed (21)
+    
+    > make-dinner@0.0.0 typecheck
+    > tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -i '' 's/^- \[ \] T1\.3 /- [x] T1.3 /; s/^- \[ \] T1\.4 /- [x] T1.4 /' .kiro/specs/cooking-mode/tasks.md && cat >> test/web/state/cook-session.test.ts <<'EOF'
+
+type Step = { at: number } & (
+  | { do: 'start' | 'done'; id: string }
+  | { do: 'extra'; id: string; minutes: 5 | 10 | 15 }
+  | { do: 'behind' }
+);
+
+/** Applies the steps in order with `applyCook`. */
+function run(state: CookState, ...steps: Step[]): CookState {
+  let current = state;
+  for (const step of steps) {
+    if (step.do === 'behind') {
+      current = applyCook(current, { type: 'cook/behind', nowMs: step.at });
+    } else if (step.do === 'extra') {
+      current = applyCook(current, {
+        type: 'cook/extra',
+        stepId: step.id,
+        minutes: step.minutes,
+        nowMs: step.at,
+      });
+    } else {
+      current = applyCook(current, {
+        type: step.do === 'start' ? 'cook/start' : 'cook/done',
+        stepId: step.id,
+        nowMs: step.at,
+      });
+    }
+  }
+  return current;
+}
+
+/** CM-c up to and including the shred, all on plan: the five taps of the design. */
+const ON_PLAN: Step[] = [
+  { do: 'start', id: 'chicken.prep', at: cmAt(17, 40) },
+  { do: 'done', id: 'chicken.prep', at: cmAt(17, 50) },
+  { do: 'start', id: 'chicken.roast', at: cmAt(17, 50) },
+  { do: 'start', id: 'greens.shred', at: cmAt(17, 50) },
+  { do: 'done', id: 'greens.shred', at: cmAt(17, 55) },
+];
+
+function lastEntry(state: CookState): LogEntry {
+  const entry = state.core.log.at(-1);
+  expect(entry).not.toBeUndefined();
+  if (entry === undefined) throw new Error('no log entry');
+  return entry;
+}
+
+describe('CM-c step by step (CM3.1, CM5.1, CM5.3, CM5.5)', () => {
+  it('CM5.1 the five on-plan taps record facts and log nothing; the schedule is untouched', () => {
+    const start = begun(cmAt(17, 30));
+    const after = run(start, ...ON_PLAN);
+    expect(after.core.log).toEqual([]);
+    expect(after.core.schedule).toBe(start.core.schedule);
+    expect(after.core.facts).toEqual(CM_C_FACTS);
+    expect(after.lastActiveMs).toBe(cmAt(17, 55));
+  });
+
+  it('CM5.1 +15 on the roast at 18:30 logs RB-a: order, unchanged, serving and the one warning', () => {
+    const before = run(begun(cmAt(17, 30)), ...ON_PLAN);
+    const after = run(before, { do: 'extra', id: 'chicken.roast', minutes: 15, at: cmAt(18, 30) });
+    expect(after.core.facts['chicken.roast']).toEqual({
+      state: 'running',
+      startedAtMs: cmAt(17, 50),
+      extraMin: 15,
+    });
+    const entry = lastEntry(after);
+    expect(entry.atMs).toBe(cmAt(18, 30));
+    expect(entry.cause).toEqual({ kind: 'extra', stepId: 'chicken.roast', minutes: 15 });
+    expect(entry.result.ok).toBe(true);
+    if (!entry.result.ok) return;
+    expect(entry.result.moved).toEqual([
+      { stepId: 'chicken.rest', fromStartMin: -25, toStartMin: -10 },
+      { stepId: 'gravy.roux', fromStartMin: -20, toStartMin: -4 },
+      { stepId: 'gravy.simmer', fromStartMin: -18, toStartMin: -2 },
+      { stepId: 'greens.boil', fromStartMin: -10, toStartMin: 3 },
+      { stepId: 'greens.toss', fromStartMin: -6, toStartMin: 7 },
+      { stepId: 'gravy.strain', fromStartMin: -8, toStartMin: 8 },
+      { stepId: 'chicken.carve', fromStartMin: -5, toStartMin: 10 },
+    ]);
+    expect(entry.result.unchanged).toEqual(['chicken.prep', 'chicken.roast', 'greens.shred']);
+    expect([entry.result.servingFromMin, entry.result.servingToMin]).toEqual([0, 15]);
+    expect(entry.result.newWarnings.map((w) => [w.stepId, w.waitMin, w.holdMin])).toEqual([
+      ['greens.toss', 7, 5],
+    ]);
+    expect(after.core.schedule.servingMin).toBe(15);
+    expect(after.undo?.label).toEqual({ kind: 'extra', stepId: 'chicken.roast', minutes: 15 });
+    expect(after.undo?.untilMs).toBe(cmAt(18, 30, 10));
+    expect(after.undo?.before).toEqual(before.core);
+  });
+});
+
+describe('CM-d I\'m behind (CM3.2)', () => {
+  const FACTS: Step[] = [
+    { do: 'start', id: 'chicken.prep', at: cmAt(17, 40) },
+    { do: 'done', id: 'chicken.prep', at: cmAt(17, 50) },
+    { do: 'start', id: 'chicken.roast', at: cmAt(17, 50) },
+  ];
+  it('CM3.2 at 17:53 only the shred moves, to -97; nine steps stay; no serving change', () => {
+    const before = run(begun(cmAt(17, 30)), ...FACTS);
+    expect(before.core.log).toEqual([]);
+    const after = run(before, { do: 'behind', at: cmAt(17, 53) });
+    const entry = lastEntry(after);
+    expect(entry.cause).toEqual({ kind: 'behind' });
+    expect(entry.result.ok).toBe(true);
+    if (!entry.result.ok) return;
+    expect(entry.result.moved).toEqual([
+      { stepId: 'greens.shred', fromStartMin: -100, toStartMin: -97 },
+    ]);
+    expect(entry.result.unchanged).toHaveLength(9);
+    expect([entry.result.servingFromMin, entry.result.servingToMin]).toEqual([0, 0]);
+    expect(entry.result.newWarnings).toEqual([]);
+    expect(after.undo?.label).toEqual({ kind: 'behind' });
+  });
+  it('CM3.2 before any fact, while the countdown runs, behind returns the state itself', () => {
+    const state = begun(cmAt(17, 30));
+    expect(applyCook(state, { type: 'cook/behind', nowMs: cmAt(17, 35) })).toBe(state);
+  });
+});
+
+describe('CM-e thresholds (SLIP_MIN 2)', () => {
+  const PREP: Step[] = [
+    { do: 'start', id: 'chicken.prep', at: cmAt(17, 40) },
+    { do: 'done', id: 'chicken.prep', at: cmAt(17, 50) },
+  ];
+  it('CM5.1 a start 2 min late (17:52) records the fact and logs nothing', () => {
+    const before = run(begun(cmAt(17, 30)), ...PREP);
+    const after = run(before, { do: 'start', id: 'chicken.roast', at: cmAt(17, 52) });
+    expect(after.core.log).toEqual([]);
+    expect(after.core.schedule).toBe(before.core.schedule);
+    expect(after.core.facts['chicken.roast']).toEqual({
+      state: 'running',
+      startedAtMs: cmAt(17, 52),
+      extraMin: 0,
+    });
+  });
+  it('CM5.1 a start 3 min late (17:53) logs "chicken.roast started 3 min late" and pins the roast at -97', () => {
+    const before = run(begun(cmAt(17, 30)), ...PREP);
+    const after = run(before, { do: 'start', id: 'chicken.roast', at: cmAt(17, 53) });
+    expect(after.core.log).toHaveLength(1);
+    const entry = lastEntry(after);
+    expect(entry.cause).toEqual({ kind: 'start', stepId: 'chicken.roast', byMin: 3 });
+    expect(entry.result.ok).toBe(true);
+    if (!entry.result.ok) return;
+    expect(entry.result.moved).toContainEqual({
+      stepId: 'chicken.roast',
+      fromStartMin: -100,
+      toStartMin: -97,
+    });
+    const roast = after.core.schedule.steps.find((s) => s.id === 'chicken.roast');
+    // Pinned at -97 for 75 min: it ends at -22, so rest runs [-22,-2), carve [-2,3), serving 3.
+    expect([roast?.startMin, roast?.endMin]).toEqual([-97, -22]);
+    expect(after.core.schedule.servingMin).toBe(3);
+  });
+  it('CM5.1 a done 3 min early (prep at 17:47) logs byMin -3 and moves no start', () => {
+    const before = run(begun(cmAt(17, 30)), {
+      do: 'start',
+      id: 'chicken.prep',
+      at: cmAt(17, 40),
+    });
+    const after = run(before, { do: 'done', id: 'chicken.prep', at: cmAt(17, 47) });
+    const entry = lastEntry(after);
+    expect(entry.cause).toEqual({ kind: 'done', stepId: 'chicken.prep', byMin: -3 });
+    expect(entry.result.ok).toBe(true);
+    if (!entry.result.ok) return;
+    expect(entry.result.moved).toEqual([]);
+    expect(entry.result.servingToMin).toBe(0);
+    expect(after.core.schedule.servingMin).toBe(0);
+  });
+  it('CM5.3 an early start (prep at 17:35) shows the pinned step in moved', () => {
+    const after = run(begun(cmAt(17, 30)), { do: 'start', id: 'chicken.prep', at: cmAt(17, 35) });
+    const entry = lastEntry(after);
+    expect(entry.cause).toEqual({ kind: 'start', stepId: 'chicken.prep', byMin: -5 });
+    expect(entry.result.ok).toBe(true);
+    if (!entry.result.ok) return;
+    expect(entry.result.moved).toEqual([
+      { stepId: 'chicken.prep', fromStartMin: -110, toStartMin: -115 },
+    ]);
+  });
+});
+
+describe('CM3.7 invalid actions return the same object', () => {
+  const running = run(begun(cmAt(17, 30)), ...ON_PLAN);
+  it('start on a running step, start on a done step, start on an unknown id', () => {
+    expect(applyCook(running, { type: 'cook/start', stepId: 'chicken.roast', nowMs: cmAt(18, 0) })).toBe(running);
+    expect(applyCook(running, { type: 'cook/start', stepId: 'chicken.prep', nowMs: cmAt(18, 0) })).toBe(running);
+    expect(applyCook(running, { type: 'cook/start', stepId: 'ghost.step', nowMs: cmAt(18, 0) })).toBe(running);
+  });
+  it('done on a pending step, on a done step, on an unknown id', () => {
+    expect(applyCook(running, { type: 'cook/done', stepId: 'chicken.carve', nowMs: cmAt(18, 0) })).toBe(running);
+    expect(applyCook(running, { type: 'cook/done', stepId: 'chicken.prep', nowMs: cmAt(18, 0) })).toBe(running);
+    expect(applyCook(running, { type: 'cook/done', stepId: 'ghost.step', nowMs: cmAt(18, 0) })).toBe(running);
+  });
+  it('extra on a pending step, and extra of 7 minutes', () => {
+    expect(
+      applyCook(running, { type: 'cook/extra', stepId: 'chicken.carve', minutes: 5, nowMs: cmAt(18, 0) }),
+    ).toBe(running);
+    const seven = { type: 'cook/extra', stepId: 'chicken.roast', minutes: 7, nowMs: cmAt(18, 0) };
+    expect(applyCook(running, seven as unknown as Parameters<typeof applyCook>[1])).toBe(running);
+  });
+});
+
+describe('extra minutes and the log limit', () => {
+  it('CM5.1 extraMin is capped at core REBUILD_LIMITS.extraMax', () => {
+    const base = run(begun(cmAt(17, 30)), ...ON_PLAN);
+    const near: CookState = {
+      ...base,
+      core: {
+        ...base.core,
+        facts: {
+          ...base.core.facts,
+          'chicken.roast': {
+            state: 'running',
+            startedAtMs: cmAt(17, 50),
+            extraMin: REBUILD_LIMITS.extraMax - 5,
+          },
+        },
+      },
+    };
+    const after = run(near, { do: 'extra', id: 'chicken.roast', minutes: 15, at: cmAt(18, 30) });
+    expect(after.core.facts['chicken.roast']).toEqual({
+      state: 'running',
+      startedAtMs: cmAt(17, 50),
+      extraMin: REBUILD_LIMITS.extraMax,
+    });
+  });
+  it('CM5.3 the 21st log entry drops the oldest', () => {
+    let state = run(begun(cmAt(17, 30)), {
+      do: 'start',
+      id: 'chicken.prep',
+      at: cmAt(17, 40),
+    });
+    for (let k = 1; k <= 21; k += 1) {
+      state = run(state, { do: 'behind', at: cmAt(17, 40 + k) });
+    }
+    expect(state.core.log).toHaveLength(20);
+    expect(state.core.log[0]?.atMs).toBe(cmAt(17, 42));
+    expect(state.core.log.at(-1)?.atMs).toBe(cmAt(18, 1));
+  });
+});
+EOF
+python3 - <<'EOF'
+p='test/web/state/cook-session.test.ts'
+s=open(p).read()
+s=s.replace("import type { CookCore, CookState, StepFact } from","import type { CookCore, CookState, LogEntry, StepFact } from")
+s=s.replace("import {\n  AXIS_MS,","import { REBUILD_LIMITS } from '../../../src/core/schema.js';\nimport {\n  AXIS_MS,",1)
+open(p,'w').write(s)
+EOF
+npx prettier --write test/web/state/cook-session.test.ts >/dev/null; npx vitest run --project examples test/web/state/cook-session.test.ts 2>&1 | grep -E "×|Tests |passed|failed|Error:" | head -40
+     ❯ |examples| test/web/state/cook-session.test.ts (34 tests | 13 failed) 24ms
+         × CM5.1 the five on-plan taps record facts and log nothing; the schedule is untouched 4ms
+         × CM5.1 +15 on the roast at 18:30 logs RB-a: order, unchanged, serving and the one warning 0ms
+         × CM3.2 at 17:53 only the shred moves, to -97; nine steps stay; no serving change 0ms
+         × CM3.2 before any fact, while the countdown runs, behind returns the state itself 2ms
+         × CM5.1 a start 2 min late (17:52) records the fact and logs nothing 0ms
+         × CM5.1 a start 3 min late (17:53) logs "chicken.roast started 3 min late" and pins the roast at -97 1ms
+         × CM5.1 a done 3 min early (prep at 17:47) logs byMin -3 and moves no start 0ms
+         × CM5.3 an early start (prep at 17:35) shows the pinned step in moved 0ms
+         × start on a running step, start on a done step, start on an unknown id 1ms
+         × done on a pending step, on a done step, on an unknown id 1ms
+         × extra on a pending step, and extra of 7 minutes 1ms
+         × CM5.1 extraMin is capped at core REBUILD_LIMITS.extraMax 0ms
+         × CM5.3 the 21st log entry drops the oldest 0ms
+    ⎯⎯⎯⎯⎯⎯ Failed Tests 13 ⎯⎯⎯⎯⎯⎯⎯
+    AssertionError: expected {} to deeply equal { 'chicken.prep': { …(3) }, …(2) }
+    AssertionError: expected undefined to deeply equal { state: 'running', …(2) }
+    AssertionError: expected undefined not to be undefined
+    AssertionError: expected { version: 1, core: { …(6) }, …(3) } to be { version: 1, core: { …(6) }, …(3) } // Object.is equality
+    AssertionError: expected undefined to deeply equal { state: 'running', …(2) }
+    AssertionError: expected [] to have a length of 1 but got +0
+    AssertionError: expected undefined not to be undefined
+    AssertionError: expected undefined not to be undefined
+    AssertionError: expected { version: 1, core: { …(6) }, …(3) } to be { version: 1, core: { …(6) }, …(3) } // Object.is equality
+    AssertionError: expected { version: 1, core: { …(6) }, …(3) } to be { version: 1, core: { …(6) }, …(3) } // Object.is equality
+    AssertionError: expected { version: 1, core: { …(6) }, …(3) } to be { version: 1, core: { …(6) }, …(3) } // Object.is equality
+    ReferenceError: REBUILD_LIMITS is not defined
+    AssertionError: expected [] to have a length of 20 but got +0
+     Test Files  1 failed (1)
+          Tests  13 failed | 21 passed (34)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/web/state/cook-session.ts'
+s=open(p).read()
+a=s.index("/** One action on a session.")
+s=s[:a]+'''export type Phase = 'countdown' | 'cooking' | 'finished' | 'stale';
+
+/** Ids of steps no other step lists in `after`. */
+export function terminalIdsOf(schedule: RebuiltSchedule): string[] {
+  const used = new Set(schedule.plan.steps.flatMap((step) => step.after));
+  return schedule.plan.steps.filter((step) => !used.has(step.id)).map((step) => step.id);
+}
+
+/** Derived, never stored, so the countdown ends by itself at the start. */
+export function phaseOf(state: CookState, nowMs: number): Phase {
+  const { core } = state;
+  if (terminalIdsOf(core.schedule).every((id) => core.facts[id]?.state === 'done')) {
+    return 'finished';
+  }
+  if (nowMs - state.lastActiveMs > STALE_MS) return 'stale';
+  const startMs = clockAt(core.axisMs, earliestStartMin(core.schedule));
+  if (Object.keys(core.facts).length === 0 && nowMs < startMs) return 'countdown';
+  return 'cooking';
+}
+
+const EXTRA_SET: readonly number[] = EXTRA_CHOICES;
+
+/** One action on a session. An action that cannot apply returns `state` itself (CM3.7). */
+export function applyCook(
+  state: CookState,
+  action: Exclude<CookAction, { type: 'cook/begin' | 'cook/stop' }>,
+): CookState {
+  const { core } = state;
+  const t = effectiveNow(core, 'nowMs' in action ? action.nowMs : state.lastActiveMs);
+  const n = minuteAt(core.axisMs, t);
+  switch (action.type) {
+    case 'cook/start-now': {
+      const startMs = clockAt(core.axisMs, earliestStartMin(core.schedule));
+      if (Object.keys(core.facts).length > 0 || core.log.length > 0 || t >= startMs) return state;
+      const shiftMs = startNowShiftMin(core, t) * MINUTE_MS;
+      return undoable(state, {
+        label: { kind: 'start-now' },
+        t,
+        core: {
+          ...core,
+          axisMs: core.axisMs - shiftMs,
+          plannedServingMs: core.plannedServingMs - shiftMs,
+        },
+      });
+    }
+    case 'cook/start': {
+      const row = core.schedule.steps.find((r) => r.id === action.stepId);
+      if (row === undefined || core.facts[action.stepId] !== undefined) return state;
+      const next: CookCore = {
+        ...core,
+        facts: { ...core.facts, [action.stepId]: { state: 'running', startedAtMs: t, extraMin: 0 } },
+      };
+      const byMin = n - row.startMin;
+      return undoable(state, {
+        label: { kind: 'start', stepId: action.stepId },
+        t,
+        core:
+          Math.abs(byMin) > SLIP_MIN
+            ? rebuildCore(next, { kind: 'start', stepId: action.stepId, byMin }, t)
+            : next,
+      });
+    }
+    case 'cook/done': {
+      const row = core.schedule.steps.find((r) => r.id === action.stepId);
+      const fact = core.facts[action.stepId];
+      if (row === undefined || fact?.state !== 'running') return state;
+      const next: CookCore = {
+        ...core,
+        facts: {
+          ...core.facts,
+          [action.stepId]: { state: 'done', startedAtMs: fact.startedAtMs, endedAtMs: t },
+        },
+      };
+      const byMin = n - row.endMin;
+      return undoable(state, {
+        label: { kind: 'done', stepId: action.stepId },
+        t,
+        core:
+          Math.abs(byMin) > SLIP_MIN
+            ? rebuildCore(next, { kind: 'done', stepId: action.stepId, byMin }, t)
+            : next,
+      });
+    }
+    case 'cook/extra': {
+      const fact = core.facts[action.stepId];
+      if (fact?.state !== 'running' || !EXTRA_SET.includes(action.minutes)) return state;
+      const extraMin = Math.min(EXTRA_MAX, fact.extraMin + action.minutes);
+      if (extraMin === fact.extraMin) return state;
+      const next: CookCore = {
+        ...core,
+        facts: { ...core.facts, [action.stepId]: { ...fact, extraMin } },
+      };
+      return undoable(state, {
+        label: { kind: 'extra', stepId: action.stepId, minutes: action.minutes },
+        t,
+        core: rebuildCore(
+          next,
+          { kind: 'extra', stepId: action.stepId, minutes: action.minutes },
+          t,
+        ),
+      });
+    }
+    case 'cook/behind': {
+      if (phaseOf(state, t) !== 'cooking') return state;
+      return undoable(state, {
+        label: { kind: 'behind' },
+        t,
+        core: rebuildCore(core, { kind: 'behind' }, t),
+      });
+    }
+    default:
+      // STUB (T1.5): undo, tick, resume and alerts arrive with T1.7 and T1.8.
+      return { ...state };
+  }
+}
+'''
+s=s.replace("  CookState,\n  LogCause,","  CookState,\n  LogCause,")
+open(p,'w').write(s)
+p='test/web/state/cook-session.test.ts'
+t=open(p).read()
+if "REBUILD_LIMITS } from" not in t:
+    t=t.replace("import { RebuiltScheduleSchema }","import { REBUILD_LIMITS } from '../../../src/core/schema.js';\nimport { RebuiltScheduleSchema }",1)
+open(p,'w').write(t)
+EOF
+npx prettier --write src/web/state/cook-session.ts test/web/state/cook-session.test.ts >/dev/null; npx vitest run --project examples test/web/state/cook-session.test.ts 2>&1 | grep -E "×|Tests |passed|failed|Error" | head -40; npm run typecheck 2>&1 | tail -15
+     Test Files  1 passed (1)
+          Tests  34 passed (34)
+    
+    > make-dinner@0.0.0 typecheck
+    > tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -i '' 's/^- \[ \] T1\.5 /- [x] T1.5 /; s/^- \[ \] T1\.6 /- [x] T1.6 /' .kiro/specs/cooking-mode/tasks.md && python3 - <<'EOF'
+p='test/web/state/cook-session.test.ts'
+s=open(p).read()
+s=s.replace("  endsAtMs,\n  progressOf,","  endsAtMs,\n  overdueIds,\n  progressOf,",1)
+s+='''
+describe('CM-h undo (CM3.4, CM5.8)', () => {
+  const before = run(begun(cmAt(17, 30)), ...ON_PLAN);
+  const extra = (): CookState =>
+    run(before, { do: 'extra', id: 'chicken.roast', minutes: 15, at: cmAt(18, 30) });
+
+  it('CM3.4 at 18:30:05 the core is the one before the +15: H1, roast extra 0, empty log', () => {
+    const after = applyCook(extra(), { type: 'cook/undo', nowMs: cmAt(18, 30, 5) });
+    expect(after.core.log).toEqual([]);
+    expect(after.core.schedule.servingMin).toBe(0);
+    expect(after.core.facts['chicken.roast']).toEqual({
+      state: 'running',
+      startedAtMs: cmAt(17, 50),
+      extraMin: 0,
+    });
+    expect(after.core).toEqual(before.core);
+    expect(after.undo).toBeNull();
+    expect(after.alertsWanted).toBe(false);
+  });
+
+  it('CM3.7 at 18:30:10 the window is over and undo returns the state itself', () => {
+    const state = extra();
+    expect(applyCook(state, { type: 'cook/undo', nowMs: cmAt(18, 30, 10) })).toBe(state);
+  });
+
+  it('CM3.7 undo with no slot returns the state itself', () => {
+    const state = begun(cmAt(17, 30));
+    expect(applyCook(state, { type: 'cook/undo', nowMs: cmAt(17, 30, 1) })).toBe(state);
+  });
+
+  it('CM3.4 undoing "Start now" restores the old axis', () => {
+    const start = begun(cmAt(17, 30));
+    const moved = applyCook(start, { type: 'cook/start-now', nowMs: cmAt(17, 30) });
+    const back = applyCook(moved, { type: 'cook/undo', nowMs: cmAt(17, 30, 3) });
+    expect(back.core.axisMs).toBe(AXIS_MS);
+    expect(back.core.plannedServingMs).toBe(AXIS_MS);
+  });
+});
+
+describe('CM-g overdue is shown, never rebuilt (design review Q4)', () => {
+  const cmF = (): CookState => run(begun(cmAt(17, 30)), ...ON_PLAN);
+
+  it('CM5.1 overdueIds at 19:10:00 (n = -20) are the rest and the roast, sorted', () => {
+    expect(overdueIds(cmF().core, cmAt(19, 10))).toEqual(['chicken.rest', 'chicken.roast']);
+  });
+  it('CM5.1 overdueIds at 19:09:45 (n = -21) are empty', () => {
+    expect(overdueIds(cmF().core, cmAt(19, 9, 45))).toEqual([]);
+  });
+  it('CM5.1 a keeps step within its slack is not overdue; at the end of its slack it is', () => {
+    const state = run(
+      begun(cmAt(17, 30)),
+      { do: 'start', id: 'chicken.prep', at: cmAt(17, 40) },
+      { do: 'done', id: 'chicken.prep', at: cmAt(17, 50) },
+      { do: 'start', id: 'chicken.roast', at: cmAt(17, 50) },
+    );
+    // The shred planned -100 has slack 75: overdue only from -25 (19:05).
+    expect(overdueIds(state.core, cmAt(19, 4, 59))).toEqual([]);
+    expect(overdueIds(state.core, cmAt(19, 5))).toEqual(['greens.shred']);
+  });
+  it('CM5.1 a tick changes nothing, even with steps overdue', () => {
+    const state = cmF();
+    expect(applyCook(state, { type: 'cook/tick', nowMs: cmAt(19, 10) })).toBe(state);
+  });
+  it('CM5.1 "I\\'m behind" at 19:10:00 gives the E3 rebuild; a second tap logs "everything is on time"', () => {
+    const first = run(cmF(), { do: 'behind', at: cmAt(19, 10) });
+    const entry = lastEntry(first);
+    expect(entry.cause).toEqual({ kind: 'behind' });
+    expect(entry.result.ok).toBe(true);
+    if (!entry.result.ok) return;
+    expect(entry.result.moved).toEqual([
+      { stepId: 'chicken.rest', fromStartMin: -25, toStartMin: -20 },
+      { stepId: 'gravy.roux', fromStartMin: -20, toStartMin: -15 },
+      { stepId: 'gravy.simmer', fromStartMin: -18, toStartMin: -13 },
+      { stepId: 'greens.boil', fromStartMin: -10, toStartMin: -5 },
+      { stepId: 'gravy.strain', fromStartMin: -8, toStartMin: -3 },
+      { stepId: 'greens.toss', fromStartMin: -6, toStartMin: -1 },
+      { stepId: 'chicken.carve', fromStartMin: -5, toStartMin: 0 },
+    ]);
+    expect(entry.result.unchanged).toEqual(['chicken.prep', 'chicken.roast', 'greens.shred']);
+    expect([entry.result.servingFromMin, entry.result.servingToMin]).toEqual([0, 5]);
+    expect(entry.result.newWarnings).toEqual([]);
+    const second = run(first, { do: 'behind', at: cmAt(19, 10) });
+    const again = lastEntry(second);
+    expect(second.core.log).toHaveLength(2);
+    expect(again.result.ok && again.result.moved).toEqual([]);
+    expect(again.result.ok && again.result.servingToMin).toBe(5);
+  });
+});
+
+describe('tick, resume and alerts (CM7.3)', () => {
+  it('a tick keeps the undo slot', () => {
+    const state = run(begun(cmAt(17, 30)), {
+      do: 'start',
+      id: 'chicken.prep',
+      at: cmAt(17, 40),
+    });
+    const ticked = applyCook(state, { type: 'cook/tick', nowMs: cmAt(17, 40, 5) });
+    expect(ticked.undo).toEqual(state.undo);
+    expect(ticked.undo).not.toBeNull();
+  });
+  it('CM7.3 resume sets only lastActiveMs', () => {
+    const state = run(begun(cmAt(17, 30)), ...ON_PLAN);
+    const resumed = applyCook(state, { type: 'cook/resume', nowMs: cmAt(24 + 2, 0) });
+    expect(resumed.lastActiveMs).toBe(cmAt(24 + 2, 0));
+    expect(resumed.core).toBe(state.core);
+    expect(resumed.undo).toBe(state.undo);
+    expect(resumed.alertsWanted).toBe(state.alertsWanted);
+  });
+  it('CM4.4 alerts sets only alertsWanted, and the same value returns the state itself', () => {
+    const state = begun(cmAt(17, 30));
+    const on = applyCook(state, { type: 'cook/alerts', wanted: true });
+    expect(on).toEqual({ ...state, alertsWanted: true });
+    expect(applyCook(on, { type: 'cook/alerts', wanted: true })).toBe(on);
+  });
+});
+'''
+open(p,'w').write(s)
+
+p='test/web/state/cook-slot.test.ts'
+s=open(p).read()
+s=s.replace("import { CookStateSchema } from '../../../src/web/state/cook-slot.js';","""import { beginSession } from '../../../src/web/state/cook-session.js';
+import { CookStateSchema, reduceCook } from '../../../src/web/state/cook-slot.js';
+import type { CookState } from '../../../src/web/state/cook-slot.js';""")
+s=s.replace("import { RebuiltScheduleSchema } from","import { RebuiltScheduleSchema } from")
+s+='''
+describe('reduceCook (R9.9)', () => {
+  const wrap = (cook: CookState | null): { cook: CookState | null; other: number } => ({
+    cook,
+    other: 7,
+  });
+  const begin = {
+    type: 'cook/begin',
+    schedule: H1_SCHEDULE,
+    axisMs: AXIS_MS,
+    nowMs: cmAt(17, 30),
+  } as const;
+
+  it('CM1.1 begin with no session sets one and leaves the rest of the state alone', () => {
+    const next = reduceCook(wrap(null), begin);
+    const expected = beginSession(H1_SCHEDULE, AXIS_MS, cmAt(17, 30));
+    expect(expected.ok).toBe(true);
+    expect(next.other).toBe(7);
+    expect(next.cook?.core.axisMs).toBe(AXIS_MS);
+    expect(next.cook?.core.beganAtMs).toBe(cmAt(17, 30));
+    expect(next.cook?.version).toBe(1);
+  });
+  it('CM1.5 begin too late leaves cook null and returns the state itself', () => {
+    const state = wrap(null);
+    expect(reduceCook(state, { ...begin, nowMs: cmAt(19 + 48, 30) })).toBe(state);
+  });
+  it('CM1.1 begin with a session already there returns the state itself', () => {
+    const first = reduceCook(wrap(null), begin);
+    expect(reduceCook(first, { ...begin, nowMs: cmAt(17, 31) })).toBe(first);
+  });
+  it('CM8.3 stop clears the session; stop with none returns the state itself', () => {
+    const first = reduceCook(wrap(null), begin);
+    expect(reduceCook(first, { type: 'cook/stop' }).cook).toBeNull();
+    const none = wrap(null);
+    expect(reduceCook(none, { type: 'cook/stop' })).toBe(none);
+  });
+  it('CM3.7 an action with no session returns the state itself', () => {
+    const none = wrap(null);
+    expect(reduceCook(none, { type: 'cook/behind', nowMs: cmAt(17, 40) })).toBe(none);
+  });
+  it('CM3.7 an invalid action returns the state itself', () => {
+    const first = reduceCook(wrap(null), begin);
+    expect(
+      reduceCook(first, { type: 'cook/done', stepId: 'chicken.prep', nowMs: cmAt(17, 40) }),
+    ).toBe(first);
+  });
+  it('CM3.4 a valid action replaces cook with the applied state', () => {
+    const first = reduceCook(wrap(null), begin);
+    const next = reduceCook(first, { type: 'cook/start', stepId: 'chicken.prep', nowMs: cmAt(17, 40) });
+    expect(next.cook?.core.facts['chicken.prep']).toEqual({
+      state: 'running',
+      startedAtMs: cmAt(17, 40),
+      extraMin: 0,
+    });
+    expect(next.other).toBe(7);
+  });
+});
+'''
+open(p,'w').write(s)
+EOF
+python3 - <<'EOF'
+p='~/hackathons-2026/kiroween/makedinner/src/web/state/cook-session.ts'
+s=open(p).read()
+s+='''
+// STUB (T1.7): replaced in T1.8.
+export function overdueIds(core: CookCore, nowMs: number): string[] {
+  void core;
+  void nowMs;
+  return ['stub'];
+}
+'''
+open(p,'w').write(s)
+EOF
+cd ~/hackathons-2026/kiroween/makedinner && npx prettier --write test/web/state/*.ts src/web/state/*.ts >/dev/null; npx vitest run --project examples test/web/state/cook-session.test.ts test/web/state/cook-slot.test.ts 2>&1 | grep -E "×|Tests |passed|failed|Error" | head -40
+     ❯ |examples| test/web/state/cook-slot.test.ts (12 tests | 2 failed) 11ms
+         × CM1.1 begin with no session sets one and leaves the rest of the state alone 2ms
+         × CM3.4 a valid action replaces cook with the applied state 1ms
+     ❯ |examples| test/web/state/cook-session.test.ts (46 tests | 10 failed) 39ms
+         × CM3.4 at 18:30:05 the core is the one before the +15: H1, roast extra 0, empty log 4ms
+         × CM3.7 at 18:30:10 the window is over and undo returns the state itself 4ms
+         × CM3.7 undo with no slot returns the state itself 1ms
+         × CM3.4 undoing "Start now" restores the old axis 0ms
+         × CM5.1 overdueIds at 19:10:00 (n = -20) are the rest and the roast, sorted 0ms
+         × CM5.1 overdueIds at 19:09:45 (n = -21) are empty 0ms
+         × CM5.1 a keeps step within its slack is not overdue; at the end of its slack it is 0ms
+         × CM5.1 a tick changes nothing, even with steps overdue 2ms
+         × CM7.3 resume sets only lastActiveMs 0ms
+         × CM4.4 alerts sets only alertsWanted, and the same value returns the state itself 1ms
+    ⎯⎯⎯⎯⎯⎯ Failed Tests 12 ⎯⎯⎯⎯⎯⎯⎯
+    AssertionError: expected [ { atMs: 1794421800000, …(2) } ] to deeply equal []
+    AssertionError: expected { version: 1, core: { …(6) }, …(3) } to be { version: 1, core: { …(6) }, …(3) } // Object.is equality
+    AssertionError: expected { version: 1, core: { …(6) }, …(3) } to be { version: 1, core: { …(6) }, …(3) } // Object.is equality
+    AssertionError: expected 1794424800000 to be 1794425400000 // Object.is equality
+    AssertionError: expected [ 'stub' ] to deeply equal [ 'chicken.rest', 'chicken.roast' ]
+    AssertionError: expected [ 'stub' ] to deeply equal []
+    AssertionError: expected [ 'stub' ] to deeply equal []
+    AssertionError: expected { version: 1, core: { …(6) }, …(3) } to be { version: 1, core: { …(6) }, …(3) } // Object.is equality
+    AssertionError: expected 1794419700000 to be 1794448800000 // Object.is equality
+    AssertionError: expected { version: 1, core: { …(6) }, …(3) } to deeply equal { version: 1, core: { …(6) }, …(3) }
+    AssertionError: expected undefined to be 1794425400000 // Object.is equality
+    AssertionError: expected undefined to deeply equal { state: 'running', …(2) }
+     Test Files  2 failed (2)
+          Tests  12 failed | 46 passed (58)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/web/state/cook-session.ts'
+s=open(p).read()
+a=s.index("// STUB (T1.7)")
+s=s[:a].rstrip()+'''
+
+/**
+ * Steps that are late by the design's rule, sorted by id: a running step `OVERDUE_MIN` past its
+ * planned end, a pending step `OVERDUE_MIN` (or its slack, if larger) past its planned start.
+ * Display only: nothing rebuilds by itself (design review Q4).
+ */
+export function overdueIds(core: CookCore, nowMs: number): string[] {
+  const n = minuteAt(core.axisMs, nowMs);
+  const late: string[] = [];
+  for (const row of core.schedule.steps) {
+    const fact = core.facts[row.id];
+    if (fact?.state === 'done') continue;
+    const limit =
+      fact === undefined
+        ? row.startMin + Math.max(OVERDUE_MIN, row.slackMin)
+        : row.endMin + OVERDUE_MIN;
+    if (n >= limit) late.push(row.id);
+  }
+  return late.toSorted(compareIds);
+}
+'''
+s=s.replace('''    default:
+      // STUB (T1.5): undo, tick, resume and alerts arrive with T1.7 and T1.8.
+      return { ...state };
+  }''','''    case 'cook/undo': {
+      if (state.undo === null || t >= state.undo.untilMs) return state;
+      return { ...state, core: state.undo.before, lastActiveMs: t, undo: null };
+    }
+    case 'cook/tick':
+      // Display only: late steps are derived from the clock, so a tick records nothing.
+      return state;
+    case 'cook/resume':
+      return state.lastActiveMs === t ? state : { ...state, lastActiveMs: t };
+    case 'cook/alerts':
+      return state.alertsWanted === action.wanted ? state : { ...state, alertsWanted: action.wanted };
+  }''')
+open(p,'w').write(s)
+p='src/web/state/cook-slot.ts'
+s=open(p).read()
+a=s.index("// STUB (T1.1): replaced in T1.8.")
+s=s[:a]+'''/**
+ * Cooking-mode reducer for plan-ui's `reduce` (R9.9). An action that changes nothing returns
+ * `state` itself; `cook/begin` with a session already there, or one that cannot begin, too.
+ */
+export function reduceCook<S extends { cook: CookState | null }>(
+  state: S,
+  action: CookAction,
+): S {
+  if (action.type === 'cook/stop') {
+    return state.cook === null ? state : { ...state, cook: null };
+  }
+  if (action.type === 'cook/begin') {
+    if (state.cook !== null) return state;
+    const begun = beginSession(action.schedule, action.axisMs, action.nowMs);
+    return begun.ok ? { ...state, cook: begun.value } : state;
+  }
+  if (state.cook === null) return state;
+  const next = applyCook(state.cook, action);
+  return next === state.cook ? state : { ...state, cook: next };
+}
+'''
+s=s.replace("import { EXTRA_MAX, LOG_MAX } from './cook-session.js';","import { applyCook, beginSession, EXTRA_MAX, LOG_MAX } from './cook-session.js';")
+open(p,'w').write(s)
+EOF
+npx prettier --write src/web/state/*.ts >/dev/null; npx vitest run --project examples test/web/state 2>&1 | grep -E "×|Tests |Test Files|Error" | head -20; npm run typecheck 2>&1 | tail -8; npm run lint 2>&1 | tail -30
+     Test Files  10 passed (10)
+          Tests  245 passed (245)
+    
+    > make-dinner@0.0.0 typecheck
+    > tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit
+    
+    
+    > make-dinner@0.0.0 lint
+    > eslint .
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -i '' 's/^- \[ \] T1\.7 /- [x] T1.7 /; s/^- \[ \] T1\.8 /- [x] T1.8 /' .kiro/specs/cooking-mode/tasks.md && grep -n "arbScheduled\|^export function\|^export const" test/support/arbitraries.ts | tail -40; sed -n 1,40p test/support/arbitraries.ts; grep -n "^export function\|^export const" test/support/oracles.ts | tail -30; sed -n 1,30p test/meta/oracles.test.ts; ls test/meta
+    … (106 earlier lines not shown)
+      Schedule,
+      ScheduledStep,
+      Step,
+    } from '../../src/core/schema.js';
+    import {
+      BARE_KITCHEN,
+      E7_NOW,
+      E7_PROGRESS,
+      H1_SCHEDULE,
+      H3_SCHEDULE,
+      HOME_KITCHEN,
+      MEZZE,
+      NO_BURNER_KITCHEN,
+      ONE_BURNER_KITCHEN,
+      PREP_AHEAD,
+      RB_A_NOW,
+      RB_A_PROGRESS,
+      RB_B_NOW,
+      RB_B_PROGRESS,
+      RB_C_NOW,
+      RB_C_PROGRESS,
+      SUNDAY_ROAST,
+      SUNDAY_ROAST_DINNERFILE,
+      SUNDAY_ROAST_MAKE_DINNER,
+    arbitraries.test.ts
+    fakes.test.ts
+    guarantee-claims.ts
+    guarantees.test.ts
+    make.test.ts
+    oracles.test.ts
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 915,1160p test/support/arbitraries.ts; sed -n 640,720p test/support/oracles.ts; sed -n 1,30p test/support/oracles.ts; tail -50 test/meta/oracles.test.ts
+    … (377 earlier lines not shown)
+          define: ['define.y'],
+          dinner: ['--.--'],
+          export: ['export.x'],
+        });
+      });
+      it('last steps of SUNDAY_ROAST: chicken.roast is not one, chicken.rest waits on it', () => {
+        expect(oracleDishLastSteps(SUNDAY_ROAST)).toEqual({
+          chicken: ['chicken.carve'],
+          gravy: ['gravy.strain'],
+          greens: ['greens.toss'],
+        });
+      });
+    });
+    
+    describe('recipe-reader oracles, hand-worked', () => {
+      it('oracleMaxInWindow: the busiest window of 10 s', () => {
+        // Windows start at a call and are half open: [0, 10000) holds 0, 1000, 9999 (3 calls);
+        // 10000 is outside it. [9999, 19999) holds 9999, 10000 (2 calls).
+        expect(oracleMaxInWindow([0, 1_000, 9_999, 10_000], 10_000)).toBe(3);
+        expect(oracleMaxInWindow([], 10_000)).toBe(0);
+        expect(oracleMaxInWindow([5, 5, 5], 1)).toBe(3);
+        expect(oracleMaxInWindow([0, 10_000, 20_000], 10_000)).toBe(1);
+      });
+    
+      it('oracleUtcDay: the day changes exactly at 00:00:00.000 UTC', () => {
+        expect(oracleUtcDay(Date.UTC(2026, 10, 11, 23, 59, 59, 999))).toBe('2026-11-11');
+        expect(oracleUtcDay(Date.UTC(2026, 10, 12, 0, 0, 0, 0))).toBe('2026-11-12');
+        expect(oracleUtcDay(0)).toBe('1970-01-01');
+      });
+    });
+    exit 0
+[tool:execute FAILED] $ cd ~/hackathons-2026/kiroween/makedinner && cat >> test/support/oracles.ts <<'EOF'
+
+// ---------------------------------------------------------------------------------------
+// Cooking-mode oracles (cooking-mode spec). Plain loops over steps; the minute of an instant is
+// written out here, not taken from src/web/state/clock.ts.
+
+/** What the cooking oracles need of a schedule: planned starts, ends and slack per step. */
+export interface CookOracleSchedule {
+  steps: readonly { id: string; startMin: number; endMin: number; slackMin: number }[];
+}
+
+/** What the cooking oracles need of a fact: only whether the step is running or done. */
+export type CookOracleFacts = Readonly<Record<string, { state: 'running' | 'done' }>>;
+
+const MS_PER_MINUTE = 60_000;
+
+/**
+ * CM2.2 to CM2.6: the ids of the steps that are due (pending, planned start at or before now),
+ * running, and the first three pending steps that are not due by (planned start, id).
+ */
+export function oracleCookSections(
+  schedule: CookOracleSchedule,
+  facts: CookOracleFacts,
+  axisMs: number,
+  nowMs: number,
+): { due: string[]; running: string[]; upNext: string[] } {
+  const due: string[] = [];
+  const running: string[] = [];
+  const later: { id: string; startMs: number }[] = [];
+  for (const row of schedule.steps) {
+    const fact = facts[row.id];
+    if (fact?.state === 'done') continue;
+    if (fact?.state === 'running') {
+      running.push(row.id);
+      continue;
+    }
+    const startMs = axisMs + row.startMin * MS_PER_MINUTE;
+    if (startMs <= nowMs) due.push(row.id);
+    else later.push({ id: row.id, startMs });
+  }
+  later.sort((a, b) => a.startMs - b.startMs || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return {
+    due: due.sort(),
+    running: running.sort(),
+    upNext: later.slice(0, 3).map((x) => x.id),
+  };
+}
+
+/**
+ * The late steps, sorted by id. With `n` the floor of the minutes since the axis instant: a
+ * running step is late when `n >= endMin + 5`; a pending one when `n >= startMin + max(5, slack)`.
+ */
+export function oracleOverdue(
+  schedule: CookOracleSchedule,
+  facts: CookOracleFacts,
+  axisMs: number,
+  nowMs: number,
+): string[] {
+  const n = Math.floor((nowMs - axisMs) / MS_PER_MINUTE);
+  const late: string[] = [];
+  for (const row of schedule.steps) {
+    const fact = facts[row.id];
+    if (fact?.state === 'done') continue;
+    if (fact?.state === 'running') {
+      if (n >= row.endMin + 5) late.push(row.id);
+    } else if (n >= row.startMin + Math.max(5, row.slackMin)) {
+      late.push(row.id);
+    }
+  }
+  return late.sort();
+}
+EOF
+python3 - <<'EOF'
+p='~/hackathons-2026/kiroween/makedinner/test/meta/oracles.test.ts'
+s=open(p).read()
+s+='''
+describe('cooking-mode oracles, hand-worked (CM-f and CM-g)', () => {
+  const facts = Object.fromEntries(
+    Object.entries(CM_F_FACTS).map(([id, fact]) => [id, { state: fact.state }]),
+  );
+
+  it('CM-f at 17:56: nothing is due, the roast runs, rest, roux and simmer are next', () => {
+    expect(oracleCookSections(H1_SCHEDULE, facts, AXIS_MS, cmAt(17, 56))).toEqual({
+      due: [],
+      running: ['chicken.roast'],
+      upNext: ['chicken.rest', 'gravy.roux', 'gravy.simmer'],
+    });
+  });
+  it('CM-f broken input: without the roast fact the roast is due at 17:56, not running', () => {
+    const broken = { 'chicken.prep': facts['chicken.prep'], 'greens.shred': facts['greens.shred'] };
+    const sections = oracleCookSections(
+      H1_SCHEDULE,
+      broken as Record<string, { state: 'running' | 'done' }>,
+      AXIS_MS,
+      cmAt(17, 56),
+    );
+    expect(sections.due).toEqual(['chicken.roast']);
+    expect(sections.running).toEqual([]);
+  });
+  it('CM-g: at 19:10:00 (n = -20) the rest and the roast are late; at 19:09:45 nothing is', () => {
+    expect(oracleOverdue(H1_SCHEDULE, facts, AXIS_MS, cmAt(19, 10))).toEqual([
+      'chicken.rest',
+      'chicken.roast',
+    ]);
+    expect(oracleOverdue(H1_SCHEDULE, facts, AXIS_MS, cmAt(19, 9, 45))).toEqual([]);
+  });
+  it('CM-g broken input: a done roast is never late', () => {
+    const broken = { ...facts, 'chicken.roast': { state: 'done' as const } };
+    expect(oracleOverdue(H1_SCHEDULE, broken, AXIS_MS, cmAt(19, 10))).toEqual(['chicken.rest']);
+  });
+  it('the shred, with 75 minutes of slack, is late only from -25 (19:05)', () => {
+    const ds = { 'chicken.prep': { state: 'done' as const }, 'chicken.roast': { state: 'running' as const } };
+    expect(oracleOverdue(H1_SCHEDULE, ds, AXIS_MS, cmAt(19, 4, 59))).toEqual([]);
+    expect(oracleOverdue(H1_SCHEDULE, ds, AXIS_MS, cmAt(19, 5))).toEqual(['greens.shred']);
+  });
+});
+'''
+# imports
+s=s.replace("import {\n  BARE_KITCHEN,","import {\n  AXIS_MS,\n  BARE_KITCHEN,\n  CM_F_FACTS,\n  cmAt,",1)
+open(p,'w').write(s)
+EOF
+grep -n "from '../support/oracles.js'" -B30 test/meta/oracles.test.ts | grep -n "oracleDishLastSteps" 
+    
+    exit 1
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && grep -n "oracles.js" test/meta/oracles.test.ts; grep -n "oracleDishLastSteps" test/meta/oracles.test.ts | head -3; sed -n 28,100p test/meta/oracles.test.ts
+    … (47 earlier lines not shown)
+      startsOf,
+      oracleShortestCycleLength,
+      oracleStronglyConnected,
+      oracleSuccessors,
+      oracleTopologicalOrder,
+      oracleWarnings,
+      respectsPrecedence,
+      oracleMaxInWindow,
+      oracleUtcDay,
+    } from '../support/oracles.js';
+    
+    interface Spec {
+      id: string;
+      after?: string[];
+      minutes?: number;
+      appliance?: Appliance;
+      handsOn?: boolean;
+      title?: string;
+      detail?: string;
+    }
+    
+    /** A plan from short step specs; the dish is the part of the id before the dot. */
+    function planOf(specs: Spec[]): Plan {
+      const dishIds = [...new Set(specs.map((s) => s.id.split('.')[0] ?? ''))];
+      const steps: Step[] = specs.map((s) => ({
+        id: s.id,
+        dish: s.id.split('.')[0] ?? '',
+        title: s.title ?? 'Do the thing',
+        ...(s.detail === undefined ? {} : { detail: s.detail }),
+        minutes: s.minutes ?? 5,
+    exit 0
+
+Now add imports, the arbitraries and `replayCook`.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/meta/oracles.test.ts'
+s=open(p).read()
+s=s.replace("  oracleCompletenessViolations,\n","  oracleCompletenessViolations,\n  oracleCookSections,\n  oracleOverdue,\n",1)
+open(p,'w').write(s)
+
+p='test/support/arbitraries.ts'
+s=open(p).read()
+s+='''
+// ---------------------------------------------------------------------------------------
+// Cooking-mode generators (cooking-mode spec, "Test support").
+
+/** Minute 0 of the cooking-mode properties: Wed 2026-11-11 19:30 London (19:30Z). */
+const COOK_AXIS_MS = Date.UTC(2026, 10, 11, 19, 30);
+
+export interface CookBegin {
+  schedule: Schedule;
+  axisMs: number;
+  beginMs: number;
+}
+
+/** A schedule, the axis, and a begin time from 30 min before the first start to 30 min after. */
+export function arbCookBegin(): fc.Arbitrary<CookBegin> {
+  return fc
+    .tuple(
+      arbScheduled(),
+      fc.oneof(
+        { weight: 1, arbitrary: fc.constant({ minutes: 0, seconds: 0 }) },
+        {
+          weight: 2,
+          arbitrary: fc.record({
+            minutes: fc.integer({ min: -30, max: 30 }),
+            seconds: fc.integer({ min: 0, max: 59 }),
+          }),
+        },
+      ),
+    )
+    .map(([sched, offset]) => {
+      const first = Math.min(...sched.steps.map((s) => s.startMin));
+      return {
+        schedule: sched,
+        axisMs: COOK_AXIS_MS,
+        beginMs: COOK_AXIS_MS + (first + offset.minutes) * 60_000 + offset.seconds * 1000,
+      };
+    });
+}
+
+export type CookIntentKind =
+  | 'start'
+  | 'done'
+  | 'extra'
+  | 'behind'
+  | 'undo'
+  | 'tick'
+  | 'start-now'
+  | 'alerts'
+  | 'resume';
+
+export interface CookIntent {
+  advanceSec: number;
+  kind: CookIntentKind;
+  pick: number;
+  minutes: 5 | 10 | 15;
+}
+
+/** Up to 60 intents; a quarter advance no time, so several land on one instant. */
+export function arbCookIntents(): fc.Arbitrary<CookIntent[]> {
+  return fc.array(
+    fc.record({
+      advanceSec: fc.oneof(
+        { weight: 1, arbitrary: fc.constant(0) },
+        { weight: 3, arbitrary: fc.integer({ min: 0, max: 1800 }) },
+      ),
+      kind: fc.constantFrom<CookIntentKind>(
+        'start',
+        'start',
+        'start',
+        'done',
+        'done',
+        'done',
+        'extra',
+        'behind',
+        'undo',
+        'tick',
+        'start-now',
+        'alerts',
+        'resume',
+      ),
+      pick: fc.nat({ max: 79 }),
+      minutes: fc.constantFrom<5 | 10 | 15>(5, 10, 15),
+    }),
+    { maxLength: 60 },
+  );
+}
+
+/** What `cookActionFor` needs of a session: its schedule's step ids and its facts. */
+export interface CookActionSource {
+  core: {
+    schedule: { steps: readonly { id: string }[] };
+    facts: Readonly<Record<string, { state: 'running' | 'done' }>>;
+  };
+}
+
+export type CookActionOut =
+  | { type: 'cook/start-now' | 'cook/behind' | 'cook/undo' | 'cook/tick' | 'cook/resume'; nowMs: number }
+  | { type: 'cook/start' | 'cook/done'; stepId: string; nowMs: number }
+  | { type: 'cook/extra'; stepId: string; minutes: 5 | 10 | 15; nowMs: number }
+  | { type: 'cook/alerts'; wanted: boolean };
+
+/**
+ * The action an intent stands for: the `pick`-th (modulo) pending id for a start, running id for
+ * a done or extra, by id, from the schedule and facts. With none to pick, an id that is not in
+ * the schedule, which the reducer must ignore. Never goes through `cookView`.
+ */
+export function cookActionFor(
+  state: CookActionSource,
+  nowMs: number,
+  intent: CookIntent,
+): CookActionOut {
+  const ids = state.core.schedule.steps.map((s) => s.id).sort();
+  const pending = ids.filter((id) => state.core.facts[id] === undefined);
+  const running = ids.filter((id) => state.core.facts[id]?.state === 'running');
+  const choose = (list: string[]): string =>
+    list.length === 0 ? 'ghost.step' : (list[intent.pick % list.length] ?? 'ghost.step');
+  switch (intent.kind) {
+    case 'start':
+      return { type: 'cook/start', stepId: choose(pending), nowMs };
+    case 'done':
+      return { type: 'cook/done', stepId: choose(running), nowMs };
+    case 'extra':
+      return { type: 'cook/extra', stepId: choose(running), minutes: intent.minutes, nowMs };
+    case 'alerts':
+      return { type: 'cook/alerts', wanted: intent.pick % 2 === 0 };
+    case 'behind':
+      return { type: 'cook/behind', nowMs };
+    case 'undo':
+      return { type: 'cook/undo', nowMs };
+    case 'tick':
+      return { type: 'cook/tick', nowMs };
+    case 'start-now':
+      return { type: 'cook/start-now', nowMs };
+    case 'resume':
+      return { type: 'cook/resume', nowMs };
+  }
+}
+'''
+open(p,'w').write(s)
+open('test/support/cook-replay.ts','w').write('''import { reduceCook } from '../../src/web/state/cook-slot.js';
+import type { CookAction, CookState } from '../../src/web/state/cook-slot.js';
+import { cookActionFor } from './arbitraries.js';
+import type { CookBegin, CookIntent } from './arbitraries.js';
+
+export interface CookTraceEntry {
+  action: CookAction;
+  before: CookState;
+  after: CookState;
+  nowMs: number;
+}
+
+export interface CookReplay {
+  /** The session `cook/begin` made, or null when the begin time was out of range. */
+  begun: CookState | null;
+  trace: CookTraceEntry[];
+}
+
+/** Begins a session and plays the intents with `reduceCook`; time only moves forward. */
+export function replayCook(begin: CookBegin, intents: readonly CookIntent[]): CookReplay {
+  let state: { cook: CookState | null } = { cook: null };
+  state = reduceCook(state, {
+    type: 'cook/begin',
+    schedule: begin.schedule,
+    axisMs: begin.axisMs,
+    nowMs: begin.beginMs,
+  });
+  const begun = state.cook;
+  if (begun === null) return { begun: null, trace: [] };
+  const trace: CookTraceEntry[] = [];
+  let nowMs = begin.beginMs;
+  for (const intent of intents) {
+    const before = state.cook;
+    if (before === null) break;
+    nowMs += intent.advanceSec * 1000;
+    const action = cookActionFor(before, nowMs, intent);
+    state = reduceCook(state, action);
+    if (state.cook === null) break;
+    trace.push({ action, before, after: state.cook, nowMs });
+  }
+  return { begun, trace };
+}
+''')
+EOF
+npx prettier --write test/support/*.ts test/meta/oracles.test.ts >/dev/null; npx vitest run --project examples test/meta/oracles.test.ts 2>&1 | grep -E "×|Tests |Test Files|Error" | head; npm run typecheck 2>&1 | tail -15
+     Test Files  1 passed (1)
+          Tests  209 passed (209)
+    
+    > make-dinner@0.0.0 typecheck
+    > tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && git status --short; git diff --stat | tail -12
+     M .kiro/specs/cooking-mode/tasks.md
+     M docs/kiro-evidence/hook-fires.log
+     M src/web/state/cook-slot.ts
+     M test/meta/oracles.test.ts
+     M test/support/arbitraries.ts
+     M test/support/fixtures.ts
+     M test/support/oracles.ts
+    ?? docs/kiro-evidence/impl-cooking-mode-session.txt
+    ?? src/web/state/cook-session.ts
+    ?? test/support/cook-replay.ts
+    ?? test/web/state/cook-session.test.ts
+    ?? test/web/state/cook-slot.test.ts
+     .kiro/specs/cooking-mode/tasks.md |  16 +--
+     docs/kiro-evidence/hook-fires.log |   7 ++
+     src/web/state/cook-slot.ts        | 201 ++++++++++++++++++++++++++++++++++++--
+     test/meta/oracles.test.ts         |  49 ++++++++++
+     test/support/arbitraries.ts       | 132 +++++++++++++++++++++++++
+     test/support/fixtures.ts          |  45 +++++++++
+     test/support/oracles.ts           |  70 +++++++++++++
+     7 files changed, 503 insertions(+), 17 deletions(-)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -i '' 's/^- \[ \] T1\.9 /- [x] T1.9 /' .kiro/specs/cooking-mode/tasks.md; sed -n 706,830p test/support/oracles.ts; grep -n "oracleRebuildViolations" -r test --include=*.pbt.ts | head -3
+    … (96 earlier lines not shown)
+              out.push(`overfull:${step.id}:${resource}:${minute}`);
+            }
+          }
+        }
+      }
+      return out;
+    }
+    
+    /**
+     * RQ4: the forward-repair intervals. Pinned steps keep their RQ2.2 interval. Pending steps are
+     * placed one at a time: among those whose pending prerequisites are all placed, the smallest
+     * `(prev start, id)`; it starts at the first minute >= max(prev start, now, end of each
+     * prerequisite) from which every resource it uses has a free unit in every minute (each start
+     * is tried in turn), counting the pinned steps and the pending steps already placed.
+     */
+    export function oracleForwardRepair(
+      plan: Plan,
+      kitchen: Kitchen,
+      progress: Progress,
+      now: number,
+      prevStarts: Starts,
+    ): Iv {
+      const iv: Iv = oraclePinnedIntervals(plan, progress, now);
+      const unplaced = byId(plan).filter((s) => isPending(progress, s.id));
+      while (unplaced.length > 0) {
+        const ready = unplaced.filter((s) =>
+          s.after.every((p) => iv[p] !== undefined || !isPending(progress, p)),
+        );
+        let pick: PlanStep | undefined;
+    zsh:1: no matches found: --include=*.pbt.ts
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && grep -rn "oracleRebuildViolations\|oraclePendingOverfull" test/core/*.pbt.ts | head -8; grep -n "P-RB1\|P-RB4" -A28 test/core/rebuild.pbt.ts | head -90
+    … (35 earlier lines not shown)
+    --
+    365:  'P-RB4 reality first: any facts give ok; no pending step sits where use is over capacity; pending successors and serving hold',
+    366-  () => {
+    367-    forEveryRun((c, r) => {
+    368-      const steps = r.schedule.steps;
+    369-      expect(oraclePendingOverfull(c.s.plan, c.s.kitchen, c.progress, c.now, steps)).toEqual([]);
+    370-      const violations = oracleRebuildViolations(
+    371-        c.s.plan,
+    372-        c.s.kitchen,
+    373-        c.progress,
+    374-        c.now,
+    375-        steps,
+    376-        r.schedule.servingMin,
+    377-      );
+    378-      // Capacity at minutes where pinned steps alone break it is not the rebuild's to fix (C2).
+    379-      expect(violations.filter((v) => !v.startsWith('capacity:'))).toEqual([]);
+    380-    }, REALITY);
+    381-  },
+    382-  TIMEOUT_MS,
+    383-);
+    384-
+    385-it(
+    386-  'P-RB5 lanes: fields and ranges are right, shares only where pinned steps overfill, and a free input lane is kept',
+    387-  () => {
+    388-    forEveryRun(
+    389-      (c, r) => {
+    390-        const steps = r.schedule.steps;
+    391-        const iv = Object.fromEntries(
+    392-          steps.map((x) => [x.id, { startMin: x.startMin, endMin: x.endMin }]),
+    393-        );
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/web/state/cook-session.ts'
+s=open(p).read()
+s=s.replace('''  const parsed = RebuiltScheduleSchema.safeParse(schedule);
+  if (!parsed.success) return err({ kind: 'invalid_schedule' });
+  const planned = parsed.data;''','''  const parsed = RebuiltScheduleSchema.safeParse(schedule);
+  if (!parsed.success || !isInstant(axisMs) || !isInstant(nowMs)) {
+    return err({ kind: 'invalid_schedule' });
+  }
+  const planned = parsed.data;''')
+s=s.replace('''export type BeginError =''','''/** A whole number of milliseconds, 0 or more: what `CookStateSchema` accepts as an instant. */
+function isInstant(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+export type BeginError =''',1)
+s=s.replace('''  const { core } = state;
+  const t = effectiveNow(core, 'nowMs' in action ? action.nowMs : state.lastActiveMs);''','''  const { core } = state;
+  // Actions come from the UI, but a stored or wild value must not corrupt the session.
+  if ('nowMs' in action && !isInstant(action.nowMs)) return state;
+  const t = effectiveNow(core, 'nowMs' in action ? action.nowMs : state.lastActiveMs);''')
+s=s.replace('''    case 'cook/alerts':
+      return state.alertsWanted === action.wanted ? state : { ...state, alertsWanted: action.wanted };
+  }''','''    case 'cook/alerts':
+      if (typeof action.wanted !== 'boolean' || state.alertsWanted === action.wanted) return state;
+      return { ...state, alertsWanted: action.wanted };
+    default:
+      return state; // an action type this version does not know
+  }''')
+open(p,'w').write(s)
+EOF
+grep -n "alertsWanted === action" -B2 -A5 src/web/state/cook-session.ts | head -20
+    313-      return state.lastActiveMs === t ? state : { ...state, lastActiveMs: t };
+    314-    case 'cook/alerts':
+    315:      return state.alertsWanted === action.wanted
+    316-        ? state
+    317-        : { ...state, alertsWanted: action.wanted };
+    318-  }
+    319-}
+    320-
+    exit 0
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/src/web/state/cook-session.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 1,40p test/core/rebuild.pbt.ts; grep -n "TIMEOUT_MS" test/core/rebuild.pbt.ts | head -3
+    … (13 earlier lines not shown)
+    import { fcParams } from '../support/fc-params.js';
+    import { resourcesOf } from '../../src/core/timeline.js';
+    import {
+      oracleForwardRepair,
+      oracleLatestPosition,
+      oracleLongestChain,
+      oraclePendingOverfull,
+      oraclePinnedIntervals,
+      oracleRebuildHoldExceeded,
+      oracleRebuildLaneViolations,
+      oracleRebuildSlack,
+      oracleRebuildViolations,
+      oracleRebuildWaits,
+      startsOf,
+    } from '../support/oracles.js';
+    
+    // Rebuild guarantees R1 to R6 (scheduler-guarantees.md) and the P-RB properties of the rebuild
+    // design. Titles start with the id and a space. A run is a schedule from `arbScheduled`, then
+    // what the cook did from `arbProgress`; both default-sized and large (80 steps) plans are used.
+    
+    const TIMEOUT_MS = 60_000;
+    const SERVING_MAX = 1440;
+    
+    interface Case {
+      s: AnySchedule;
+      progress: Progress;
+      now: number;
+    34:const TIMEOUT_MS = 60_000;
+    105:  TIMEOUT_MS,
+    123:  TIMEOUT_MS,
+    exit 0
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/test/web/state/cook-session.pbt.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx prettier --write test/web/state/cook-session.pbt.ts src/web/state/cook-session.ts >/dev/null; npx vitest run --project props test/web/state/cook-session.pbt.ts 2>&1 | grep -v "^$" | head -60
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+     Test Files  1 passed (1)
+          Tests  5 passed (5)
+       Start at  19:36:02
+       Duration  1.68s (tests 77%, import 19%, transform 4%)
+    exit 0
+[tool:execute FAILED] $ cd ~/hackathons-2026/kiroween/makedinner && cp src/web/state/cook-session.ts /tmp/cs.bak && 
+sed -i '' 's/export const SLIP_MIN = 2;/export const SLIP_MIN = 3;/' src/web/state/cook-session.ts && npx vitest run --project props test/web/state/cook-session.pbt.ts 2>&1 | grep -E "×|✓|Tests " | head; cp /tmp/cs.bak src/web/state/cook-session.ts
+sed -i '' 's/return state.undo === null/return state.undo === null/; s/core: state.undo.before, lastActiveMs: t/core: core, lastActiveMs: t/' src/web/state/cook-session.ts && npx vitest run --project props test/web/state/cook-session.pbt.ts 2>&1 | grep -E "×|Tests " | head; cp /tmp/cs.bak src/web/state/cook-session.ts
+python3 - <<'EOF'
+p='src/web/state/cook-session.ts'
+s=open(p).read()
+s=s.replace("const result = rebuild(core.schedule, progressOf(core), n);","const result = rebuild(core.schedule, progressOf(core), n + 1);")
+open(p,'w').write(s)
+EOF
+npx vitest run --project props test/web/state/cook-session.pbt.ts 2>&1 | grep -E "×|Tests " | head; cp /tmp/cs.bak src/web/state/cook-session.ts; git diff --stat src/web/state/cook-session.ts | tail -1; grep -c "n + 1" src/web/state/cook-session.ts
+       × P-CM6 triggers: a start or done adds an entry iff it is more than 2 min from plan, an extra or "I'm behind" always, a tick never 133ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+          Tests  1 failed | 4 passed (5)
+       × P-CM2 undo: within the window undo restores the core before the action; after it, undo returns the state itself 27ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+          Tests  1 failed | 4 passed (5)
+       × P-CM1 rebuild guarantees: every logged rebuild keeps R1 (capacity, precedence, completeness), R2 (pinned kept, pending not before now) and R3 (never earlier) 42ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+          Tests  1 failed | 4 passed (5)
+    0
+    exit 1
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cmp /tmp/cs.bak src/web/state/cook-session.ts && echo same; rm /tmp/cs.bak; npx vitest run --project props test/web/state/cook-session.pbt.ts 2>&1 | grep -E "Tests "; npm run typecheck 2>&1 | tail -5; npm run lint 2>&1 | tail -20
+    same
+          Tests  5 passed (5)
+    
+    > make-dinner@0.0.0 typecheck
+    > tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit
+    
+    
+    > make-dinner@0.0.0 lint
+    > eslint .
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -i '' 's/^- \[ \] T1\.10 /- [x] T1.10 /' .kiro/specs/cooking-mode/tasks.md && cat >> test/support/cook-replay.ts <<'EOF'
+
+/** A session begun at `nowMs`; fails the calling test when it cannot begin. */
+export function beginAt(schedule: Schedule, axisMs: number, nowMs: number): CookState {
+  const result = beginSession(schedule, axisMs, nowMs);
+  if (!result.ok) throw new Error(`could not begin: ${result.error.kind}`);
+  return result.value;
+}
+
+/** One tap of the cook, for tests that play a session by hand. */
+export type CookTap = { at: number } & (
+  | { do: 'start' | 'done'; id: string }
+  | { do: 'extra'; id: string; minutes: 5 | 10 | 15 }
+  | { do: 'behind' }
+);
+
+/** Applies the taps in order with `applyCook`. */
+export function play(state: CookState, ...taps: CookTap[]): CookState {
+  let current = state;
+  for (const tap of taps) {
+    if (tap.do === 'behind') {
+      current = applyCook(current, { type: 'cook/behind', nowMs: tap.at });
+    } else if (tap.do === 'extra') {
+      current = applyCook(current, {
+        type: 'cook/extra',
+        stepId: tap.id,
+        minutes: tap.minutes,
+        nowMs: tap.at,
+      });
+    } else {
+      current = applyCook(current, {
+        type: tap.do === 'start' ? 'cook/start' : 'cook/done',
+        stepId: tap.id,
+        nowMs: tap.at,
+      });
+    }
+  }
+  return current;
+}
+EOF
+python3 - <<'EOF'
+p='test/support/cook-replay.ts'
+s=open(p).read()
+s=s.replace("import { reduceCook } from '../../src/web/state/cook-slot.js';","import type { Schedule } from '../../src/core/schema.js';\nimport { applyCook, beginSession } from '../../src/web/state/cook-session.js';\nimport { reduceCook } from '../../src/web/state/cook-slot.js';")
+open(p,'w').write(s)
+EOF
+cat > src/web/state/cook-view.ts <<'EOF'
+import type { CookState, LogEntry, UndoLabel } from './cook-slot.js';
+import type { Phase } from './cook-session.js';
+
+export type { Phase } from './cook-session.js';
+
+/** One step as a card. `lateByMin` is set once the step is late by the design's rule (display only). */
+export interface CardStep {
+  stepId: string;
+  title: string;
+  detail: string | null;
+  dishName: string;
+  minutes: number;
+  handsOn: boolean;
+  plannedStartMs: number;
+  state: 'due' | 'running';
+  startedAtMs: number | null;
+  endsAtMs: number | null;
+  /** `endsAtMs - nowMs`, negative when over; running only. */
+  remainingMs: number | null;
+  /** Titles of prerequisites not done, in plan order; due steps only. */
+  waitsFor: string[];
+  lateByMin: number | null;
+}
+
+export interface LaneCard {
+  cookLane: number;
+  current: CardStep | null;
+  also: CardStep[];
+  next: { title: string; startMs: number } | null;
+}
+
+export interface UpNextItem {
+  stepId: string;
+  title: string;
+  dishName: string;
+  startMs: number;
+  inMin: number;
+}
+
+export interface DishState {
+  dishId: string;
+  name: string;
+  done: number;
+  total: number;
+  state: { kind: 'done' } | { kind: 'cooking' } | { kind: 'due' } | { kind: 'next'; startMs: number };
+}
+
+export interface CookView {
+  phase: Phase;
+  nowMs: number;
+  servingMs: number;
+  plannedServingMs: number;
+  startMs: number;
+  lanes: LaneCard[];
+  toStart: CardStep[];
+  running: CardStep[];
+  upNext: UpNextItem[];
+  dishes: DishState[];
+  dock: { stepId: string; action: 'start' | 'done' } | null;
+  /** True while a step is late: "I'm behind" is emphasised (design review Q4). */
+  emphasiseBehind: boolean;
+  undo: { label: UndoLabel; untilMs: number } | null;
+  finished: { servedMs: number; plannedMs: number } | null;
+  /** Newest first. */
+  log: LogEntry[];
+}
+
+// STUB (T2.1): replaced in T2.2.
+export function cookView(state: CookState, nowMs: number): CookView {
+  return {
+    phase: 'countdown',
+    nowMs,
+    servingMs: 0,
+    plannedServingMs: state.core.plannedServingMs,
+    startMs: 0,
+    lanes: [],
+    toStart: [],
+    running: [],
+    upNext: [],
+    dishes: [],
+    dock: null,
+    emphasiseBehind: false,
+    undo: null,
+    finished: null,
+    log: [],
+  };
+}
+EOF
+echo ok
+    ok
+    exit 0
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/test/web/state/cook-view.test.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx prettier --write test/web/state/cook-view.test.ts test/support/cook-replay.ts src/web/state/cook-view.ts >/dev/null; npx vitest run --project examples test/web/state/cook-view.test.ts 2>&1 | grep -E "✓|×|Tests |Error:" | head -30
+         × CM1.2 at 17:30 the phase is countdown, the start 17:40, serving 19:30, nothing due 7ms
+         × CM2.6 up next is the first three by (start, id) with minutes ceiled 1ms
+         × CM2.7 the dish strip names the next start of each dish 1ms
+         × CM1.3 after Start now at 17:30 the phase is cooking, prep is due in lane 1 and in the dock 1ms
+         × CM3.4 the undo is gone from the view at its end instant 0ms
+         × lane 1 keeps the earliest due hands-on step and lists the next in also; the hands-free roast waits for prep 0ms
+         × shows the roast running to 19:20 with 50 minutes left, a free lane, no dock, an undo 4ms
+         × 17:56: field by field 1ms
+         × CM2.5 the roast at 19:06 has -60000 ms left and the dock says Done 0ms
+         × CM2.3 a due roux with the roast running waits for "Roast the chicken"; the rest does too 0ms
+         × review Q4 at 19:10 the roast and the rest show late by 5 min and "I'm behind" is emphasised; nothing moved 0ms
+         × one card per cook lane: prep for Cook 1, shred for Cook 2; up next roast, rest, roux 2ms
+         × when the shred is done at 17:45 lane 2 is free and its next step is the strain at 19:27 1ms
+         × H1 followed exactly: finished, served 19:30, planned 19:30 0ms
+         × carve done at 19:33: served 19:33, planned 19:30 1ms
+         × 8 h 4 min after the last action the phase is stale 0ms
+         × 7 h 59 min after the last action the phase is cooking 0ms
+    ⎯⎯⎯⎯⎯⎯ Failed Tests 17 ⎯⎯⎯⎯⎯⎯⎯
+    AssertionError: expected +0 to be 1794418800000 // Object.is equality
+    AssertionError: expected [] to deeply equal [ …(3) ]
+    AssertionError: expected [] to deeply equal [ { dishId: 'chicken', …(4) }, …(2) ]
+    AssertionError: expected 'countdown' to be 'cooking' // Object.is equality
+    AssertionError: expected null not to be null
+    AssertionError: expected undefined to be 'chicken.prep' // Object.is equality
+    AssertionError: expected 'countdown' to be 'cooking' // Object.is equality
+    AssertionError: expected 'countdown' to be 'cooking' // Object.is equality
+    AssertionError: expected undefined to be -60000 // Object.is equality
+    AssertionError: expected undefined to be 'gravy.roux' // Object.is equality
+    AssertionError: expected undefined to be 5 // Object.is equality
+    AssertionError: expected [] to deeply equal [ [ 1, 'chicken.prep' ], …(1) ]
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/web/state/cook-view.ts'
+s=open(p).read()
+a=s.index("// STUB (T2.1)")
+s=s[:a]+'''const byStartThenId = <T extends { startMs: number; id: string }>(a: T, b: T): number =>
+  a.startMs - b.startMs || compareIds(a.id, b.id);
+
+/**
+ * Everything the Cook screen shows, derived from the session and the clock alone (CM2.8).
+ * Pure: `nowMs` is an argument and nothing is stored.
+ */
+export function cookView(state: CookState, nowMs: number): CookView {
+  const { core } = state;
+  const { schedule } = core;
+  const phase = phaseOf(state, nowMs);
+  const n = minuteAt(core.axisMs, nowMs);
+  const rows = new Map(schedule.steps.map((row) => [row.id, row]));
+  const steps = new Map(schedule.plan.steps.map((step) => [step.id, step]));
+  const dishNames = new Map(schedule.plan.dishes.map((dish) => [dish.id, dish.name]));
+  const late = new Set(overdueIds(core, nowMs));
+  const startMsOf = (id: string): number => clockAt(core.axisMs, rows.get(id)?.startMin ?? 0);
+
+  const isDone = (id: string): boolean => core.facts[id]?.state === 'done';
+  const pending = schedule.plan.steps.filter((step) => core.facts[step.id] === undefined);
+  const due = pending.filter((step) => startMsOf(step.id) <= nowMs);
+  const waiting = pending.filter((step) => startMsOf(step.id) > nowMs);
+  const runningSteps = schedule.plan.steps.filter((step) => core.facts[step.id]?.state === 'running');
+
+  function card(id: string): CardStep {
+    const step = steps.get(id);
+    const row = rows.get(id);
+    const fact = core.facts[id];
+    if (step === undefined || row === undefined) throw new Error(`cookView: no step ${id}`);
+    const isRunning = fact?.state === 'running';
+    const endsAt = isRunning ? endsAtMs(step, fact) : null;
+    const lateBy = late.has(id) ? n - (isRunning ? row.endMin : row.startMin) : null;
+    return {
+      stepId: id,
+      title: step.title,
+      detail: step.detail ?? null,
+      dishName: dishNames.get(step.dish) ?? step.dish,
+      minutes: step.minutes,
+      handsOn: step.handsOn,
+      plannedStartMs: startMsOf(id),
+      state: isRunning ? 'running' : 'due',
+      startedAtMs: isRunning ? fact.startedAtMs : null,
+      endsAtMs: endsAt,
+      remainingMs: endsAt === null ? null : endsAt - nowMs,
+      waitsFor: isRunning
+        ? []
+        : schedule.plan.steps.filter((p) => step.after.includes(p.id) && !isDone(p.id)).map((p) => p.title),
+      lateByMin: lateBy,
+    };
+  }
+
+  const startedAt = (id: string): number => {
+    const fact = core.facts[id];
+    return fact === undefined ? 0 : fact.startedAtMs;
+  };
+  const lanes: LaneCard[] = [];
+  for (let lane = 1; lane <= schedule.kitchen.cooks; lane += 1) {
+    const inLane = (step: { id: string; handsOn: boolean }): boolean =>
+      step.handsOn && rows.get(step.id)?.lanes.cook === lane;
+    const runningHere = runningSteps
+      .filter(inLane)
+      .sort((a, b) => startedAt(a.id) - startedAt(b.id) || compareIds(a.id, b.id));
+    const dueHere = due
+      .filter(inLane)
+      .sort((a, b) => startMsOf(a.id) - startMsOf(b.id) || compareIds(a.id, b.id));
+    const cards = [...runningHere, ...dueHere].map((step) => card(step.id));
+    const nextStep = waiting
+      .filter(inLane)
+      .sort((a, b) => startMsOf(a.id) - startMsOf(b.id) || compareIds(a.id, b.id))[0];
+    lanes.push({
+      cookLane: lane,
+      current: cards[0] ?? null,
+      also: cards.slice(1),
+      next:
+        cards.length === 0 && nextStep !== undefined
+          ? { title: nextStep.title, startMs: startMsOf(nextStep.id) }
+          : null,
+    });
+  }
+
+  const toStart = due
+    .filter((step) => !step.handsOn)
+    .sort((a, b) => startMsOf(a.id) - startMsOf(b.id) || compareIds(a.id, b.id))
+    .map((step) => card(step.id));
+  const running = runningSteps
+    .filter((step) => !step.handsOn)
+    .map((step) => card(step.id))
+    .sort((a, b) => (a.endsAtMs ?? 0) - (b.endsAtMs ?? 0) || compareIds(a.stepId, b.stepId));
+  const upNext = waiting
+    .map((step) => ({ id: step.id, startMs: startMsOf(step.id) }))
+    .sort(byStartThenId)
+    .slice(0, UP_NEXT_COUNT)
+    .map(({ id, startMs }): UpNextItem => {
+      const step = steps.get(id);
+      return {
+        stepId: id,
+        title: step?.title ?? id,
+        dishName: dishNames.get(step?.dish ?? '') ?? '',
+        startMs,
+        inMin: Math.ceil((startMs - nowMs) / MINUTE_MS),
+      };
+    });
+
+  const dishes = schedule.plan.dishes.map((dish): DishState => {
+    const own = schedule.plan.steps.filter((step) => step.dish === dish.id);
+    const doneCount = own.filter((step) => isDone(step.id)).length;
+    let kind: DishState['state'];
+    if (doneCount === own.length) kind = { kind: 'done' };
+    else if (own.some((step) => core.facts[step.id]?.state === 'running')) kind = { kind: 'cooking' };
+    else if (own.some((step) => due.includes(step))) kind = { kind: 'due' };
+    else {
+      const starts = own.filter((step) => waiting.includes(step)).map((step) => startMsOf(step.id));
+      kind = { kind: 'next', startMs: Math.min(...starts) };
+    }
+    return { dishId: dish.id, name: dish.name, done: doneCount, total: own.length, state: kind };
+  });
+
+  const first = lanes[0]?.current ?? null;
+  const overrun = running.find((c) => (c.remainingMs ?? 1) <= 0);
+  let dock: CookView['dock'] = null;
+  if (first !== null) dock = { stepId: first.stepId, action: first.state === 'due' ? 'start' : 'done' };
+  else if (overrun !== undefined) dock = { stepId: overrun.stepId, action: 'done' };
+
+  let finished: CookView['finished'] = null;
+  if (phase === 'finished') {
+    const ends = terminalIdsOf(schedule).flatMap((id) => {
+      const fact = core.facts[id];
+      return fact?.state === 'done' ? [fact.endedAtMs] : [];
+    });
+    finished = { servedMs: Math.max(...ends), plannedMs: core.plannedServingMs };
+  }
+
+  return {
+    phase,
+    nowMs,
+    servingMs: clockAt(core.axisMs, schedule.servingMin),
+    plannedServingMs: core.plannedServingMs,
+    startMs: clockAt(core.axisMs, Math.min(...schedule.steps.map((row) => row.startMin))),
+    lanes,
+    toStart,
+    running,
+    upNext,
+    dishes,
+    dock,
+    emphasiseBehind: phase === 'cooking' && late.size > 0,
+    undo:
+      state.undo !== null && nowMs < state.undo.untilMs
+        ? { label: state.undo.label, untilMs: state.undo.untilMs }
+        : null,
+    finished,
+    log: [...core.log].reverse(),
+  };
+}
+'''
+s=s.replace("import type { CookState, LogEntry, UndoLabel } from './cook-slot.js';\nimport type { Phase } from './cook-session.js';","""import { compareIds } from '../../core/index.js';
+import { clockAt, MINUTE_MS, minuteAt } from './clock.js';
+import { endsAtMs, overdueIds, phaseOf, terminalIdsOf, UP_NEXT_COUNT } from './cook-session.js';
+import type { Phase } from './cook-session.js';
+import type { CookState, LogEntry, UndoLabel } from './cook-slot.js';""")
+open(p,'w').write(s)
+EOF
+npx prettier --write src/web/state/cook-view.ts >/dev/null; npx vitest run --project examples test/web/state/cook-view.test.ts 2>&1 | grep -E "×|Tests |Error|expected" | head -30; npm run typecheck 2>&1 | tail -12
+         × lane 1 keeps the earliest due hands-on step and lists the next in also; the hands-free roast waits for prep 2ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    AssertionError: expected 10 to be null // Object.is equality
+          Tests  1 failed | 17 passed (18)
+    
+    > make-dinner@0.0.0 typecheck
+    > tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/web/state/cook-view.test.ts'
+s=open(p).read()
+s=s.replace("expect(view.lanes[0]?.current?.lateByMin).toBe(null);","// Prep was planned for 17:40 with no slack: at 17:50 it is 10 minutes late.\n    expect(view.lanes[0]?.current?.lateByMin).toBe(10);")
+open(p,'w').write(s)
+EOF
+npx vitest run --project examples test/web/state/cook-view.test.ts 2>&1 | grep -E "×|Tests "; npm run lint 2>&1 | tail -15
+          Tests  18 passed (18)
+    
+    > make-dinner@0.0.0 lint
+    > eslint .
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -i '' 's/^- \[ \] T2\.1 /- [x] T2.1 /; s/^- \[ \] T2\.2 /- [x] T2.2 /' .kiro/specs/cooking-mode/tasks.md && cat >> src/web/state/cook-view.ts <<'EOF'
+
+export type FocusTarget =
+  | { kind: 'action'; stepId: string; action: 'start' | 'done' }
+  | { kind: 'heading'; id: string }
+  | null;
+
+// STUBS (T2.3): replaced below.
+export function focusAfter(
+  action: CookAction,
+  before: CookView,
+  after: CookView,
+): FocusTarget {
+  void action;
+  void before;
+  void after;
+  return { kind: 'heading', id: 'stub' };
+}
+
+export function finishedBetween(state: CookState, fromMs: number, toMs: number): string[] {
+  void state;
+  void fromMs;
+  void toMs;
+  return ['stub'];
+}
+
+export type Announcement = string | null;
+
+export function announcementFor(
+  before: CookState | null,
+  after: CookState | null,
+  label?: UndoLabel,
+  locale?: string,
+): Announcement {
+  void before;
+  void after;
+  void label;
+  void locale;
+  return 'stub';
+}
+EOF
+sed -i '' "s#^import type { CookState, LogEntry, UndoLabel } from './cook-slot.js';#import type { CookAction, CookState, LogEntry, UndoLabel } from './cook-slot.js';#" src/web/state/cook-view.ts
+cat >> test/web/state/cook-view.test.ts <<'EOF'
+
+const viewsAround = (
+  state: ReturnType<typeof cmF>,
+  action: Parameters<typeof applyCook>[1],
+  beforeMs: number,
+) => {
+  const after = applyCook(state, action);
+  return { before: cookView(state, beforeMs), after: cookView(after, beforeMs), state: after };
+};
+
+describe('focusAfter (CM9.3), one case per row of the focus rule', () => {
+  const begun = () => beginAt(H1_SCHEDULE, AXIS_MS, cmAt(17, 30));
+
+  it('start s: the Done button of s', () => {
+    const action = { type: 'cook/start', stepId: 'chicken.prep', nowMs: cmAt(17, 40) } as const;
+    const v = viewsAround(begun(), action, cmAt(17, 40));
+    expect(focusAfter(action, v.before, v.after)).toEqual({
+      kind: 'action',
+      stepId: 'chicken.prep',
+      action: 'done',
+    });
+  });
+  it('done s: the heading of the card now holding the lane', () => {
+    const state = play(begun(), { do: 'start', id: 'chicken.prep', at: cmAt(17, 40) });
+    const action = { type: 'cook/done', stepId: 'chicken.prep', nowMs: cmAt(17, 50) } as const;
+    const v = viewsAround(state, action, cmAt(17, 50));
+    expect(focusAfter(action, v.before, v.after)).toEqual({
+      kind: 'heading',
+      id: 'card-greens.shred',
+    });
+  });
+  it('done s: with the lane free, the next running card', () => {
+    const state = play(
+      begun(),
+      ...ON_PLAN.slice(0, 4),
+    );
+    const action = { type: 'cook/done', stepId: 'greens.shred', nowMs: cmAt(17, 55) } as const;
+    const v = viewsAround(state, action, cmAt(17, 55));
+    expect(focusAfter(action, v.before, v.after)).toEqual({
+      kind: 'heading',
+      id: 'card-chicken.roast',
+    });
+  });
+  it('done s: with nothing to show, the Do now heading', () => {
+    const two = schedule(SUNDAY_ROAST, TWO_COOK_KITCHEN);
+    if (!two.ok) throw new Error('no schedule');
+    const state = play(
+      beginAt(two.value, AXIS_MS, cmAt(17, 40)),
+      { do: 'start', id: 'chicken.prep', at: cmAt(17, 40) },
+      { do: 'start', id: 'greens.shred', at: cmAt(17, 40) },
+    );
+    const action = { type: 'cook/done', stepId: 'greens.shred', nowMs: cmAt(17, 45) } as const;
+    const v = viewsAround(state, action, cmAt(17, 45));
+    expect(focusAfter(action, v.before, v.after)).toEqual({ kind: 'heading', id: 'do-now' });
+  });
+  it('extra and behind: focus stays where it is', () => {
+    const extra = { type: 'cook/extra', stepId: 'chicken.roast', minutes: 5, nowMs: cmAt(18, 0) } as const;
+    const a = viewsAround(cmF(), extra, cmAt(18, 0));
+    expect(focusAfter(extra, a.before, a.after)).toBeNull();
+    const behind = { type: 'cook/behind', nowMs: cmAt(18, 0) } as const;
+    const b = viewsAround(cmF(), behind, cmAt(18, 0));
+    expect(focusAfter(behind, b.before, b.after)).toBeNull();
+  });
+  it('undo of an extra: the Done button of the restored running step', () => {
+    const extra = play(cmF(), { do: 'extra', id: 'chicken.roast', minutes: 15, at: cmAt(18, 30) });
+    const action = { type: 'cook/undo', nowMs: cmAt(18, 30, 3) } as const;
+    const v = viewsAround(extra, action, cmAt(18, 30, 3));
+    expect(focusAfter(action, v.before, v.after)).toEqual({
+      kind: 'action',
+      stepId: 'chicken.roast',
+      action: 'done',
+    });
+  });
+  it('undo of a start: the Start button of the restored pending step', () => {
+    const started = play(begun(), { do: 'start', id: 'chicken.prep', at: cmAt(17, 40) });
+    const action = { type: 'cook/undo', nowMs: cmAt(17, 40, 3) } as const;
+    const v = viewsAround(started, action, cmAt(17, 40, 3));
+    expect(focusAfter(action, v.before, v.after)).toEqual({
+      kind: 'action',
+      stepId: 'chicken.prep',
+      action: 'start',
+    });
+  });
+  it('undo of I\'m behind: the Do now heading', () => {
+    const behind = play(cmF(), { do: 'behind', at: cmAt(18, 0) });
+    const action = { type: 'cook/undo', nowMs: cmAt(18, 0, 3) } as const;
+    const v = viewsAround(behind, action, cmAt(18, 0, 3));
+    expect(focusAfter(action, v.before, v.after)).toEqual({ kind: 'heading', id: 'do-now' });
+  });
+  it('start-now: the heading of the first lane card', () => {
+    const action = { type: 'cook/start-now', nowMs: cmAt(17, 30) } as const;
+    const v = viewsAround(begun(), action, cmAt(17, 30));
+    expect(focusAfter(action, v.before, v.after)).toEqual({
+      kind: 'heading',
+      id: 'card-chicken.prep',
+    });
+  });
+  it('tick, alerts and resume: no move', () => {
+    const state = cmF();
+    const view = cookView(state, cmAt(18, 0));
+    for (const action of [
+      { type: 'cook/tick', nowMs: cmAt(18, 0) },
+      { type: 'cook/alerts', wanted: true },
+      { type: 'cook/resume', nowMs: cmAt(18, 0) },
+    ] as const) {
+      expect(focusAfter(action, view, view)).toBeNull();
+    }
+  });
+});
+
+describe('finishedBetween (CM4.2)', () => {
+  it('the roast, ready at 19:05, is in (19:04:59, 19:05:00] and not in (19:05:00, 19:06]', () => {
+    expect(finishedBetween(cmF(), cmAt(19, 4, 59), cmAt(19, 5))).toEqual(['chicken.roast']);
+    expect(finishedBetween(cmF(), cmAt(19, 5), cmAt(19, 6))).toEqual([]);
+  });
+  it('with 15 extra minutes it is ready at 19:20', () => {
+    const extra = play(cmF(), { do: 'extra', id: 'chicken.roast', minutes: 15, at: cmAt(18, 30) });
+    expect(finishedBetween(extra, cmAt(19, 4), cmAt(19, 6))).toEqual([]);
+    expect(finishedBetween(extra, cmAt(19, 19, 59), cmAt(19, 20))).toEqual(['chicken.roast']);
+  });
+  it('a hands-on step under way is not announced', () => {
+    const prep = play(beginAt(H1_SCHEDULE, AXIS_MS, cmAt(17, 30)), {
+      do: 'start',
+      id: 'chicken.prep',
+      at: cmAt(17, 40),
+    });
+    expect(finishedBetween(prep, cmAt(17, 49, 59), cmAt(17, 50))).toEqual([]);
+  });
+});
+
+describe('announcementFor (CM5.6, CM9.4)', () => {
+  const GB = 'en-GB';
+  it('CM-b a session that begins 12 minutes late: 10 steps moved, serving 19:42, 1 new warning', () => {
+    const after = beginAt(H1_SCHEDULE, AXIS_MS, cmAt(17, 52));
+    expect(announcementFor(null, after, undefined, GB)).toBe(
+      'Plan rebuilt: 10 steps moved. Serving is now 19:42. 1 new warning.',
+    );
+  });
+  it('CM-c +15 on the roast: 7 steps moved, serving 19:45, 1 new warning', () => {
+    const before = cmF();
+    const after = play(before, { do: 'extra', id: 'chicken.roast', minutes: 15, at: cmAt(18, 30) });
+    expect(announcementFor(before, after, undefined, GB)).toBe(
+      'Plan rebuilt: 7 steps moved. Serving is now 19:45. 1 new warning.',
+    );
+  });
+  it('CM-d I\'m behind at 17:53: 1 step moved, serving stays at 19:30', () => {
+    const before = play(
+      beginAt(H1_SCHEDULE, AXIS_MS, cmAt(17, 30)),
+      ...ON_PLAN.slice(0, 3),
+    );
+    const after = play(before, { do: 'behind', at: cmAt(17, 53) });
+    expect(announcementFor(before, after, undefined, GB)).toBe(
+      'Plan rebuilt: 1 step moved. Serving stays at 19:30.',
+    );
+  });
+  it('a rebuild that moves nothing says everything is on time', () => {
+    const before = cmF();
+    const after = play(before, { do: 'behind', at: cmAt(18, 0) });
+    expect(announcementFor(before, after, undefined, GB)).toBe(
+      'Plan rebuilt: everything is on time.',
+    );
+  });
+  it('a failed rebuild is said once', () => {
+    const before = cmF();
+    const after = {
+      ...before,
+      core: {
+        ...before.core,
+        log: [
+          ...before.core.log,
+          { atMs: cmAt(18, 0), cause: { kind: 'behind' } as const, result: { ok: false, error: 'serving_out_of_range' } as const },
+        ],
+      },
+    };
+    expect(announcementFor(before, after, undefined, GB)).toBe('The plan could not be rebuilt.');
+  });
+  it('an undo names what was undone', () => {
+    const before = play(cmF(), { do: 'extra', id: 'chicken.roast', minutes: 15, at: cmAt(18, 30) });
+    const after = applyCook(before, { type: 'cook/undo', nowMs: cmAt(18, 30, 3) });
+    expect(
+      announcementFor(before, after, { kind: 'extra', stepId: 'chicken.roast', minutes: 15 }, GB),
+    ).toBe('Undone: +15 min on Roast the chicken.');
+    expect(announcementFor(before, after, { kind: 'behind' }, GB)).toBe("Undone: I'm behind.");
+  });
+  it('the last terminal step done: dinner is served', () => {
+    const taps = h1Taps(null);
+    const start = beginAt(H1_SCHEDULE, AXIS_MS, cmAt(17, 30));
+    const before = play(start, ...taps.slice(0, -1));
+    const after = play(before, ...taps.slice(-1));
+    expect(announcementFor(before, after, undefined, GB)).toBe(
+      'Everything is done. Dinner is served.',
+    );
+  });
+  it('an on-plan start announces nothing, and nor does no change', () => {
+    const before = beginAt(H1_SCHEDULE, AXIS_MS, cmAt(17, 30));
+    const after = play(before, { do: 'start', id: 'chicken.prep', at: cmAt(17, 40) });
+    expect(announcementFor(before, after, undefined, GB)).toBeNull();
+    expect(announcementFor(after, after, undefined, GB)).toBeNull();
+    expect(announcementFor(null, null, undefined, GB)).toBeNull();
+  });
+});
+EOF
+sed -i '' "s#import { cookView } from '../../../src/web/state/cook-view.js';#import {\n  announcementFor,\n  cookView,\n  finishedBetween,\n  focusAfter,\n} from '../../../src/web/state/cook-view.js';#" test/web/state/cook-view.test.ts
+npx prettier --write test/web/state/cook-view.test.ts src/web/state/cook-view.ts >/dev/null; npx vitest run --project examples test/web/state/cook-view.test.ts 2>&1 | grep -E "×|Tests |Error:" | head -30
+         × start s: the Done button of s 3ms
+         × done s: the heading of the card now holding the lane 0ms
+         × done s: with the lane free, the next running card 0ms
+         × done s: with nothing to show, the Do now heading 0ms
+         × extra and behind: focus stays where it is 0ms
+         × undo of an extra: the Done button of the restored running step 0ms
+         × undo of a start: the Start button of the restored pending step 0ms
+         × undo of I'm behind: the Do now heading 0ms
+         × start-now: the heading of the first lane card 0ms
+         × tick, alerts and resume: no move 0ms
+         × the roast, ready at 19:05, is in (19:04:59, 19:05:00] and not in (19:05:00, 19:06] 0ms
+         × with 15 extra minutes it is ready at 19:20 0ms
+         × a hands-on step under way is not announced 0ms
+         × CM-b a session that begins 12 minutes late: 10 steps moved, serving 19:42, 1 new warning 1ms
+         × CM-c +15 on the roast: 7 steps moved, serving 19:45, 1 new warning 0ms
+         × CM-d I'm behind at 17:53: 1 step moved, serving stays at 19:30 0ms
+         × a rebuild that moves nothing says everything is on time 0ms
+         × a failed rebuild is said once 0ms
+         × an undo names what was undone 0ms
+         × the last terminal step done: dinner is served 0ms
+         × an on-plan start announces nothing, and nor does no change 0ms
+    ⎯⎯⎯⎯⎯⎯ Failed Tests 21 ⎯⎯⎯⎯⎯⎯⎯
+    AssertionError: expected { kind: 'heading', id: 'stub' } to deeply equal { kind: 'action', …(2) }
+    AssertionError: expected { kind: 'heading', id: 'stub' } to deeply equal { kind: 'heading', …(1) }
+    AssertionError: expected { kind: 'heading', id: 'stub' } to deeply equal { kind: 'heading', …(1) }
+    AssertionError: expected { kind: 'heading', id: 'stub' } to deeply equal { kind: 'heading', id: 'do-now' }
+    AssertionError: expected { kind: 'heading', id: 'stub' } to be null
+    AssertionError: expected { kind: 'heading', id: 'stub' } to deeply equal { kind: 'action', …(2) }
+    AssertionError: expected { kind: 'heading', id: 'stub' } to deeply equal { kind: 'action', …(2) }
+    AssertionError: expected { kind: 'heading', id: 'stub' } to deeply equal { kind: 'heading', id: 'do-now' }
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat >> src/web/copy.ts <<'EOF'
+
+// Cooking mode announcements (cooking-mode design, "Announcements"). The polite live region
+// reads these; countdown ticks are never announced.
+export const COOK_ANNOUNCE = {
+  rebuildFailed: 'The plan could not be rebuilt.',
+  rebuiltOnTime: 'Plan rebuilt: everything is on time.',
+  finished: 'Everything is done. Dinner is served.',
+} as const;
+
+const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
+
+/** "Plan rebuilt: 7 steps moved. Serving is now 19:45. 1 new warning." */
+export function cookRebuilt(
+  movedCount: number,
+  servingMoved: boolean,
+  servingTime: string,
+  newWarningCount: number,
+): string {
+  const warnings = newWarningCount > 0 ? ` ${plural(newWarningCount, 'new warning', 'new warnings')}.` : '';
+  if (movedCount === 0 && !servingMoved) return `${COOK_ANNOUNCE.rebuiltOnTime}${warnings}`;
+  const serving = servingMoved ? `Serving is now ${servingTime}.` : `Serving stays at ${servingTime}.`;
+  return `Plan rebuilt: ${plural(movedCount, 'step', 'steps')} moved. ${serving}${warnings}`;
+}
+
+/** "Undone: +15 min on Roast the chicken." */
+export function cookUndone(words: string): string {
+  return `Undone: ${words}.`;
+}
+
+/** "Time is up: Roast the chicken." (several titles joined with a comma). */
+export function cookTimeUp(titles: readonly string[]): string {
+  return `Time is up: ${titles.join(', ')}.`;
+}
+EOF
+python3 - <<'EOF'
+p='~/hackathons-2026/kiroween/makedinner/src/web/state/cook-view.ts'
+s=open(p).read()
+a=s.index("// STUBS (T2.3)")
+s=s[:a]+'''/**
+ * Where focus goes after an action (CM9.3). Heading ids: `do-now` is the "Do now" h2,
+ * `card-<stepId>` a card's h3, `card-lane-<n>` the h3 of a free lane card.
+ */
+export function focusAfter(action: CookAction, before: CookView, after: CookView): FocusTarget {
+  const primaryOf = (stepId: string): FocusTarget => {
+    const current = after.lanes.flatMap((lane) => [lane.current, ...lane.also]);
+    const due = [...current, ...after.toStart].find(
+      (card) => card?.stepId === stepId && card.state === 'due',
+    );
+    if (due !== undefined) return { kind: 'action', stepId, action: 'start' };
+    const running = [...current, ...after.running].find(
+      (card) => card?.stepId === stepId && card.state === 'running',
+    );
+    return running === undefined ? null : { kind: 'action', stepId, action: 'done' };
+  };
+  const firstCard = (): FocusTarget => {
+    const next = after.toStart[0] ?? after.running[0];
+    return { kind: 'heading', id: next === undefined ? 'do-now' : `card-${next.stepId}` };
+  };
+  switch (action.type) {
+    case 'cook/start':
+      return { kind: 'action', stepId: action.stepId, action: 'done' };
+    case 'cook/done': {
+      const laneIndex = before.lanes.findIndex((lane) =>
+        [lane.current, ...lane.also].some((card) => card?.stepId === action.stepId),
+      );
+      const held = after.lanes[laneIndex]?.current;
+      if (held !== null && held !== undefined) return { kind: 'heading', id: `card-${held.stepId}` };
+      return firstCard();
+    }
+    case 'cook/undo': {
+      const label = before.undo?.label;
+      if (label === undefined || label.kind === 'behind' || label.kind === 'start-now') {
+        return { kind: 'heading', id: 'do-now' };
+      }
+      return primaryOf(label.stepId) ?? { kind: 'heading', id: 'do-now' };
+    }
+    case 'cook/start-now': {
+      const first = after.lanes[0];
+      return {
+        kind: 'heading',
+        id: first?.current == null ? 'card-lane-1' : `card-${first.current.stepId}`,
+      };
+    }
+    default:
+      return null;
+  }
+}
+
+/**
+ * Ids of the hands-free steps that are running and whose time came up in `(fromMs, toMs]`,
+ * by end time then id (CM4.2).
+ */
+export function finishedBetween(state: CookState, fromMs: number, toMs: number): string[] {
+  const { core } = state;
+  const ended: { id: string; at: number }[] = [];
+  for (const step of core.schedule.plan.steps) {
+    const fact = core.facts[step.id];
+    if (step.handsOn || fact?.state !== 'running') continue;
+    const at = endsAtMs(step, fact);
+    if (at > fromMs && at <= toMs) ended.push({ id: step.id, at });
+  }
+  return ended.sort((a, b) => a.at - b.at || compareIds(a.id, b.id)).map((e) => e.id);
+}
+
+export type Announcement = string | null;
+
+function undoWords(after: CookState, label: UndoLabel): string {
+  const title = (id: string): string =>
+    after.core.schedule.plan.steps.find((step) => step.id === id)?.title ?? id;
+  switch (label.kind) {
+    case 'start':
+      return `started ${title(label.stepId)}`;
+    case 'done':
+      return `done ${title(label.stepId)}`;
+    case 'extra':
+      return `+${label.minutes} min on ${title(label.stepId)}`;
+    case 'behind':
+      return "I'm behind";
+    case 'start-now':
+      return 'start now';
+  }
+}
+
+/**
+ * What the polite live region says when `before` becomes `after`: an undo (named by `label`),
+ * dinner served, or a rebuild. Anything else, such as an on-plan start, says nothing.
+ */
+export function announcementFor(
+  before: CookState | null,
+  after: CookState | null,
+  label?: UndoLabel,
+  locale?: string,
+): Announcement {
+  if (after === null) return null;
+  if (label !== undefined) return cookUndone(undoWords(after, label));
+  const wasServed = before !== null && servedIn(before);
+  if (servedIn(after) && !wasServed) return COOK_ANNOUNCE.finished;
+  const entry = after.core.log.at(-1);
+  if (entry === undefined || entry === before?.core.log.at(-1)) return null;
+  if (!entry.result.ok) return COOK_ANNOUNCE.rebuildFailed;
+  const { moved, servingFromMin, servingToMin, newWarnings } = entry.result;
+  return cookRebuilt(
+    moved.length,
+    servingToMin !== servingFromMin,
+    formatClock(clockAt(after.core.axisMs, servingToMin), locale),
+    newWarnings.length,
+  );
+}
+
+function servedIn(state: CookState): boolean {
+  return terminalIdsOf(state.core.schedule).every((id) => state.core.facts[id]?.state === 'done');
+}
+'''
+s=s.replace("import { clockAt, MINUTE_MS, minuteAt } from './clock.js';","import { COOK_ANNOUNCE, cookRebuilt, cookUndone } from '../copy.js';\nimport { clockAt, formatClock, MINUTE_MS, minuteAt } from './clock.js';")
+s=s.replace("export type FocusTarget =","export type FocusTarget =",1)
+# FocusTarget type was defined in stub section earlier? ensure defined
+open(p,'w').write(s)
+EOF
+grep -n "FocusTarget =" src/web/state/cook-view.ts
+    233:export type FocusTarget =
+    243:  const primaryOf = (stepId: string): FocusTarget => {
+    254:  const firstCard = (): FocusTarget => {
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx prettier --write src/web/state/cook-view.ts src/web/copy.ts >/dev/null; npx vitest run --project examples test/web/state/cook-view.test.ts 2>&1 | grep -E "×|Tests |Error:|expected" | head -30; npm run typecheck 2>&1 | tail -12; npm run lint 2>&1 | tail -15
+          Tests  39 passed (39)
+    
+    > make-dinner@0.0.0 typecheck
+    > tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit
+    
+    
+    > make-dinner@0.0.0 lint
+    > eslint .
+    exit 0
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/test/web/state/cook-view.pbt.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -i '' 's/^- \[ \] T2\.3 /- [x] T2.3 /' .kiro/specs/cooking-mode/tasks.md; npx prettier --write test/web/state/cook-view.pbt.ts >/dev/null; npx vitest run --project props test/web/state/cook-view.pbt.ts 2>&1 | grep -v "^$" | head -50; npm run typecheck 2>&1 | tail -8
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+     Test Files  1 passed (1)
+          Tests  3 passed (3)
+       Start at  19:40:34
+       Duration  1.79s (tests 83%, import 14%, transform 2%)
+    
+    > make-dinner@0.0.0 typecheck
+    > tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cp src/web/state/cook-view.ts /tmp/cv.bak && sed -i '' 's/startMsOf(step.id) <= nowMs/startMsOf(step.id) < nowMs/' src/web/state/cook-view.ts && npx vitest run --project props test/web/state/cook-view.pbt.ts 2>&1 | grep -E "×|Tests "; cp /tmp/cv.bak src/web/state/cook-view.ts; sed -i '' 's/endsAt - nowMs/endsAt - nowMs + 1/' src/web/state/cook-view.ts && npx vitest run --project props test/web/state/cook-view.pbt.ts 2>&1 | grep -E "×|Tests "; cp /tmp/cv.bak src/web/state/cook-view.ts; cmp /tmp/cv.bak src/web/state/cook-view.ts && rm /tmp/cv.bak && echo restored
+       × P-CM3 honest view: due and running match the oracle, each once, up next is its first three, finished iff every terminal step is done 37ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+          Tests  1 failed | 2 passed (3)
+       × P-CM5 clock: every running card counts down from its recorded start and extra minutes; late steps match the oracle; a tick changes nothing 13ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+          Tests  1 failed | 2 passed (3)
+    restored
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -i '' 's/^- \[ \] T2\.4 /- [x] T2.4 /' .kiro/specs/cooking-mode/tasks.md; D=.kiro/specs/cooking-mode; grep -n "overdue\|Overdue\|OVERDUE" $D/*.md
+    .kiro/specs/cooking-mode/design.md:14:| `src/web/state/cook-session.ts` | pure: thresholds, time mapping, `canBegin`, `beginSession`, `applyCook`, log building, `overdueIds` |
+    .kiro/specs/cooking-mode/design.md:30:| `OVERDUE_MIN` | 5 | a running step 5 min past its scheduled end, or a pending step 5 min (or its slack, if larger) past its start, triggers a rebuild |
+    .kiro/specs/cooking-mode/design.md:52:  | { kind: 'overdue'; stepIds: string[] };                         // sorted by compareIds
+    .kiro/specs/cooking-mode/design.md:118:export function overdueIds(core: CookCore, nowMs: number): string[];
+    .kiro/specs/cooking-mode/design.md:139:| `tick` | phase cooking | none | `overdueIds(core, t)` non-empty, cause `overdue` | slot kept |
+    .kiro/specs/cooking-mode/design.md:144:`overdueIds`: running `s` with `n >= sched(s).endMin + OVERDUE_MIN`, and pending `s` with `n >=
+    .kiro/specs/cooking-mode/design.md:145:sched(s).startMin + max(OVERDUE_MIN, sched(s).slackMin)`. After the rebuild a pending step starts
+    .kiro/specs/cooking-mode/design.md:263:Marks: done `✓`, warning and overdue `!`, hands-free cards dashed border (plan-ui's style), all with
+    .kiro/specs/cooking-mode/design.md:298:| cause | `<atTime> rebuild: started <d> late` / `<id> started <d> late` (`early`) / `<id> done <d> late` (`early`) / `<id> needs <m> more min` / `I'm behind` / `overdue <ids, ", ">` | `Rebuilt at <time>: …` the same words with titles |
+    .kiro/specs/cooking-mode/design.md:346:  rebuilt: 1 step moved. Serving stays at 19:30.` Not overdue before: `-97 < -100 + max(5, 75)`.
+    .kiro/specs/cooking-mode/design.md:353:- **CM-g overdue.** CM-f untouched until a tick at 19:10:00 (`n = -20`): roast `-20 >= -25 + 5`,
+    .kiro/specs/cooking-mode/design.md:355:  log `19:10 rebuild: overdue chicken.rest, chicken.roast`; `chicken.rest 19:05 -> 19:10`,
+    .kiro/specs/cooking-mode/design.md:385:  axisMs, nowMs)` → `{ due, running, upNext }` ids; `oracleOverdue(schedule, facts, axisMs, nowMs)`.
+    .kiro/specs/cooking-mode/design.md:398:| P-CM5 clock | every running card's `remainingMs = startedAtMs + (minutes + extraMin) × 60 000 - now`; inserting `tick`s where `oracleOverdue` is empty changes no state | CM4.1 |
+    .kiro/specs/cooking-mode/design.md:399:| P-CM6 triggers | an action adds a log entry iff the table's rebuild condition holds (thresholds by an independent `abs` check); a tick rebuilds iff `oracleOverdue` is non-empty; two ticks at one `now` give at most one entry | CM5.1 |
+    .kiro/specs/cooking-mode/design.md:449:  time move for no reason. An overdue step is only *shown* as late on its card ("Late by 6 min")
+    .kiro/specs/cooking-mode/design.md:452:  that lists the rebuild triggers ("... and WHEN a step is overdue by the design's rule") and the
+    .kiro/specs/cooking-mode/design.md:453:  15 s overdue *rebuild* check; the 15 s tick remains for display. CM-g becomes: at 19:10 the
+    .kiro/specs/cooking-mode/requirements.md:112:  "I'm behind", and WHEN a step is overdue by the design's rule.
+    .kiro/specs/cooking-mode/tasks.md:58:  at 19:10:00 changes nothing); a tick keeps the undo slot; `overdueIds` on a keeps step within its
+    .kiro/specs/cooking-mode/tasks.md:71:  `replayCook` in `cook-replay.ts`; `oracleCookSections` and `oracleOverdue` in `oracles.ts`, with
+    .kiro/specs/cooking-mode/tasks.md:176:- [ ] T4.6 "I'm behind", Undo, the blocked-start confirmation, overdue ticks. E2E first: CM-d at
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner/.kiro/specs/cooking-mode && python3 - <<'EOF'
+def sub(path, old, new, count=1):
+    s=open(path).read()
+    assert old in s, (path, old[:50])
+    s=s.replace(old,new,count)
+    open(path,'w').write(s)
+
+# requirements
+sub('requirements.md', """  "I'm behind", and WHEN a step is overdue by the design's rule.""", """  "I'm behind". Nothing rebuilds by itself: a late step is only shown late (CM2.9; design review Q4).""")
+sub('requirements.md', "### CM3. Actions", """- CM2.9 THE SYSTEM SHALL show a step that is late by the design's rule (a running step 5 minutes
+  past its planned end, a pending step 5 minutes, or its slack if larger, past its planned start) as
+  late on its card ("Late by <duration>"), and SHALL emphasise "I'm behind" while any step is late
+  (added for design review Q4).
+
+### CM3. Actions""")
+
+# design
+D='design.md'
+sub(D, "| `OVERDUE_MIN` | 5 | a running step 5 min past its scheduled end, or a pending step 5 min (or its slack, if larger) past its start, triggers a rebuild |",
+       "| `OVERDUE_MIN` | 5 | a running step 5 min past its scheduled end, or a pending step 5 min (or its slack, if larger) past its start, is shown late; it never triggers a rebuild (review Q4) |")
+sub(D, "  | { kind: 'overdue'; stepIds: string[] };                         // sorted by compareIds\n", "")
+sub(D, "| `tick` | phase cooking | none | `overdueIds(core, t)` non-empty, cause `overdue` | slot kept |", "| `tick` | always | none | never (display only: late steps come from the clock; review Q4) | slot kept |")
+sub(D, " | { kind: 'behind' }\n", " | { kind: 'behind' }\n") if False else None
+sub(D, " / `I'm behind` / `overdue <ids, \", \">` |", " / `I'm behind` |")
+sub(D, "Not overdue before: `-97 < -100 + max(5, 75)`.", "Not late before: `-97 < -100 + max(5, 75)`.")
+sub(D, "- `tick` | always", "- `tick` | always") if False else None
+sub(D, "- **CM-g overdue.** CM-f untouched until a tick at 19:10:00", "- **CM-g late (changed by review Q4: no automatic rebuild).** CM-f untouched until 19:10:00")
+sub(D, "| P-CM5 clock | every running card's `remainingMs = startedAtMs + (minutes + extraMin) × 60 000 - now`; inserting `tick`s where `oracleOverdue` is empty changes no state | CM4.1 |",
+       "| P-CM5 clock | every running card's `remainingMs = startedAtMs + (minutes + extraMin) × 60 000 - now`; the cards with `lateByMin` set are exactly `oracleOverdue`'s ids, `emphasiseBehind` iff cooking and any is late; a `tick` returns the state itself | CM4.1, CM2.9 |")
+sub(D, "a tick rebuilds iff `oracleOverdue` is non-empty; two ticks at one `now` give at most one entry | CM5.1 |",
+       "a tick never adds an entry or changes the state, whatever is late (review Q4) | CM5.1 |")
+EOF
+sed -n 350,362p design.md; sed -n 126,150p design.md
+    … (8 earlier lines not shown)
+    - **CM-h undo.** After CM-c, `undo` at 18:30:05: `core` deep-equals the core before the +15 (H1
+      schedule, roast `extraMin 0`, empty log); at 18:30:10 `undo` is a no-op and the view has no undo.
+    - **CM-i several cooks.** `schedule(SUNDAY_ROAST, TWO_COOK_KITCHEN)` (checked with core): prep
+      `[-110,-100)` C1, shred `[-110,-105)` C2, strain `[-3,-1)` C2, toss `[-1,0)` C2, roux `[-15,-13)`
+      C1, carve `[-5,0)` C1, rest `[-25,-5)`. At 17:40: lane 1 `current` prep, lane 2 `current` shred,
+    `applyCook`, with `t = effectiveNow`, `n = minuteAt(axisMs, t)`, `sched(s)` the step's current
+    schedule entry. "Undoable" actions set `undo = { label, untilMs: t + UNDO_MS, before: old core }`
+    and `lastActiveMs = t`.
+    
+    | action | valid when | facts | rebuild when | undo label |
+    | ------ | ---------- | ----- | ------------ | ---------- |
+    | `start-now` | no fact, no log entry, `t < startMs` | none; `d = round((startMs - t) / MINUTE_MS)`, at least 1; `axisMs -= d` min, `plannedServingMs` alike | never | `start-now` |
+    | `start {s}` | `s` pending | `running { t, extraMin 0 }` | `abs(n - sched(s).startMin) > SLIP_MIN`, cause `start` | `start` |
+    | `done {s}` | `s` running | `done { startedAtMs, t }` | `abs(n - sched(s).endMin) > SLIP_MIN`, cause `done` | `done` |
+    | `extra {s, m}` | `s` running | `extraMin += m` (capped at `extraMax`) | always, cause `extra` | `extra` |
+    | `behind` | phase cooking | none | always, cause `behind` | `behind` |
+    | `undo` | `undo` set, `t < untilMs` | `core = undo.before` | never | slot cleared |
+    | `tick` | always | none | never (display only: late steps come from the clock; review Q4) | slot kept |
+    | `resume` | always | none | never | `lastActiveMs = t` only |
+    | `alerts {wanted}` | always | none | never | `alertsWanted` only |
+    
+    An invalid action returns `state` itself (CM3.7). `byMin` is `n - sched(s).startMin` (or `endMin`).
+    `overdueIds`: running `s` with `n >= sched(s).endMin + OVERDUE_MIN`, and pending `s` with `n >=
+    sched(s).startMin + max(OVERDUE_MIN, sched(s).slackMin)`. After the rebuild a pending step starts
+    `>= n` and a running overrun ends at `n`, so a second tick at the same `n` finds nothing (P-CM6).
+    
+    **Rebuild and log.** `r = rebuild(core.schedule, progressOf(core'), n)`. `ok`: `schedule =
+    r.value.schedule`; entry `{ atMs: t, cause, result: { ok: true, moved: diff.moved` sorted by
+    `(toStartMin, stepId)`, `unchanged: diff.unchanged, servingFromMin: old servingMin, servingToMin:
+    new servingMin, newWarnings` = new warnings whose `stepId` the old schedule did not warn, or warned
+    exit 0
+
+Now fix the remaining prose (CM-g text, start-now rounding, overdueIds paragraph, view types, tasks).
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner/.kiro/specs/cooking-mode && python3 - <<'EOF'
+def sub(path, old, new):
+    s=open(path).read()
+    assert old in s, (path, old[:60])
+    open(path,'w').write(s.replace(old,new,1))
+D='design.md'
+sub(D, """CM-f untouched until 19:10:00 (`n = -20`): roast `-20 >= -25 + 5`,
+  rest `-20 >= -25 + max(5, 0)`; the tick at 19:09:45 (`n = -21`) does nothing. The rebuild is E3:
+  log `19:10 rebuild: overdue chicken.rest, chicken.roast`; `chicken.rest 19:05 -> 19:10`,""", """CM-f untouched until 19:10:00 (`n = -20`): roast `-20 >= -25 + 5`,
+  rest `-20 >= -25 + max(5, 0)`: both cards read late by 5 min, "I'm behind" is emphasised and nothing
+  moves; at 19:09:45 (`n = -21`) nothing is late, and a tick never changes the state. Tapping "I'm
+  behind" at 19:10:00 gives the E3 rebuild: log `19:10 rebuild: I'm behind`; `chicken.rest 19:05 -> 19:10`,""")
+sub(D, "no warnings. A second tick at 19:10:00 changes nothing.", "no warnings. A second tap at 19:10:00 logs `Everything is on time`.")
+sub(D, "`d = round((startMs - t) / MINUTE_MS)`, at least 1;", "`d = ceil((startMs - t) / MINUTE_MS)`, at least 1 (rounded up so the start is reached; decided in implementation);")
+sub(D, """`>= n` and a running overrun ends at `n`, so a second tick at the same `n` finds nothing (P-CM6).""", """`>= n` and a running overrun ends at `n`, so after "I'm behind" nothing is late at that `n`. `overdueIds` only
+feeds the view: `CardStep.lateByMin` (`n - endMin` for a running step, `n - startMin` for a due one, set only
+for the ids `overdueIds` returns) and `CookView.emphasiseBehind` (phase cooking and any id late). Added
+for review Q4.""")
+sub(D, "  waitsFor: string[];                // titles of prerequisites not done, in plan order (due only)\n", "  waitsFor: string[];                // titles of prerequisites not done, in plan order (due only)\n  lateByMin: number | null;          // set while the step is late by the overdue rule (review Q4)\n")
+sub(D, "  dock: { stepId: string; action: 'start' | 'done' } | null;\n", "  dock: { stepId: string; action: 'start' | 'done' } | null;\n  emphasiseBehind: boolean;          // phase cooking and some step is late (review Q4)\n")
+sub(D, "| lane card | label", "| late (review Q4) | on a card with `lateByMin`: `! Late by <duration>`; the dock's `I'm behind` is emphasised |\n| lane card | label")
+t='tasks.md'
+sub(t, "CM-g (no rebuild at 19:09:45, E3 at 19:10:00, a second tick\n  at 19:10:00 changes nothing); a tick keeps the undo slot;", "CM-g as changed by review Q4 (`overdueIds` empty at 19:09:45 and\n  the rest and roast at 19:10:00; a tick returns the state itself; \"I'm behind\" at 19:10:00 gives the E3\n  rebuild; a second tap logs nothing moved); a tick keeps the undo slot;")
+sub(t, '- [ ] T4.6 "I\'m behind", Undo, the blocked-start confirmation, overdue ticks. E2E first: CM-d at', '- [ ] T4.6 "I\'m behind", Undo, the blocked-start confirmation, late cards. E2E first: CM-d at')
+sub(t, "CM-g by `fastForward` to 19:10 shows its log;", "CM-g by `fastForward` to 19:10 shows `! Late by 5 min` on the roast and the rest and no log entry, then \"I'm behind\" shows the E3 log;")
+EOF
+sed -n 54,66p tasks.md; grep -n "T1.10\|P-CM6" tasks.md | head
+      Covers: CM3.1–CM3.3, CM3.7, CM5.1–CM5.3, CM5.5, CM5.7, CM5.8.
+      Command: `npx vitest run --project examples test/web/state/cook-session.test.ts && npm run typecheck`
+    - [x] T1.7 Example tests for `undo`, `tick`, `resume`, `alerts` and `reduceCook`: CM-h (deep-equal
+      core at 18:30:05, no-op at 18:30:10); CM-g as changed by review Q4 (`overdueIds` empty at 19:09:45 and
+      the rest and roast at 19:10:00; a tick returns the state itself; "I'm behind" at 19:10:00 gives the E3
+      rebuild; a second tap logs nothing moved); a tick keeps the undo slot; `overdueIds` on a keeps step within its
+      slack is empty; `resume` sets only `lastActiveMs`; `reduceCook` begin with `cook` set, stop, and
+      an unchanged result returning the same state object.
+      Files: `test/web/state/cook-session.test.ts`, `test/web/state/cook-slot.test.ts`,
+      `src/web/state/cook-session.ts`, `src/web/state/cook-slot.ts` (stubs).
+      Covers: CM3.4, CM5.1, CM5.8, CM7.3.
+      Command: `npx vitest run --project examples test/web/state/cook-session.test.ts test/web/state/cook-slot.test.ts`
+    - [x] T1.8 Implement them until T1.7 passes; check that plan-ui's store tests still pass with the
+    79:- [x] T1.10 Properties P-CM1, P-CM2, P-CM6 and P-CM7 with `fcParams()`.
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -i '' 's/`newWarnings` for\*\?$/&/' .kiro/specs/cooking-mode/tasks.md && python3 - <<'EOF'
+p='.kiro/specs/cooking-mode/tasks.md'
+s=open(p).read()
+old="`newWarnings` for\n  `chicken.roast` and `greens.toss`)"
+assert old in s
+s=s.replace(old,"`newWarnings` for\n  `greens.toss` only: the roast ends when the rest starts, so it waits 0; corrected by hand-working CM-b)")
+open(p,'w').write(s)
+EOF
+for c in "npm test" "npm run test:props" "npm run typecheck" "npm run lint" "npx prettier --check ." "npm run build"; do echo "=== $c"; $c 2>&1 | tail -12; done
+    === npm test
+    zsh:9: command not found: npm test
+    === npm run test:props
+    zsh:9: command not found: npm run test:props
+    === npm run typecheck
+    zsh:9: command not found: npm run typecheck
+    === npm run lint
+    zsh:9: command not found: npm run lint
+    === npx prettier --check .
+    zsh:9: command not found: npx prettier --check .
+    === npm run build
+    zsh:9: command not found: npm run build
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npm test 2>&1 | tail -12; npm run test:props 2>&1 | tail -12
+    > make-dinner@0.0.0 test
+    > vitest run --project examples
+    
+    
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+    
+    
+     Test Files  50 passed (50)
+          Tests  1984 passed (1984)
+       Start at  19:41:22
+       Duration  4.00s (tests 50%, import 42%, transform 6%, worker 1%)
+    
+    > make-dinner@0.0.0 test:props
+    > vitest run --project props --passWithNoTests
+    
+    
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+    
+    
+     Test Files  20 passed (20)
+          Tests  106 passed (106)
+       Start at  19:41:26
+       Duration  59.33s (tests 89%, import 10%, transform 1%)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npm run typecheck 2>&1 | tail -4; npm run lint 2>&1 | tail -6; npx prettier --check . 2>&1 | tail -8; npm run build 2>&1 | tail -8
+    
+    > make-dinner@0.0.0 typecheck
+    > tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit
+    
+    
+    ~/hackathons-2026/kiroween/makedinner/test/web/state/cook-view.pbt.ts
+      105:29  error  'nowMs' is assigned a value but never used  @typescript-eslint/no-unused-vars
+    
+    ✖ 1 problem (1 error, 0 warnings)
+    
+    Checking formatting...
+    All matched files use Prettier code style!
+    > make-dinner@0.0.0 build
+    > tsc -p tsconfig.core.json && tsc -p tsconfig.server.json && tsc -p tsconfig.mcp.json && tsx scripts/build-web.ts
+    
+    
+      public/assets/main.js   314.7kb
+      public/assets/main.css   13.3kb
+    
+    ⚡ Done in 23ms
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 103,108p test/web/state/cook-view.pbt.ts
+          fc.property(arbCookBegin(), arbCookIntents(), (begin, intents) => {
+            const points = pointsOf(begin, intents);
+            for (const { state, nowMs } of points) {
+              expect(CookStateSchema.parse(JSON.parse(JSON.stringify(state)))).toStrictEqual(state);
+            }
+            const last = points.at(-1);
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -i '' '105s/{ state, nowMs }/{ state }/' test/web/state/cook-view.pbt.ts && npm run lint 2>&1 | tail -4; npx prettier --check . 2>&1 | tail -2; npx vitest run --project props test/web/state/cook-view.pbt.ts 2>&1 | grep "Tests "; (npm run test:e2e 2>&1 | tail -25)
+    … (2 earlier lines not shown)
+    > eslint .
+    
+    Checking formatting...
+    All matched files use Prettier code style!
+          Tests  3 passed (3)
+      ✓  228 [desktop] › e2e/smoke.spec.ts:23:5 › smoke, dark colour scheme › the page uses the --color-bg token of this colour scheme (92ms)
+      ✓  227 [desktop] › e2e/smoke.spec.ts:14:5 › smoke, dark colour scheme › the page loads with the Make Dinner brand link and the Menu heading (101ms)
+      ✓  221 [desktop] › e2e/shell.spec.ts:239:3 › shell: header › R9.7 Start over needs a second tap; Cancel returns focus to the button and keeps the dinner (291ms)
+      ✓  222 [desktop] › e2e/shell.spec.ts:256:3 › shell: header › R9.7 confirming Start over opens the Menu, clears the dinner and keeps the theme (261ms)
+      ✓  230 [desktop] › e2e/steps.spec.ts:31:3 › steps screen › R4.1 R4.9 seeded SUNDAY_ROAST shows a section per dish, steps in dependency order, No issues. (116ms)
+      ✓  231 [desktop] › e2e/steps.spec.ts:60:3 › steps screen › R4.2 a step summary gives id, duration, appliance, hands-on, hold and prerequisites by title (118ms)
+      ✓  232 [desktop] › e2e/steps.spec.ts:76:3 › steps screen › R4.9 R4.10 an error shows beside its step and in the summary, and blocks the plan (146ms)
+      ✓  233 [desktop] › e2e/steps.spec.ts:99:3 › steps screen › R4.11 Make the plan on a valid plan opens the Plan screen (207ms)
+      ✓  226 [desktop] › e2e/smoke.spec.ts:31:5 › smoke, light colour scheme › axe finds zero violations (wcag2a, wcag2aa, wcag21aa) (385ms)
+      ✓  235 [desktop] › e2e/steps.spec.ts:123:3 › step editor › R4.4 minutes 0 shows the field error, keeps the typed value and leaves the plan unchanged (231ms)
+      ✓  234 [desktop] › e2e/steps.spec.ts:110:3 › step editor › R4.3 R4.11 minutes of Roast the chicken 75 to 85 move the start to 17:30 (238ms)
+      ✓  229 [desktop] › e2e/smoke.spec.ts:31:5 › smoke, dark colour scheme › axe finds zero violations (wcag2a, wcag2aa, wcag21aa) (376ms)
+      ✓  236 [desktop] › e2e/steps.spec.ts:139:3 › step editor › R4.3 unchecking Keeps shows Can wait up to (minutes) with 10 (209ms)
+      ✓  238 [desktop] › e2e/steps.spec.ts:158:3 › step editor › R4.5 in the gravy.roux editor a step that already waits for it is disabled (197ms)
+      ✓  237 [desktop] › e2e/steps.spec.ts:150:3 › step editor › R4.5 only one editor is open at a time (231ms)
+      ✓  241 [desktop] › e2e/steps.spec.ts:231:3 › add and remove › R4.6 a blank dish name shows the field error (159ms)
+      ✓  242 [desktop] › e2e/steps.spec.ts:216:3 › add and remove › R4.6 R4.8 adding a dish Crème brûlée creates its section with a New step creme-brulee.step-1 (194ms)
+      ✓  239 [desktop] › e2e/steps.spec.ts:174:3 › step editor › R4.5 R4.10 an unknown prerequisite shows checked; unchecking it enables Make the plan (216ms)
+      ✓  243 [desktop] › e2e/steps.spec.ts:238:3 › add and remove › R4.6 renaming a dish keeps its ids (157ms)
+      ✓  240 [desktop] › e2e/steps.spec.ts:191:3 › add and remove › R4.7 removing Roast the chicken asks naming the two steps; Keep step changes nothing; Remove step announces the notice (263ms)
+      ✓  246 [desktop] › e2e/steps.spec.ts:264:3 › add and remove › R4.8 the last step cannot be removed and says why (96ms)
+      ✓  244 [desktop] › e2e/steps.spec.ts:247:3 › add and remove › R4.6 Add a step adds a New step to the dish and opens it (181ms)
+      ✓  245 [desktop] › e2e/steps.spec.ts:254:3 › add and remove › R4.6 removing a dish asks and then removes its steps (160ms)
+    
+      246 passed (13.8s)
+    exit 0
+
+T1 (session state and transitions) and T2 (the view) are done and all their sub-tasks are ticked. I changed only pure modules, tests and spec files, so there is no screen yet and I took no screenshots.
+
+## What changed
+
+- **Source:**
+  - `src/web/state/cook-slot.ts`: replaces the placeholders.
+  - `src/web/state/cook-session.ts`: new.
+  - `src/web/state/cook-view.ts`: new.
+  - `src/web/copy.ts`: added the announcement strings, as functions that take plain values.
+- **Tests and support:**
+  - `test/web/state/cook-session.test.ts`
+  - `test/web/state/cook-slot.test.ts`
+  - `test/web/state/cook-view.test.ts`
+  - `test/web/state/cook-session.pbt.ts`
+  - `test/web/state/cook-view.pbt.ts`
+  - `test/support/cook-replay.ts`: new.
+  - `test/support/fixtures.ts`, `test/support/arbitraries.ts`, `test/support/oracles.ts`, `test/meta/oracles.test.ts`: extended.
+- **Spec:** `tasks.md` (T1.1–T2.4 ticked), `requirements.md`, `design.md`.
+
+## Runs this session
+
+| Command | Result |
+|---|---|
+| `npm test` | 50 files, 1984 passed, 0 failed, 0 skipped |
+| `npm run test:props` | 20 files, 106 passed, 0 failed, 0 skipped |
+| `npm run typecheck` | exit 0 |
+| `npm run lint` | clean (it caught one unused variable in a test, which I fixed) |
+| `npx prettier --check .` | clean |
+| `npm run build` | ok |
+| `npm run test:e2e` | 246 passed, 0 failed |
+
+- I did not run `npm run check:contrast`. T1 and T2 touch no tokens or CSS.
+- The cooking e2e specs belong to T4 and don't exist yet, so the 246 e2e runs are plan-ui's.
+- I broke the code on purpose to check that the properties can fail. A wrong slip threshold, an undo that restored the wrong core, and a rebuild with `now + 1` each failed P-CM6, P-CM2 and P-CM1. Two view mutations (`<` for `<=` on "due", a skewed `remainingMs`) failed P-CM3 and P-CM5. I restored every file afterwards and checked it with `cmp`.
+
+## Review Q4: no automatic rebuild for late steps
+
+**Code**
+- `LogCause` has no `overdue` kind.
+- `cook/tick` returns the state itself.
+- `overdueIds` only feeds the view. Cards now carry `lateByMin`, and `CookView` carries `emphasiseBehind` (cooking phase and some step late).
+
+**`requirements.md`**
+- CM5.1 loses the overdue clause.
+- New CM2.9: a late step is shown late, and "I'm behind" is emphasised.
+
+**`design.md`**
+- Changed: the `OVERDUE_MIN` row, the `LogCause` type, the `tick` table row, the overdue paragraph, the build-log cause line, CM-g, P-CM5 and P-CM6.
+- Added: `lateByMin` and `emphasiseBehind` in the view types, and a late-card row in the copy table.
+
+**`tasks.md`**
+- T1.7 and T4.6 reworded for the new CM-g.
+- I did not touch T3 or the e2e task text beyond that.
+
+## Decisions I made
+
+- **"Start now" rounds up.** The design said `round`. With `round`, a tap at 17:30:40 would still leave 20 s of countdown. `ceil` makes "Start now" start now and moves the serving time at most 59 s further than the exact gap. The `design.md` table row is updated.
+- **The expected new warning after a late begin is only `greens.toss`.** T1.3 also named the roast, but the roast ends when the rest starts, so it waits 0 minutes. That matches the design's hand-worked CM-b and my test. I corrected the T1.3 text.
+- **`EXTRA_MAX = 1440` is a local constant, with a test that it equals core's `REBUILD_LIMITS.extraMax`.** Core's public surface is pinned by a test and doesn't export that constant. I left core alone.
+- **P-CM7 also allows `invalid_now` as a failed-rebuild kind.** It is the same "past the 24-hour window" case as `serving_out_of_range`, and the property asserts the minute really is above 1440.
+- **Reducers ignore bad input.** `applyCook` and `beginSession` return the state unchanged for a non-integer or negative instant, a non-boolean `wanted`, or an unknown action type. Otherwise a wild value could corrupt a stored session.
+- **`announcementFor` takes an optional `locale`**, like the other layout functions, so tests can use `en-GB`.
+- **`finishedBetween` returns step ids**, not titles.
+
+## Not done or not verified
+
+- T3 and T4 were not started, so the copy tables, wake lock, alerts, the Cook screen and all cooking e2e flows remain.
+- The oracle tests in `test/meta/oracles.test.ts` passed on first run. The new oracles had no earlier version to fail against, so I covered that with hand-broken inputs that give a different answer.
+- `HoldExceededIssueSchema` isn't exported from core. I used `IssueSchema` with a type-predicate refine in `CookStateSchema`, which works but is indirect.
+
+## Open question
+
+`announcementFor` and the announcement strings now live partly in `copy.ts`. T3.1 will test them; tell me if you'd rather they move into a different table.
+
+--- run success (end_turn); credits reported by this session: 38.06 ---

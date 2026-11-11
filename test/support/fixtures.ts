@@ -851,6 +851,51 @@ export const E8_PROGRESS: Progress = Object.fromEntries(
 export const E8_NOW = 0;
 
 // ---------------------------------------------------------------------------------------
+// Cooking-mode spec (T1.1). Written by hand from `.kiro/specs/cooking-mode/design.md`,
+// "Hand-worked sessions"; nothing here is produced by src/. Minute `m` of the session axis is
+// 19:30 + m on Wed 2026-11-11 (London is on GMT, so local time equals UTC).
+
+/** Minute 0 of the cooking-mode examples: Wed 2026-11-11 19:30 London (19:30Z). */
+export const AXIS_MS: number = Date.UTC(2026, 10, 11, 19, 30);
+
+/** The instant at a London clock time on Wed 2026-11-11 (`h` may be 24 or more for later days). */
+export function cmAt(hours: number, minutes: number, seconds = 0): number {
+  return AXIS_MS + (hours * 60 + minutes - (19 * 60 + 30)) * 60_000 + seconds * 1000;
+}
+
+/**
+ * CM-c before the +15 (also CM-f's facts and CM-d's, plus the shred): prep 17:40 to 17:50 (axis
+ * minutes -110 to -100), the roast started 17:50 (-100), the shred 17:50 to 17:55 (-100 to -95).
+ * On the axis 19:30 these give `progressOf`:
+ *   chicken.prep   done    [-110, -100)
+ *   greens.shred   done    [-100, -95)
+ *   chicken.roast  running { startMin -100, extraMin 0 }
+ * The roast ends 17:50 + 75 min = 19:05, or 19:20 with 15 extra minutes.
+ */
+type CmFact =
+  | { state: 'running'; startedAtMs: number; extraMin: number }
+  | { state: 'done'; startedAtMs: number; endedAtMs: number };
+
+const CM_PREP: CmFact = { state: 'done', startedAtMs: cmAt(17, 40), endedAtMs: cmAt(17, 50) };
+const CM_SHRED: CmFact = { state: 'done', startedAtMs: cmAt(17, 50), endedAtMs: cmAt(17, 55) };
+const CM_ROAST: CmFact = { state: 'running', startedAtMs: cmAt(17, 50), extraMin: 0 };
+
+export const CM_C_FACTS: Record<string, CmFact> = {
+  'chicken.prep': CM_PREP,
+  'greens.shred': CM_SHRED,
+  'chicken.roast': CM_ROAST,
+};
+
+/** CM-d: prep done 17:40 to 17:50, the roast started 17:50, the shred not started. */
+export const CM_D_FACTS: Record<string, CmFact> = {
+  'chicken.prep': CM_PREP,
+  'chicken.roast': CM_ROAST,
+};
+
+/** CM-f at 17:56: the same facts as CM-c before the +15. Expected view in the design, CM-f. */
+export const CM_F_FACTS: Record<string, CmFact> = CM_C_FACTS;
+
+// ---------------------------------------------------------------------------------------
 // Dinnerfile spec (T1.3). Written by hand from `.kiro/specs/dinnerfile/design.md`, sections
 // "Worst case" and "Sunday roast"; nothing here is produced by src/. A tab is written `\t`.
 

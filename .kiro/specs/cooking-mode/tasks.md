@@ -15,7 +15,7 @@ before the fix. Every string goes into `src/web/copy.ts` as the design's tables 
 
 ## T1. Session state and transitions (pure)
 
-- [ ] T1.1 Example tests for the time mapping: `effectiveNow` (a fact later than `nowMs`, a clock
+- [x] T1.1 Example tests for the time mapping: `effectiveNow` (a fact later than `nowMs`, a clock
   set back), `progressOf` on `CM_C_FACTS` (prep done `[-110,-100)`, shred `[-100,-95)`, roast
   running `{ -100, 0 }`), `endsAtMs` with `extraMin 15` (19:20), and `CookStateSchema` (a fact for an
   unknown id fails, an undo slot holding a `CookState` fails, the JSON of a hand-built state passes).
@@ -24,24 +24,24 @@ before the fix. Every string goes into `src/web/copy.ts` as the design's tables 
   `test/support/fixtures.ts`, `src/web/state/cook-slot.ts`, `src/web/state/cook-session.ts` (stubs).
   Covers: CM4.1, CM5.2, CM7.1.
   Command: `npx vitest run --project examples test/web/state/cook-session.test.ts test/web/state/cook-slot.test.ts`
-- [ ] T1.2 Implement the types, `CookStateSchema`, the thresholds and the time mapping until T1.1
+- [x] T1.2 Implement the types, `CookStateSchema`, the thresholds and the time mapping until T1.1
   passes.
   Files: `src/web/state/cook-slot.ts`, `src/web/state/cook-session.ts`.
   Covers: CM4.1, CM5.2, CM7.1, N1.
   Command: `npx vitest run --project examples test/web/state/cook-session.test.ts test/web/state/cook-slot.test.ts && npm run typecheck`
-- [ ] T1.3 Example tests for `canBegin`, `beginSession` and `start-now`: CM-a (countdown, `startMs`
+- [x] T1.3 Example tests for `canBegin`, `beginSession` and `start-now`: CM-a (countdown, `startMs`
   17:40, `start-now` moving `axisMs` and `plannedServingMs` to 19:20); CM-b (every interval,
   `servingMin 12`, the log entry's cause, `moved` in `(toStartMin, id)` order, `newWarnings` for
-  `chicken.roast` and `greens.toss`); begin exactly at 17:40 makes no entry; Fri 19:30 gives
+  `greens.toss` only: the roast ends when the rest starts, so it waits 0; corrected by hand-working CM-b); begin exactly at 17:40 makes no entry; Fri 19:30 gives
   `too_late`; `start-now` after a fact or after the start returns the state itself.
   Files: `test/web/state/cook-session.test.ts`, `src/web/state/cook-session.ts` (stubs).
   Covers: CM1.1–CM1.5.
   Command: `npx vitest run --project examples test/web/state/cook-session.test.ts`
-- [ ] T1.4 Implement them until T1.3 passes.
+- [x] T1.4 Implement them until T1.3 passes.
   Files: `src/web/state/cook-session.ts`.
   Covers: CM1.1–CM1.5, CM5.3.
   Command: `npx vitest run --project examples test/web/state/cook-session.test.ts && npm run typecheck`
-- [ ] T1.5 Example tests for `start`, `done`, `extra` and `behind`: CM-c step by step (no entry for
+- [x] T1.5 Example tests for `start`, `done`, `extra` and `behind`: CM-c step by step (no entry for
   the five on-plan taps; the +15 entry equal to RB-a's diff with the design's order and warnings);
   CM-d; CM-e at 2 and 3 minutes late, and a `done` 3 minutes early; an early start that moves the
   pinned step in `moved`; every invalid action of the design's error list returns the same object;
@@ -49,25 +49,26 @@ before the fix. Every string goes into `src/web/copy.ts` as the design's tables 
   Files: `test/web/state/cook-session.test.ts`, `src/web/state/cook-session.ts` (stubs).
   Covers: CM3.1–CM3.3, CM3.7, CM5.1, CM5.3, CM5.5, CM5.7.
   Command: `npx vitest run --project examples test/web/state/cook-session.test.ts`
-- [ ] T1.6 Implement the four actions, the rebuild call and log building until T1.5 passes.
+- [x] T1.6 Implement the four actions, the rebuild call and log building until T1.5 passes.
   Files: `src/web/state/cook-session.ts`.
   Covers: CM3.1–CM3.3, CM3.7, CM5.1–CM5.3, CM5.5, CM5.7, CM5.8.
   Command: `npx vitest run --project examples test/web/state/cook-session.test.ts && npm run typecheck`
-- [ ] T1.7 Example tests for `undo`, `tick`, `resume`, `alerts` and `reduceCook`: CM-h (deep-equal
-  core at 18:30:05, no-op at 18:30:10); CM-g (no rebuild at 19:09:45, E3 at 19:10:00, a second tick
-  at 19:10:00 changes nothing); a tick keeps the undo slot; `overdueIds` on a keeps step within its
+- [x] T1.7 Example tests for `undo`, `tick`, `resume`, `alerts` and `reduceCook`: CM-h (deep-equal
+  core at 18:30:05, no-op at 18:30:10); CM-g as changed by review Q4 (`overdueIds` empty at 19:09:45 and
+  the rest and roast at 19:10:00; a tick returns the state itself; "I'm behind" at 19:10:00 gives the E3
+  rebuild; a second tap logs nothing moved); a tick keeps the undo slot; `overdueIds` on a keeps step within its
   slack is empty; `resume` sets only `lastActiveMs`; `reduceCook` begin with `cook` set, stop, and
   an unchanged result returning the same state object.
   Files: `test/web/state/cook-session.test.ts`, `test/web/state/cook-slot.test.ts`,
   `src/web/state/cook-session.ts`, `src/web/state/cook-slot.ts` (stubs).
   Covers: CM3.4, CM5.1, CM5.8, CM7.3.
   Command: `npx vitest run --project examples test/web/state/cook-session.test.ts test/web/state/cook-slot.test.ts`
-- [ ] T1.8 Implement them until T1.7 passes; check that plan-ui's store tests still pass with the
+- [x] T1.8 Implement them until T1.7 passes; check that plan-ui's store tests still pass with the
   replaced `cook-slot.ts`.
   Files: `src/web/state/cook-session.ts`, `src/web/state/cook-slot.ts`.
   Covers: CM3.4, CM5.1, CM5.8, CM7.3, CM8.3.
   Command: `npx vitest run --project examples test/web/state && npm run typecheck && npm run lint`
-- [ ] T1.9 Test support: `arbCookBegin`, `arbCookIntents`, `cookActionFor` in `arbitraries.ts`;
+- [x] T1.9 Test support: `arbCookBegin`, `arbCookIntents`, `cookActionFor` in `arbitraries.ts`;
   `replayCook` in `cook-replay.ts`; `oracleCookSections` and `oracleOverdue` in `oracles.ts`, with
   `test/meta/oracles.test.ts` cases giving CM-f's and CM-g's hand values and one wrong answer each
   on a hand-broken input.
@@ -75,14 +76,14 @@ before the fix. Every string goes into `src/web/copy.ts` as the design's tables 
   `test/support/fixtures.ts`, `test/meta/oracles.test.ts`.
   Covers: CM10.1.
   Command: `npx vitest run --project examples test/meta/oracles.test.ts && npm run typecheck`
-- [ ] T1.10 Properties P-CM1, P-CM2, P-CM6 and P-CM7 with `fcParams()`.
+- [x] T1.10 Properties P-CM1, P-CM2, P-CM6 and P-CM7 with `fcParams()`.
   Files: `test/web/state/cook-session.pbt.ts`.
   Covers: CM3.4, CM3.7, CM5.1, CM5.2, CM5.7, CM5.8, CM10.1.
   Command: `npx vitest run --project props test/web/state/cook-session.pbt.ts && npm run typecheck`
 
 ## T2. The view (pure)
 
-- [ ] T2.1 Example tests for `cookView`: CM-a before and after "Start now"; CM-c after the +15
+- [x] T2.1 Example tests for `cookView`: CM-a before and after "Start now"; CM-c after the +15
   (running card, free lane `next`, dock null, undo until 18:30:10); CM-f field by field; CM-i at
   17:40 and 17:45; CM-j both endings; CM-k at 8 h 4 min and 7 h 59 min; a due `gravy.roux` with the
   roast running has `waitsFor ['Roast the chicken']`; the roast at 19:06 has `remainingMs -60000`
@@ -90,18 +91,18 @@ before the fix. Every string goes into `src/web/copy.ts` as the design's tables 
   Files: `test/web/state/cook-view.test.ts`, `src/web/state/cook-view.ts` (stubs).
   Covers: CM2.1–CM2.8, CM3.6, CM8.1.
   Command: `npx vitest run --project examples test/web/state/cook-view.test.ts`
-- [ ] T2.2 Implement `cookView` until T2.1 passes.
+- [x] T2.2 Implement `cookView` until T2.1 passes.
   Files: `src/web/state/cook-view.ts`.
   Covers: CM2.1–CM2.8, CM3.6, CM8.1, N1.
   Command: `npx vitest run --project examples test/web/state/cook-view.test.ts && npm run typecheck`
-- [ ] T2.3 Example tests, then implementation, for `focusAfter` (each row of the focus rule on
+- [x] T2.3 Example tests, then implementation, for `focusAfter` (each row of the focus rule on
   CM-c and CM-i views), `finishedBetween` (roast end 19:05 in `(19:04:59, 19:05:00]`, not in
   `(19:05:00, 19:06]`) and `announcementFor` (CM-b, CM-c, CM-d, failed, undo, finished, none for an
   on-plan start).
   Files: `test/web/state/cook-view.test.ts`, `src/web/state/cook-view.ts`.
   Covers: CM4.2, CM5.6, CM9.3, CM9.4.
   Command: `npx vitest run --project examples test/web/state/cook-view.test.ts && npm run typecheck`
-- [ ] T2.4 Properties P-CM3, P-CM4 (also through plan-ui `toPersisted` and `loadState` with a fake
+- [x] T2.4 Properties P-CM3, P-CM4 (also through plan-ui `toPersisted` and `loadState` with a fake
   storage) and P-CM5.
   Files: `test/web/state/cook-view.pbt.ts`.
   Covers: CM2.8, CM4.1, CM7.1, CM7.2, CM10.1.
@@ -173,9 +174,9 @@ installed and paused, `seedDinner(page, SUNDAY_ROAST, HOME_KITCHEN, '19:30')` un
   `src/web/styles/cook.css`, `e2e/cook-roast.spec.ts`.
   Covers: CM5.1, CM5.3–CM5.6.
   Command: `npx playwright test e2e/cook-roast.spec.ts && npm run typecheck`
-- [ ] T4.6 "I'm behind", Undo, the blocked-start confirmation, overdue ticks. E2E first: CM-d at
+- [ ] T4.6 "I'm behind", Undo, the blocked-start confirmation, late cards. E2E first: CM-d at
   17:53; CM-c then `Undo: +15 min on Roast the chicken` restores `Serve at 19:30` and is gone after
-  `runFor(10_000)` without a tap; CM-g by `fastForward` to 19:10 shows its log; starting `Make a
+  `runFor(10_000)` without a tap; CM-g by `fastForward` to 19:10 shows `! Late by 5 min` on the roast and the rest and no log entry, then "I'm behind" shows the E3 log; starting `Make a
   roux in the roasting tin` while the roast runs asks first, `Not yet` changes nothing.
   Files: `src/web/components/ActionDock.tsx`, `src/web/components/LaneCard.tsx`,
   `src/web/state/cook-hooks.ts`, `src/web/copy.ts`, `e2e/cook-roast.spec.ts`.

@@ -67,6 +67,11 @@ running, and what comes next.
 - CM2.8 THE SYSTEM SHALL derive every section from the schedule, the facts and now by one pure
   selector, and SHALL never show a done step as due, running or next.
 
+- CM2.9 THE SYSTEM SHALL show a step that is late by the design's rule (a running step 5 minutes
+  past its planned end, a pending step 5 minutes, or its slack if larger, past its planned start) as
+  late on its card ("Late by <duration>"), and SHALL emphasise "I'm behind" while any step is late
+  (added for design review Q4).
+
 ### CM3. Actions
 
 **User story:** As a cook with wet hands, I want few, big buttons that believe what I tell them.
@@ -109,7 +114,7 @@ timer ends.
 
 - CM5.1 THE SYSTEM SHALL call core `rebuild` in the browser WHEN a step starts or ends more than the
   design's slip threshold from its planned time, WHEN extra minutes are added, WHEN the cook taps
-  "I'm behind", and WHEN a step is overdue by the design's rule.
+  "I'm behind". Nothing rebuilds by itself: a late step is only shown late (CM2.9; design review Q4).
 - CM5.2 THE SYSTEM SHALL map facts to `Progress` and now to the axis by the design's time mapping,
   so that no reachable session makes `rebuild` return `done_after_now`, `running_starts_after_now`
   or `done_ends_before_start`.
