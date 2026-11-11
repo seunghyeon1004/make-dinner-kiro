@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { HOME_KITCHEN, SUNDAY_ROAST } from '../test/support/fixtures.js';
-import { FIXED_NOW, seedDinner } from './support.js';
+import { FIXED_NOW, openSettings, seedDinner } from './support.js';
 
 test.use({ locale: 'en-GB', timezoneId: 'Europe/London' });
 
@@ -24,12 +24,14 @@ test.describe('shell: routing and navigation', () => {
   }) => {
     await page.goto('/');
     const nav = page.getByRole('navigation', { name: 'Dinner' });
-    await expect(nav.getByRole('listitem')).toHaveText([
-      'Menu',
-      'Steps Pick a dinner first',
-      'Plan Pick a dinner first',
-      'Cook Cooking mode is not available yet',
-    ]);
+    const items = nav.getByRole('listitem');
+    await expect(items).toHaveCount(4);
+    await expect(items.nth(0)).toHaveText('1 Menu');
+    await expect(items.nth(1)).toContainText('2 Steps');
+    await expect(items.nth(1)).toContainText('Pick a dinner first');
+    await expect(items.nth(2)).toContainText('3 Plan');
+    await expect(items.nth(3)).toContainText('4 Cook');
+    await expect(items.nth(3)).toContainText('Cooking mode is not available yet');
     await expect(nav.getByRole('link', { name: 'Menu' })).toHaveAttribute('aria-current', 'step');
     await expect(nav.getByRole('link')).toHaveCount(1);
   });
@@ -38,10 +40,10 @@ test.describe('shell: routing and navigation', () => {
     await seedDinner(page, SUNDAY_ROAST, HOME_KITCHEN, '19:30', 'steps');
     await page.goto('/');
     const nav = page.getByRole('navigation', { name: 'Dinner' });
-    await expect(nav.getByRole('link')).toHaveText(['Menu', 'Steps', 'Plan']);
+    await expect(nav.getByRole('link')).toHaveText(['1 Menu', '2 Steps', '3 Plan']);
     await expect(nav.getByRole('link', { name: 'Steps' })).toHaveAttribute('aria-current', 'step');
-    await expect(nav.getByRole('listitem').last()).toHaveText(
-      'Cook Cooking mode is not available yet',
+    await expect(nav.getByRole('listitem').last()).toContainText(
+      'Cooking mode is not available yet',
     );
   });
 
@@ -112,6 +114,101 @@ test.describe('shell: routing and navigation', () => {
   });
 });
 
+test.describe('shell: compact flow navigation (review B)', () => {
+  test('B1 the four steps share one row and the navigation is at most 72 px tall', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    const nav = page.getByRole('navigation', { name: 'Dinner' });
+    const navBox = await nav.boundingBox();
+    expect(navBox?.height).toBeLessThanOrEqual(72);
+    const tops = await nav
+      .getByRole('listitem')
+      .evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
+    expect(tops).toHaveLength(4);
+    expect(new Set(tops).size).toBe(1);
+    for (const item of await nav.getByRole('listitem').all()) {
+      const box = await item.boundingBox();
+      expect(box?.height).toBeGreaterThanOrEqual(48);
+      expect(box?.width).toBeGreaterThanOrEqual(48);
+    }
+  });
+
+  test('B1 the current step is marked by weight and an underline, not by colour alone', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    const current = page
+      .getByRole('navigation', { name: 'Dinner' })
+      .getByRole('link', { name: 'Menu' });
+    await expect(current).toHaveCSS('font-weight', '700');
+    await expect(current).toHaveCSS('text-decoration-line', 'underline');
+  });
+
+  test('B1 an unreachable step has its reason as text for screen readers and shows it only when tapped', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    const nav = page.getByRole('navigation', { name: 'Dinner' });
+    const steps = nav.getByRole('button', { name: 'Steps' });
+    await expect(steps).toHaveAccessibleDescription('Pick a dinner first');
+    await expect(steps).toHaveAttribute('aria-disabled', 'true');
+    const helper = page.locator('.flow-nav__helper');
+    await expect(helper).toHaveText('');
+    // Playwright refuses to click aria-disabled controls; a finger does not.
+    await steps.click({ force: true });
+    await expect(helper).toHaveText('Pick a dinner first');
+    await nav.getByRole('button', { name: 'Cook' }).click({ force: true });
+    await expect(helper).toHaveText('Cooking mode is not available yet');
+    await page.getByRole('link', { name: 'Make Dinner' }).focus();
+    await expect(helper).toHaveText('');
+  });
+
+  test('B1 an unreachable step shows its reason when focused with the keyboard', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await page
+      .getByRole('navigation', { name: 'Dinner' })
+      .getByRole('button', { name: 'Plan' })
+      .focus();
+    await expect(page.locator('.flow-nav__helper')).toHaveText('Pick a dinner first');
+  });
+});
+
+test.describe('shell: settings disclosure (review B)', () => {
+  test('B2 on a phone Theme and Start over sit behind Settings; on a wide screen they are inline', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    const width = page.viewportSize()?.width ?? 0;
+    const toggle = page.getByRole('button', { name: 'Settings' });
+    if (width < 640) {
+      await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+      await expect(page.getByLabel('Theme')).toBeHidden();
+      await expect(page.getByRole('button', { name: 'Start over' })).toBeHidden();
+      await toggle.click();
+      await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+      await expect(page.getByLabel('Theme')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Start over' })).toBeVisible();
+      await toggle.click();
+      await expect(page.getByLabel('Theme')).toBeHidden();
+    } else {
+      await expect(toggle).toBeHidden();
+      await expect(page.getByLabel('Theme')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Start over' })).toBeVisible();
+    }
+  });
+
+  test('B2 the header with Settings closed is at most 64 px tall on a phone', async ({ page }) => {
+    await page.goto('/');
+    const box = await page.locator('header').boundingBox();
+    const width = page.viewportSize()?.width ?? 0;
+    if (width < 640) expect(box?.height).toBeLessThanOrEqual(64);
+    else expect(box?.height).toBeLessThanOrEqual(72);
+  });
+});
+
 test.describe('shell: header', () => {
   test.use({ colorScheme: 'light' });
 
@@ -119,6 +216,7 @@ test.describe('shell: header', () => {
     page,
   }) => {
     await page.goto('/');
+    await openSettings(page);
     const root = page.locator('html');
     await expect(root).not.toHaveAttribute('data-theme', /.*/);
     await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(246, 241, 231)');
@@ -128,6 +226,7 @@ test.describe('shell: header', () => {
     await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(26, 24, 22)');
 
     await page.reload();
+    await openSettings(page);
     await expect(root).toHaveAttribute('data-theme', 'dark');
     await expect(page.getByLabel('Theme')).toHaveValue('dark');
     await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(26, 24, 22)');
@@ -142,6 +241,7 @@ test.describe('shell: header', () => {
   }) => {
     await seedDinner(page, SUNDAY_ROAST, HOME_KITCHEN, '19:30', 'plan');
     await page.goto('/');
+    await openSettings(page);
     const start = page.getByRole('button', { name: 'Start over' });
     await start.click();
     await expect(
@@ -158,6 +258,7 @@ test.describe('shell: header', () => {
   }) => {
     await seedDinner(page, SUNDAY_ROAST, HOME_KITCHEN, '19:30', 'plan');
     await page.goto('/');
+    await openSettings(page);
     await page.getByLabel('Theme').selectOption({ label: 'Dark' });
     await page.getByRole('button', { name: 'Start over' }).click();
     await page.getByRole('button', { name: 'Yes, start over' }).click();
@@ -166,6 +267,7 @@ test.describe('shell: header', () => {
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await expect(page.getByRole('navigation', { name: 'Dinner' }).getByRole('link')).toHaveCount(1);
     await page.reload();
+    await openSettings(page);
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Pick a dinner');
     await expect(page.getByLabel('Theme')).toHaveValue('dark');
   });
@@ -173,6 +275,13 @@ test.describe('shell: header', () => {
   test('N1 the header targets are at least 48×48 px', async ({ page }) => {
     await seedDinner(page, SUNDAY_ROAST, HOME_KITCHEN, '19:30', 'plan');
     await page.goto('/');
+    await openSettings(page);
+    const settings = page.getByRole('button', { name: 'Settings' });
+    if (await settings.isVisible()) {
+      const box = await settings.boundingBox();
+      expect(box?.width).toBeGreaterThanOrEqual(48);
+      expect(box?.height).toBeGreaterThanOrEqual(48);
+    }
     const targets = [
       page.getByRole('link', { name: 'Make Dinner' }),
       page.getByLabel('Theme'),

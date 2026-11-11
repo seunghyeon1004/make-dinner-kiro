@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as core from '../../src/core/index.js';
 import * as api from '../../src/core/api.js';
+import * as criticalPath from '../../src/core/critical-path.js';
 import * as dinnerfile from '../../src/core/dinnerfile.js';
 import * as graph from '../../src/core/graph.js';
 import * as normalise from '../../src/core/normalise.js';
@@ -41,6 +42,8 @@ const VALUES = {
   validatePlan: [sanity.validatePlan, 'function'],
   sortIssues: [sanity.sortIssues, 'function'],
   hasErrors: [sanity.hasErrors, 'function'],
+  // plan-ui, the critical path shown on screen.
+  criticalPath: [criticalPath.criticalPath, 'function'],
   normaliseRecipeText: [normalise.normaliseRecipeText, 'function'],
   // The scheduler spec (N4): the entry point and the schedule schemas only.
   schedule: [scheduler.schedule, 'function'],

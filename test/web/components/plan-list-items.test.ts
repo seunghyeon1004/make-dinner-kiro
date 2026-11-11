@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Schedule, ScheduledStep } from '../../../src/core/index.js';
 import { planListGroups } from '../../../src/web/components/plan-list-items.js';
 import { listWait } from '../../../src/web/copy.js';
-import { scheduleView, stepMark } from '../../../src/web/state/schedule-view.js';
+import { scheduleView } from '../../../src/web/state/schedule-view.js';
 import { H1_SCHEDULE, H3_SCHEDULE, SUNDAY_ROAST } from '../../support/fixtures.js';
 
 const original = process.env['TZ'];
@@ -32,30 +32,30 @@ function rows(groups: ReturnType<typeof planListGroups>): string[][] {
       i.lanes,
       i.duration,
       i.status.kind === 'critical'
-        ? '▲ Critical'
-        : i.status.kind === 'back-to-back'
-          ? 'No slack'
-          : `Slack ${i.status.minutes}`,
+        ? '▲ On the critical path'
+        : i.status.kind === 'slack'
+          ? `Can slip ${i.status.minutes}`
+          : '',
     ]),
   );
 }
 
-describe('stepMark (R6.6)', () => {
-  const view = scheduleView(H1_SCHEDULE);
-  const mark = (id: string): ReturnType<typeof stepMark> => {
-    const s = view.steps.find((x) => x.id === id);
-    const step = view.stepById.get(id);
-    if (s === undefined || step === undefined) throw new Error(`no step ${id}`);
-    return stepMark(s, step);
-  };
-  it('R6.6 slack 0 on a step with a hold is critical', () => {
-    expect(mark('chicken.roast')).toBe('critical');
+describe('the critical path in the view (R6.6)', () => {
+  it('R6.6 the view carries the chain of H1 worked by hand: prep, roast, rest, carve', () => {
+    expect([...scheduleView(H1_SCHEDULE).criticalPath].sort()).toEqual([
+      'chicken.carve',
+      'chicken.prep',
+      'chicken.rest',
+      'chicken.roast',
+    ]);
   });
-  it('R6.6 slack 0 on a step whose result keeps is back-to-back, not critical', () => {
-    expect(mark('chicken.prep')).toBe('back-to-back');
-  });
-  it('R6.6 slack above 0 has no mark', () => {
-    expect(mark('greens.shred')).toBeNull();
+  it('R6.6 a rebuilt-shaped input finds the chain from its servingMin', () => {
+    expect([...scheduleView(rebuiltShape()).criticalPath].sort()).toEqual([
+      'chicken.carve',
+      'chicken.prep',
+      'chicken.rest',
+      'chicken.roast',
+    ]);
   });
 });
 
@@ -105,7 +105,7 @@ describe('planListGroups (R7.1 R7.2, design H1 table at Wed 19:30)', () => {
         'Roast chicken',
         'Cook 1',
         '10 min',
-        'No slack',
+        '▲ On the critical path',
       ],
       [
         '17:50',
@@ -114,9 +114,17 @@ describe('planListGroups (R7.1 R7.2, design H1 table at Wed 19:30)', () => {
         'Roast chicken',
         'Oven 1',
         '1 h 15 min',
-        '▲ Critical',
+        '▲ On the critical path',
       ],
-      ['17:50', '17:50–17:55', 'Shred the greens', 'Spring greens', 'Cook 1', '5 min', 'Slack 75'],
+      [
+        '17:50',
+        '17:50–17:55',
+        'Shred the greens',
+        'Spring greens',
+        'Cook 1',
+        '5 min',
+        'Can slip 75',
+      ],
       [
         '19:05',
         '19:05–19:25',
@@ -124,7 +132,7 @@ describe('planListGroups (R7.1 R7.2, design H1 table at Wed 19:30)', () => {
         'Roast chicken',
         'Hands-free',
         '20 min',
-        '▲ Critical',
+        '▲ On the critical path',
       ],
       [
         '19:10',
@@ -133,7 +141,7 @@ describe('planListGroups (R7.1 R7.2, design H1 table at Wed 19:30)', () => {
         'Gravy',
         'Burner 1, Cook 1',
         '2 min',
-        '▲ Critical',
+        '',
       ],
       [
         '19:12',
@@ -142,7 +150,7 @@ describe('planListGroups (R7.1 R7.2, design H1 table at Wed 19:30)', () => {
         'Gravy',
         'Burner 1',
         '10 min',
-        '▲ Critical',
+        '',
       ],
       [
         '19:20',
@@ -151,17 +159,9 @@ describe('planListGroups (R7.1 R7.2, design H1 table at Wed 19:30)', () => {
         'Spring greens',
         'Burner 2',
         '4 min',
-        '▲ Critical',
+        '',
       ],
-      [
-        '19:22',
-        '19:22–19:24',
-        'Strain the gravy into a jug',
-        'Gravy',
-        'Cook 1',
-        '2 min',
-        '▲ Critical',
-      ],
+      ['19:22', '19:22–19:24', 'Strain the gravy into a jug', 'Gravy', 'Cook 1', '2 min', ''],
       [
         '19:24',
         '19:24–19:25',
@@ -169,7 +169,7 @@ describe('planListGroups (R7.1 R7.2, design H1 table at Wed 19:30)', () => {
         'Spring greens',
         'Cook 1',
         '1 min',
-        '▲ Critical',
+        '',
       ],
       [
         '19:25',
@@ -178,7 +178,7 @@ describe('planListGroups (R7.1 R7.2, design H1 table at Wed 19:30)', () => {
         'Roast chicken',
         'Cook 1',
         '5 min',
-        '▲ Critical',
+        '▲ On the critical path',
       ],
     ]);
   });

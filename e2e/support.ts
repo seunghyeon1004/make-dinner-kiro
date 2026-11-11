@@ -83,3 +83,14 @@ export async function fakeParse(
 export function parseError(code: string): { error: { code: string; message: string } } {
   return { error: { code, message: 'Plain English from the server.' } };
 }
+
+/**
+ * On a phone the theme switch and "Start over" sit behind the "Settings" button; on a wide
+ * screen they are inline and the button is not shown. Opens the panel when it is closed.
+ */
+export async function openSettings(page: Page): Promise<void> {
+  const toggle = page.getByRole('button', { name: 'Settings' });
+  if ((await toggle.isVisible()) && (await toggle.getAttribute('aria-expanded')) === 'false') {
+    await toggle.click();
+  }
+}

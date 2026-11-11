@@ -2,7 +2,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { findForbidden } from '../../scripts/build-web.js';
+import { build } from 'esbuild';
+import { findForbidden, webBuildOptions } from '../../scripts/build-web.js';
 
 let dir = '';
 
@@ -42,4 +43,27 @@ describe('findForbidden (tech.md, The API key: the build fails if a key marker i
   it('a missing directory has nothing to find', () => {
     expect(findForbidden(join(dir, 'does-not-exist'))).toEqual([]);
   });
+});
+
+describe('webBuildOptions (plan-ui review D)', () => {
+  it('D production is minified and watch mode is not', () => {
+    expect(webBuildOptions(false).minify).toBe(true);
+    expect(webBuildOptions(true).minify).toBe(false);
+  });
+
+  it('D the real bundle has zod English messages and no other zod locale', async () => {
+    const result = await build({
+      ...webBuildOptions(false),
+      write: false,
+      outdir: 'unused',
+      logLevel: 'silent',
+    });
+    const js = result.outputFiles.filter((file) => file.path.endsWith('.js'));
+    expect(js).toHaveLength(1);
+    const text = js[0]?.text ?? '';
+    expect(text).toContain('Invalid input');
+    // Hebrew letters appear only in the Hebrew locale's messages.
+    expect(text).not.toMatch(/[\u0590-\u05FF]/);
+    expect(text.length).toBeLessThan(400_000);
+  }, 60_000);
 });

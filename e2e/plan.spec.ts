@@ -10,7 +10,10 @@ test.beforeEach(async ({ page }) => {
   await page.clock.install({ time: new Date(FIXED_NOW) });
 });
 
-/** The design's H1 table at Wed 19:30: heading, range, title, dish, lanes, duration, status. */
+/**
+ * The design's H1 table at Wed 19:30: heading, range, title, dish, lanes, duration, status.
+ * Only prep, roast, rest and carve are on the critical path; an empty status says nothing.
+ */
 const H1_ROWS: readonly (readonly string[])[] = [
   [
     '17:40',
@@ -19,7 +22,7 @@ const H1_ROWS: readonly (readonly string[])[] = [
     'Roast chicken',
     'Cook 1',
     '10 min',
-    'No slack',
+    '▲ On the critical path',
   ],
   [
     '17:50',
@@ -28,7 +31,7 @@ const H1_ROWS: readonly (readonly string[])[] = [
     'Roast chicken',
     'Oven 1',
     '1 h 15 min',
-    '▲ Critical',
+    '▲ On the critical path',
   ],
   [
     '17:50',
@@ -37,7 +40,7 @@ const H1_ROWS: readonly (readonly string[])[] = [
     'Spring greens',
     'Cook 1',
     '5 min',
-    'Slack 1 h 15 min',
+    'Can slip 1 h 15 min',
   ],
   [
     '19:05',
@@ -46,7 +49,7 @@ const H1_ROWS: readonly (readonly string[])[] = [
     'Roast chicken',
     'Hands-free',
     '20 min',
-    '▲ Critical',
+    '▲ On the critical path',
   ],
   [
     '19:10',
@@ -55,7 +58,7 @@ const H1_ROWS: readonly (readonly string[])[] = [
     'Gravy',
     'Burner 1, Cook 1',
     '2 min',
-    '▲ Critical',
+    '',
   ],
   [
     '19:12',
@@ -64,7 +67,7 @@ const H1_ROWS: readonly (readonly string[])[] = [
     'Gravy',
     'Burner 1',
     '10 min',
-    '▲ Critical',
+    '',
   ],
   [
     '19:20',
@@ -73,19 +76,19 @@ const H1_ROWS: readonly (readonly string[])[] = [
     'Spring greens',
     'Burner 2',
     '4 min',
-    '▲ Critical',
+    '',
   ],
-  ['19:22', '19:22–19:24', 'Strain the gravy into a jug', 'Gravy', 'Cook 1', '2 min', '▲ Critical'],
+  ['19:22', '19:22–19:24', 'Strain the gravy into a jug', 'Gravy', 'Cook 1', '2 min', ''],
+  ['19:24', '19:24–19:25', 'Toss the greens with butter', 'Spring greens', 'Cook 1', '1 min', ''],
   [
-    '19:24',
-    '19:24–19:25',
-    'Toss the greens with butter',
-    'Spring greens',
+    '19:25',
+    '19:25–19:30',
+    'Carve the chicken',
+    'Roast chicken',
     'Cook 1',
-    '1 min',
-    '▲ Critical',
+    '5 min',
+    '▲ On the critical path',
   ],
-  ['19:25', '19:25–19:30', 'Carve the chicken', 'Roast chicken', 'Cook 1', '5 min', '▲ Critical'],
 ];
 
 async function openPlan(
@@ -119,6 +122,10 @@ test.describe('plan screen', () => {
     for (const [index, row] of H1_ROWS.entries()) {
       const item = items.nth(index);
       for (const part of row.slice(1)) await expect(item).toContainText(part);
+      if (row[6] === '') {
+        await expect(item).not.toContainText('critical path');
+        await expect(item).not.toContainText('Can slip');
+      }
     }
     await expect(items.nth(H1_ROWS.length)).toHaveText('Serve');
   });

@@ -321,31 +321,31 @@ design's copy tables give it, in the task that first shows it.
 
 ## T8. Polish and the full pass
 
-- [ ] T8.1 `test/web/copy.test.ts`: every `COPY` string and every copy-function result on fixed
+- [x] T8.1 `test/web/copy.test.ts`: every `COPY` string and every copy-function result on fixed
   arguments has no `!` other than the warning mark, no exclamation-only sentences, no `task` or
   `job`, no emoji, sentence-case headings and buttons, no `ANTHROPIC`; plurals for 1 and 2. Fix
   any string that fails by changing the string, never the check.
   Files: `test/web/copy.test.ts`, `src/web/copy.ts`.
   Covers: R10.3, N5, N6.
   Command: `npx vitest run --project examples test/web/copy.test.ts`
-- [ ] T8.2 `e2e/a11y.spec.ts`: axe with zero violations, light and dark, on Menu, Menu with a
+- [x] T8.2 `e2e/a11y.spec.ts`: axe with zero violations, light and dark, on Menu, Menu with a
   parse error and with Dinnerfile errors, Steps with an editor open and an error, Plan, Plan with
   each panel open, missing appliance; every visible button and input at least 48×48 px.
   Files: `e2e/a11y.spec.ts`, fixes in `src/web/**`.
   Covers: R11.3, N1.
   Command: `npx playwright test e2e/a11y.spec.ts && npm run check:contrast`
-- [ ] T8.3 Zoom and motion in `e2e/a11y.spec.ts`: each screen at a 195 px wide viewport (390 px
+- [x] T8.3 Zoom and motion in `e2e/a11y.spec.ts`: each screen at a 195 px wide viewport (390 px
   at 200%) passes `expectNoPageScroll`; under `reducedMotion: 'reduce'` no element has a running
   transition.
   Files: `e2e/a11y.spec.ts`, fixes in `src/web/styles/*.css`.
   Covers: R6.9, N1.
   Command: `npx playwright test e2e/a11y.spec.ts`
-- [ ] T8.4 `e2e/perf.spec.ts` on the phone project: the largest sample's timeline is visible
+- [x] T8.4 `e2e/perf.spec.ts` on the phone project: the largest sample's timeline is visible
   within 1 s of the tap; a stepper tap updates the list within 200 ms.
   Files: `e2e/perf.spec.ts`.
   Covers: N2.
   Command: `npx playwright test e2e/perf.spec.ts --project phone`
-- [ ] T8.5 The whole suite: unit, properties, typecheck, lint, format, contrast, the build with its
+- [x] T8.5 The whole suite: unit, properties, typecheck, lint, format, contrast, the build with its
   forbidden-marker check, all e2e. Report each runner's real counts.
   Files: none new.
   Covers: R11.1–R11.3, N3, N5.

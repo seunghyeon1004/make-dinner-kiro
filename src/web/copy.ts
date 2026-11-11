@@ -36,6 +36,7 @@ export const COPY = {
   keepMine: 'Keep my dinner',
 
   // Header
+  settings: 'Settings',
   theme: 'Theme',
   themeSystem: 'System',
   themeLight: 'Light',
@@ -68,8 +69,7 @@ export const COPY = {
   skipToList: 'Skip to the plan list',
 
   // Plan list
-  listCritical: '▲ Critical',
-  listNoSlack: 'No slack',
+  listCritical: '▲ On the critical path',
   listServe: 'Serve',
   handsFree: 'Hands-free',
 
@@ -102,9 +102,9 @@ export function listWait(waitMin: number, holdMin: number): string {
   return `! Warning: waits ${formatDuration(waitMin)} and can wait ${formatDuration(holdMin)}`;
 }
 
-/** The slack of a step that has some: "Slack 1 h 15 min". */
+/** The slack of a step that has some: "Can slip 1 h 15 min". */
 export function slackLabel(minutes: number): string {
-  return `Slack ${formatDuration(minutes)}`;
+  return `Can slip ${formatDuration(minutes)}`;
 }
 
 /** A lane in text: "Burner 2", "Oven 1", "Cook 1". */
@@ -171,7 +171,8 @@ export function serveLabel(time: string): string {
 
 /** The sentence after a removal when other steps waited for it (R4.7). */
 function noLongerWait(titles: readonly string[]): string {
-  return titles.length === 0 ? '' : ` ${titles.join(', ')} no longer wait for it.`;
+  if (titles.length === 0) return '';
+  return ` ${titles.join(', ')} no longer ${titles.length === 1 ? 'waits' : 'wait'} for it.`;
 }
 
 /** The notice after a step is removed; `dependentTitles` are the steps that waited for it. */

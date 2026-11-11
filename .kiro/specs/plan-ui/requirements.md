@@ -146,8 +146,10 @@ Prerequisites: recipe-graph, scheduler, dinnerfile T1 to T4 and recipe-reader do
   labelled "Serve <time>".
 - R6.5 THE SYSTEM SHALL style bars: oven hatched, burner solid, no appliance plain, dashed outline
   when not hands-on; the title as label on bars of at least 56 px, cut with an ellipsis.
-- R6.6 THE SYSTEM SHALL mark "Critical" with `▲` only a step with `critical` true and `holdMin` not
-  `null`; a critical step whose result keeps SHALL read "No slack" (decided in review).
+- R6.6 THE SYSTEM SHALL mark `▲` and "On the critical path" only the steps of core's `criticalPath`
+  (the chain that fixes how early dinner must start; changed in review, 2026-11-11, because slack 0
+  is true of most hot steps); any other step with slack above 0 SHALL read "Can slip <duration>"
+  and a step with slack 0 off the path SHALL carry no status.
 - R6.7 THE SYSTEM SHALL mark the timeline `aria-hidden="true"`, with nothing focusable in it, and
   precede it with a visible "Skip to the plan list" link.
 - R6.8 WHEN the cook taps a bar, THE SYSTEM SHALL scroll that step's plan list item into view and
@@ -163,7 +165,7 @@ Prerequisites: recipe-graph, scheduler, dinnerfile T1 to T4 and recipe-reader do
   start clock time, ending with the serving time, as headings and `<ol>` items always in the DOM,
   each item focusable by script (`tabindex="-1"`).
 - R7.2 THE SYSTEM SHALL give each item its time range, title, dish name, lanes ("Oven 1, Cook 1" or
-  "Hands-free"), duration, one of "▲ Critical", "No slack" or "Slack <duration>" (R6.6), and the
+  "Hands-free"), duration, "▲ On the critical path" or "Can slip <duration>" or nothing (R6.6), and the
   `detail` when present.
 - R7.3 THE SYSTEM SHALL add `!`, "Warning", the wait and the hold to an item with `hold_exceeded`.
 - R7.4 WHEN start and serving fall on different local dates, THE SYSTEM SHALL prefix every heading
@@ -249,8 +251,9 @@ Prerequisites: recipe-graph, scheduler, dinnerfile T1 to T4 and recipe-reader do
   Its `ServingTimeSchema` duplicates core's `ServeTimeSchema`; the UI uses core's.
 - rebuild design, "The axis and `servingMin`": says the share link stores a `RebuiltSchedule`; this
   share link carries plan, kitchen and serving time only, as asked. That line needs a hand edit.
-- steering: `product.md` line 87 and `ui.md` lines 63 and 67 define "Critical" as slack 0; R6.6
-  narrows the word. Both need a hand edit.
+- steering: `product.md` ("Critical") and `ui.md` ("Accessibility") defined "Critical" as slack 0;
+  R6.6 now ties the mark and the words to the critical path, and both files were edited for
+  that wording only.
 - cooking-mode: owns the `cook` slice, its actions, the Cook screen, "Start cooking" and stopping.
 
 ## Out of scope

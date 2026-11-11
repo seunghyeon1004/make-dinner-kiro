@@ -72,16 +72,8 @@ export function Timeline(props: { layout: TimelineLayout }): VNode {
           <div class="timeline__row timeline__row--axis">
             <div class="timeline__corner" />
             <div class="timeline__track">
-              {layout.ticks.map((tick, index) => (
-                <span
-                  key={tick.minute}
-                  class={
-                    index === layout.ticks.length - 1
-                      ? 'timeline__tick timeline__tick--end'
-                      : 'timeline__tick'
-                  }
-                  style={{ left: `${tick.leftPx}px` }}
-                >
+              {layout.ticks.map((tick) => (
+                <span key={tick.minute} class="timeline__tick" style={{ left: `${tick.leftPx}px` }}>
                   {tick.label}
                 </span>
               ))}

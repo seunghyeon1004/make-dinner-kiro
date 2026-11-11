@@ -60,12 +60,12 @@ least 4.5:1; border and focus on bg and surface at least 3:1. Changing a token m
 ## Accessibility
 
 - The timeline has a text alternative carrying the same information: the plan list, ordered
-  by start, giving clock time, step title, dish, lane, minutes, "Critical" or slack, and any
-  wait warning. It is always in the DOM, reachable from the timeline by a visible link, and
+  by start, giving clock time, step title, dish, lane, minutes, "On the critical path" or "Can
+  slip", and any wait warning. It is always in the DOM, reachable from the timeline by a visible link, and
   is the print layout. The timeline graphic is `aria-hidden="true"`; anything interactive in
   it also exists in the list.
-- Nothing is told by colour alone. Critical steps (slack 0, result does not keep; see the
-  glossary) get the mark `▲` and the word "Critical";
+- Nothing is told by colour alone. Steps on the critical path (see the glossary) get the mark `▲`
+  and the words "On the critical path";
   warnings get `!` and "Warning"; done steps get `✓` and "Done"; lanes are labelled with
   text ("Burner 1", "Oven 1", "Cook 2"); oven bars carry a hatch pattern, burner bars a solid
   fill, hands-free steps a dashed outline (decided here).

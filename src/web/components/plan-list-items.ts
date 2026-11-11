@@ -8,11 +8,11 @@ import {
   formatWeekday,
   sameLocalDate,
 } from '../state/clock.js';
-import { stepMark } from '../state/schedule-view.js';
 import type { ScheduleView } from '../state/schedule-view.js';
 
+/** On the critical path; can slip `minutes` (slack above 0); or nothing to say (slack 0). */
 export type ItemStatus =
-  { kind: 'critical' } | { kind: 'back-to-back' } | { kind: 'slack'; minutes: number };
+  { kind: 'critical' } | { kind: 'slack'; minutes: number } | { kind: 'none' };
 
 export interface PlanListItem {
   stepId: string;
@@ -61,13 +61,11 @@ export function planListGroups(
     const step = view.stepById.get(s.id);
     if (step === undefined) continue;
     const startMs = clockAt(chosenMs, s.startMin);
-    const mark = stepMark(s, step);
-    const status: ItemStatus =
-      mark === 'critical'
-        ? { kind: 'critical' }
-        : mark === 'back-to-back'
-          ? { kind: 'back-to-back' }
-          : { kind: 'slack', minutes: s.slackMin };
+    const status: ItemStatus = view.criticalPath.has(s.id)
+      ? { kind: 'critical' }
+      : s.slackMin > 0
+        ? { kind: 'slack', minutes: s.slackMin }
+        : { kind: 'none' };
     const warning = waits.get(s.id);
     const item: PlanListItem = {
       stepId: s.id,

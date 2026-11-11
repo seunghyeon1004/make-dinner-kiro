@@ -5,10 +5,11 @@ import type { ScheduleView } from '../state/schedule-view.js';
 import { planListGroups } from './plan-list-items.js';
 import type { ItemStatus } from './plan-list-items.js';
 
-function statusText(status: ItemStatus): string {
+/** The words for a step's status; null when slack is 0 and the step is off the critical path. */
+function statusText(status: ItemStatus): string | null {
   if (status.kind === 'critical') return COPY.listCritical;
-  if (status.kind === 'back-to-back') return COPY.listNoSlack;
-  return slackLabel(status.minutes);
+  if (status.kind === 'slack') return slackLabel(status.minutes);
+  return null;
 }
 
 /**
@@ -26,22 +27,33 @@ export function PlanList(props: { view: ScheduleView; chosenMs: number }): VNode
         <div key={group.minute} class="plan-group">
           <h3 class="mono">{group.heading}</h3>
           <ol class="plan-items">
-            {group.items.map((item) => (
-              <li key={item.stepId} id={`step-${item.stepId}`} tabIndex={-1} class="plan-item">
-                <p class="plan-item__title">
-                  <span class="mono plan-item__range">{item.range}</span>
-                  {item.title}
-                </p>
-                <p class="plan-item__meta">
-                  {item.dishName} · <span class="mono">{item.lanes}</span> · {item.duration} ·{' '}
-                  <span class={item.status.kind === 'critical' ? 'mark mark--critical' : 'muted'}>
-                    {statusText(item.status)}
-                  </span>
-                </p>
-                {item.detail !== null && <p class="plan-item__detail">{item.detail}</p>}
-                {item.warning !== null && <p class="mark mark--warn">{item.warning}</p>}
-              </li>
-            ))}
+            {group.items.map((item) => {
+              const status = statusText(item.status);
+              return (
+                <li key={item.stepId} id={`step-${item.stepId}`} tabIndex={-1} class="plan-item">
+                  <p class="plan-item__title">
+                    <span class="mono plan-item__range">{item.range}</span>
+                    {item.title}
+                  </p>
+                  <p class="plan-item__meta">
+                    {item.dishName} · <span class="mono">{item.lanes}</span> · {item.duration}
+                  </p>
+                  {status !== null && (
+                    <p
+                      class={
+                        item.status.kind === 'critical'
+                          ? 'plan-item__status mark mark--critical'
+                          : 'plan-item__status muted'
+                      }
+                    >
+                      {status}
+                    </p>
+                  )}
+                  {item.detail !== null && <p class="plan-item__detail">{item.detail}</p>}
+                  {item.warning !== null && <p class="mark mark--warn">{item.warning}</p>}
+                </li>
+              );
+            })}
           </ol>
         </div>
       ))}

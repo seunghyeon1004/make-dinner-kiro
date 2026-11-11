@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { build, context } from 'esbuild';
-import type { BuildOptions } from 'esbuild';
+import type { BuildOptions, Plugin } from 'esbuild';
 
 export interface ForbiddenHit {
   file: string;
@@ -34,7 +34,24 @@ export function findForbidden(dir: string): ForbiddenHit[] {
 
 const OUT_DIR = 'public/assets';
 
-function options(watch: boolean): BuildOptions {
+/**
+ * zod's entry point re-exports every locale as a namespace, which esbuild cannot drop, so
+ * about 240 kB of translations reach the bundle. The app speaks English only (product.md),
+ * so the locale index is replaced by one that exports English alone. Nothing in `src/` uses
+ * `z.locales`.
+ */
+export const zodEnglishOnly: Plugin = {
+  name: 'zod-english-only',
+  setup(b) {
+    b.onLoad({ filter: /zod[\\/]v4[\\/]locales[\\/]index\.js$/ }, () => ({
+      contents: 'export { default as en } from "./en.js";',
+      loader: 'js',
+    }));
+  },
+};
+
+/** The esbuild options of the web bundle; production is minified, watch mode is not. */
+export function webBuildOptions(watch: boolean): BuildOptions {
   return {
     entryPoints: ['src/web/main.tsx'],
     outdir: OUT_DIR,
@@ -46,6 +63,7 @@ function options(watch: boolean): BuildOptions {
     jsxImportSource: 'preact',
     tsconfig: 'tsconfig.web.json',
     minify: !watch,
+    plugins: [zodEnglishOnly],
     logLevel: 'info',
   };
 }
@@ -54,11 +72,11 @@ async function main(): Promise<number> {
   const watch = process.argv.includes('--watch');
   rmSync(OUT_DIR, { recursive: true, force: true });
   if (watch) {
-    const ctx = await context(options(true));
+    const ctx = await context(webBuildOptions(true));
     await ctx.watch();
     return 0;
   }
-  await build(options(false));
+  await build(webBuildOptions(false));
   const hits = findForbidden(OUT_DIR);
   for (const hit of hits) {
     console.error(`Forbidden marker "${hit.needle}" found in ${hit.file}`);

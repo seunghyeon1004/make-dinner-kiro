@@ -2,7 +2,6 @@ import { compareIds } from '../../core/index.js';
 import type { ScheduledStep } from '../../core/index.js';
 import { COPY, laneName, serveLabel } from '../copy.js';
 import { clockAt, formatClock, formatWeekday, quarterCeil, quarterFloor } from '../state/clock.js';
-import { stepMark } from '../state/schedule-view.js';
 import type { ScheduleView } from '../state/schedule-view.js';
 
 export const PX_PER_MIN = 6; // a step of 8 minutes is a 48 px target (decided here)
@@ -47,6 +46,36 @@ export interface TimelineLayout {
   serveLabel: string;
 }
 
+/** Width of one monospace character at the 18 px base size (0.6 em), for tick label spans. */
+export const TICK_CHAR_PX = 10.8;
+/** A tick's left rule and padding, added to its label. */
+export const TICK_PAD_PX = 5;
+
+/**
+ * Drops tick labels that would overlap (review C). The serve label is right-aligned at
+ * `serveLeftPx` and wins: a tick at or after the serve line, or whose label would reach the
+ * serve label, goes. Among the rest, left to right, a tick that would start before the
+ * previous kept label ends goes. Widths are estimated from the character count, because this
+ * module has no DOM.
+ */
+export function thinTicks(
+  ticks: readonly TimelineTick[],
+  serveLeftPx: number,
+  serveLabelText: string,
+): TimelineTick[] {
+  const serveStart = serveLeftPx - serveLabelText.length * TICK_CHAR_PX;
+  const kept: TimelineTick[] = [];
+  let previousEnd = Number.NEGATIVE_INFINITY;
+  for (const tick of ticks) {
+    if (tick.leftPx >= serveLeftPx) continue;
+    const end = tick.leftPx + tick.label.length * TICK_CHAR_PX + TICK_PAD_PX;
+    if (end > serveStart || tick.leftPx < previousEnd) continue;
+    kept.push(tick);
+    previousEnd = end;
+  }
+  return kept;
+}
+
 export function layoutTimeline(
   view: ScheduleView,
   chosenMs: number,
@@ -70,7 +99,7 @@ export function layoutTimeline(
       fill: step.appliance === 'none' ? 'plain' : step.appliance,
       dashed: !step.handsOn,
       showLabel: widthPx >= LABEL_MIN_PX,
-      critical: stepMark(s, step) === 'critical',
+      critical: view.criticalPath.has(s.id),
     };
   };
 
@@ -136,13 +165,15 @@ export function layoutTimeline(
     });
   }
 
+  const serveLeftPx = x(view.servingMin);
+  const serveText = serveLabel(formatClock(clockAt(chosenMs, view.servingMin), locale));
   return {
     originMin,
     endMin,
     widthPx: x(endMin),
     rows,
-    ticks,
-    serveLeftPx: x(view.servingMin),
-    serveLabel: serveLabel(formatClock(clockAt(chosenMs, view.servingMin), locale)),
+    ticks: thinTicks(ticks, serveLeftPx, serveText),
+    serveLeftPx,
+    serveLabel: serveText,
   };
 }

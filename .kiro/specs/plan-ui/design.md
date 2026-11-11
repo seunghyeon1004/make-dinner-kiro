@@ -19,8 +19,9 @@ dinnerfile (`SUNDAY_ROAST_DINNERFILE`, `arbServeTime`), recipe-reader and rebuil
 | `src/web/state/route.ts`, `persist.ts` | `parseHash`, `hashOf` (decided here); `PersistedStateSchema`, `toPersisted`, `loadState`, `saveState` |
 | `src/web/state/api.ts`, `dinnerfile-import.ts` | response schemas, `fetchSamples`, `postParse`; `readDinnerfile` (decided here) |
 | `src/web/state/share-link.ts` | `encodeShare`, `decodeShare`, `shareUrl`, limits |
-| `src/web/state/schedule-view.ts` | `AxisSchedule`, `ScheduleView`, `scheduleView`, `stepMark` (decided here) |
+| `src/web/state/schedule-view.ts` | `AxisSchedule`, `ScheduleView`, `scheduleView` (decided here) |
 | `src/web/state/hooks.ts`, `effects.ts` | `StoreProvider`, `useAppState`, `useDispatch`, `useNow`; `startEffects(store, env)`: storage, hash, theme, fetches, share boot (both not pure) |
+| `src/core/critical-path.ts` | `criticalPath(schedule)`: added in review, see "The critical path" |
 | `src/web/components/timeline-layout.ts`, `plan-list-items.ts` | `layoutTimeline`; `planListGroups` (pure) |
 | `src/web/components/*.tsx`, `screens/{Menu,Steps,Plan}.tsx` | the components table (`Cook.tsx` belongs to cooking-mode) |
 | `src/web/styles/components.css` | component styles (decided here); `print.css` print layout |
@@ -355,12 +356,50 @@ export interface ScheduleView {
   servingMin: number;   // 0 for a schedule output
   startMin: number;     // min startMin
   spanMin: number;      // servingMin - startMin
+  criticalPath: ReadonlySet<string>; // core criticalPath(s): the only steps marked critical on screen
   stepById: ReadonlyMap<string, Step>; dishName: ReadonlyMap<string, string>;
 }
 export function scheduleView(s: AxisSchedule): ScheduleView;
-export type StepMark = 'critical' | 'back-to-back' | null;
-export function stepMark(s: ScheduledStep, step: Step): StepMark; // critical && holdMin !== null → 'critical'; critical → 'back-to-back'; else null
 ```
+
+`scheduleView` calls core `criticalPath` once and keeps the ids in `criticalPath`; nothing else in
+`src/web` decides what is critical.
+
+## The critical path (`src/core/critical-path.ts`, added in review, 2026-11-11)
+
+"Slack 0" is not a useful mark: a just-in-time schedule gives every hot step slack 0 (14 of 17
+steps of the Sunday roast). The word and the mark go to the chain that fixes how early dinner must
+start.
+
+```ts
+export type CriticalPathInput = Pick<Schedule, 'plan' | 'steps' | 'kitchen'> & { servingMin?: number };
+export function criticalPath(schedule: CriticalPathInput): string[]; // ids in start order; [] if nothing ends at servingMin
+```
+
+- Start: among the steps with `endMin === servingMin` (`servingMin` is 0 when absent) the one with
+  the longest `minutes`, then the smallest id (`compareIds`).
+- Binder of a step `s`: a step `b` with `b.endMin === s.startMin` that is a prerequisite of `s`
+  (`s.after`), or holds a lane `s` uses (same resource, same number) on a resource that is full at
+  minute `s.startMin` (as many steps in that resource then as the kitchen has units). Among
+  candidates: prerequisites first, then the longer `minutes`, then the smaller id. The walk stops
+  when `s` has no binder; the result is reversed into start order.
+- Why "full": delaying `b` by a minute then puts one more step into a full resource, so `b` has
+  slack 0. Without it a lane shared by luck (two ovens, one used) was taken as binding; the first
+  draft did that and P-UI7 found it (seed -1350807787, example test CP8).
+- Hand-worked on H1: carve `[-5,0)` is the only step ending at 0. Ending at -5: `chicken.rest` (a
+  prerequisite) and `greens.toss` (holds cook 1, which carve uses); the prerequisite wins. rest
+  starts at -25: `chicken.roast` ends there; roast starts at -100: `chicken.prep` ends there; prep
+  starts at -110: nothing ends there. Chain: `chicken.prep`, `chicken.roast`, `chicken.rest`,
+  `chicken.carve`, 110 minutes, the span.
+- With a gap (prep moved to `[-112,-102)`): roast starts at -100, nothing ends there; chain: roast,
+  rest, carve. `TWO_CHOPS` with one cook: `b.chop [-20,-10)` binds `a.chop [-10,0)` through
+  cook 1. `HANDS_FREE` with `BIG_KITCHEN`: `jelly.set` (120) over `stock.simmer` (60).
+- P-UI7 (`test/core/critical-path.pbt.ts`): over `arbPlanAndKitchen()` with `schedule`, the chain is
+  contiguous (each start is the previous end), ends at serving, has no repeats, every step in it has
+  slack 0, and it is empty exactly when no step ends at serving.
+- On screen: `▲` and "On the critical path" for these steps only (timeline bars and plan list).
+  Any other step shows `Can slip <duration>` when its slack is above 0 and nothing when it is 0.
+  `critical` in the schedule data stays slack 0 (G8).
 
 ## Timeline layout (`src/web/components/timeline-layout.ts`)
 
@@ -371,7 +410,7 @@ export type RowKind = 'cook' | 'burner' | 'oven' | 'hands-free';
 export type BarFill = 'oven' | 'burner' | 'plain';
 export interface TimelineBar {
   stepId: string; title: string; leftPx: number; widthPx: number;
-  fill: BarFill; dashed: boolean; showLabel: boolean; critical: boolean; // ▲ drawn only for 'critical'
+  fill: BarFill; dashed: boolean; showLabel: boolean; critical: boolean; // ▲ drawn only for steps on the critical path
 }
 export interface TimelineRow { key: string; kind: RowKind; lane: number; label: string; bars: TimelineBar[] }
 export interface TimelineTick { minute: number; leftPx: number; label: string }
@@ -390,7 +429,7 @@ export function layoutTimeline(view: ScheduleView, chosenMs: number, locale?: st
   `!handsOn`, in (start, id) order, each into the lowest row whose last bar ends at or before its
   start (fewest rows for intervals in start order). Labels `Hands-free` or `Hands-free n`.
 - Bar: `fill` from the step's appliance (`none` → `plain`), `dashed = !handsOn`,
-  `showLabel = widthPx >= 56`, `critical = stepMark === 'critical'`.
+  `showLabel = widthPx >= 56`, `critical = view.criticalPath.has(id)`.
 - Ticks at every quarter-hour minute from `originMin` to `endMin`; label `formatClock`, prefixed
   with `formatWeekday` at local midnight. `serveLabel = 'Serve ' + formatClock(clockAt(chosenMs, servingMin))`.
 
@@ -400,19 +439,21 @@ Hand-worked H1 (`SUNDAY_ROAST` × `HOME_KITCHEN`, chosen serving Wed 2026-11-11 
 
 | row | bars as `stepId left/width fill dashed label critical` |
 | --- | ----------------------------------------------------- |
-| Cook 1 | `chicken.prep 60/60 plain – yes –`, `greens.shred 120/30 plain – – –`, `gravy.roux 600/12 burner – – ▲`, `gravy.strain 672/12 plain – – ▲`, `greens.toss 684/6 plain – – ▲`, `chicken.carve 690/30 plain – – ▲` |
-| Burner 1 | `gravy.roux 600/12 burner – – ▲`, `gravy.simmer 612/60 burner dashed yes ▲` |
-| Burner 2 | `greens.boil 660/24 burner dashed – ▲` |
+| Cook 1 | `chicken.prep 60/60 plain – yes ▲`, `greens.shred 120/30 plain – – –`, `gravy.roux 600/12 burner – – –`, `gravy.strain 672/12 plain – – –`, `greens.toss 684/6 plain – – –`, `chicken.carve 690/30 plain – – ▲` |
+| Burner 1 | `gravy.roux 600/12 burner – – –`, `gravy.simmer 612/60 burner dashed yes –` |
+| Burner 2 | `greens.boil 660/24 burner dashed – –` |
 | Oven 1 | `chicken.roast 120/450 oven dashed yes ▲` |
 | Hands-free | `chicken.rest 570/120 plain dashed yes ▲` |
 
-`chicken.prep` is slack 0 and keeps: "No slack", no `▲`. With serving Thu 00:30 the same plan
+Only `chicken.prep`, `chicken.roast`, `chicken.rest` and `chicken.carve` are on the critical path
+(hand-worked above), so only their bars carry `▲`; the roux, simmer, boil, strain and toss bars
+have slack 0 and none. With serving Thu 00:30 the same plan
 gives ticks `22:30` … `23:45`, `Thu 00:00`, `00:15`, `00:30`.
 
 ## Plan list items (`src/web/components/plan-list-items.ts`)
 
 ```ts
-export type ItemStatus = { kind: 'critical' } | { kind: 'back-to-back' } | { kind: 'slack'; minutes: number };
+export type ItemStatus = { kind: 'critical' } | { kind: 'slack'; minutes: number } | { kind: 'none' };
 export interface PlanListItem {
   stepId: string; range: string; title: string; detail: string | null; dishName: string;
   lanes: string; duration: string; status: ItemStatus; warning: string | null;
@@ -431,16 +472,18 @@ H1 at Wed 19:30 (titles and dish names from the fixture):
 
 | heading | range | title | dish | lanes | duration | status |
 | ------- | ----- | ----- | ---- | ----- | -------- | ------ |
-| 17:40 | 17:40–17:50 | Season and truss the chicken | Roast chicken | Cook 1 | 10 min | No slack |
-| 17:50 | 17:50–19:05 | Roast the chicken | Roast chicken | Oven 1 | 1 h 15 min | ▲ Critical |
-| 17:50 | 17:50–17:55 | Shred the greens | Spring greens | Cook 1 | 5 min | Slack 1 h 15 min |
-| 19:05 | 19:05–19:25 | Rest the chicken under foil | Roast chicken | Hands-free | 20 min | ▲ Critical |
-| 19:10 | 19:10–19:12 | Make a roux in the roasting tin | Gravy | Burner 1, Cook 1 | 2 min | ▲ Critical |
-| 19:12 | 19:12–19:22 | Add stock and let the gravy thicken | Gravy | Burner 1 | 10 min | ▲ Critical |
-| 19:20 | 19:20–19:24 | Cook the greens in salted water | Spring greens | Burner 2 | 4 min | ▲ Critical |
-| 19:22 | 19:22–19:24 | Strain the gravy into a jug | Gravy | Cook 1 | 2 min | ▲ Critical |
-| 19:24 | 19:24–19:25 | Toss the greens with butter | Spring greens | Cook 1 | 1 min | ▲ Critical |
-| 19:25 | 19:25–19:30 | Carve the chicken | Roast chicken | Cook 1 | 5 min | ▲ Critical |
+| 17:40 | 17:40–17:50 | Season and truss the chicken | Roast chicken | Cook 1 | 10 min | ▲ On the critical path |
+| 17:50 | 17:50–19:05 | Roast the chicken | Roast chicken | Oven 1 | 1 h 15 min | ▲ On the critical path |
+| 17:50 | 17:50–17:55 | Shred the greens | Spring greens | Cook 1 | 5 min | Can slip 1 h 15 min |
+| 19:05 | 19:05–19:25 | Rest the chicken under foil | Roast chicken | Hands-free | 20 min | ▲ On the critical path |
+| 19:10 | 19:10–19:12 | Make a roux in the roasting tin | Gravy | Burner 1, Cook 1 | 2 min |  |
+| 19:12 | 19:12–19:22 | Add stock and let the gravy thicken | Gravy | Burner 1 | 10 min |  |
+| 19:20 | 19:20–19:24 | Cook the greens in salted water | Spring greens | Burner 2 | 4 min |  |
+| 19:22 | 19:22–19:24 | Strain the gravy into a jug | Gravy | Cook 1 | 2 min |  |
+| 19:24 | 19:24–19:25 | Toss the greens with butter | Spring greens | Cook 1 | 1 min |  |
+| 19:25 | 19:25–19:30 | Carve the chicken | Roast chicken | Cook 1 | 5 min | ▲ On the critical path |
+
+The status cell is empty for a step with slack 0 off the critical path.
 
 H3 (`TIGHT_OVEN`): `Roast the potatoes` carries `! Warning: waits 40 min and can wait 10 min`.
 Serving Thu 00:30: headings `Wed 22:40`, `Wed 22:50`, `Thu 00:05`, … (R7.4).
@@ -510,7 +553,7 @@ Durations by `formatDuration`, times by `formatClock`; `<x>` marks an argument.
 | Plan | h1 = plan title; h2 `Kitchen`, `Timeline`, `Plan list`, `Warnings`, `Take the plan with you`; `Burners`, `Ovens`, `Cooks`, `Fewer <x>` / `More <x>` (button names), `Serving time` |
 | summary | `Start at <time>`, `Serve at <time>` (+ ` <day>`), `Takes <duration>` |
 | timeline | `Skip to the plan list`; row labels; `Serve <time>` |
-| list | `▲ Critical`, `No slack`, `Slack <duration>`, final item `Serve` |
+| list | `▲ On the critical path`, `Can slip <duration>` (nothing at slack 0), final item `Serve` |
 | export | `Dinnerfile`, `Share link`, `Print`; `Copy`, `Download`, `Copy link`, `Link to this dinner` |
 | make line | `Run make -n -f Dinnerfile dinner to see GNU Make print the steps in an order that works.` |
 
@@ -538,7 +581,7 @@ Durations by `formatDuration`, times by `formatClock`; `<x>` marks an argument.
 | make blocked | `Fix <e> error(s) to make the plan.` |
 | field errors | `Give the step a title.` / `Enter whole minutes from 1 to 480.` / `Enter whole minutes from 0 to 480.` / `Give the dish a name.` |
 | limits | `A plan can have at most 12 dishes.` / `A plan can have at most 80 steps.` / `A plan needs at least one step.` / `A plan needs at least one dish.` |
-| remove step | confirm `Remove “<title>”?` + ` <n> step(s) wait for it: <titles>. They will no longer wait for it.`; `Remove step` / `Keep step`; notice `Removed “<title>”.` + ` <titles> no longer wait for it.` |
+| remove step | confirm `Remove “<title>”?` + ` <n> step(s) wait for it: <titles>. They will no longer wait for it.`; `Remove step` / `Keep step`; notice `Removed “<title>”.` + ` <titles> no longer wait for it.` (`waits` for one step) |
 | remove dish | confirm `Remove the dish <name> and its <n> step(s)?` + dependents sentence as above; `Remove dish` / `Keep dish`; notice `Removed the dish <name>.` |
 | hold warning | `<dish>: “<title>” will be ready <wait> before serving and can wait only <hold>. More ovens, burners or cooks may help.`; non-terminal: `…before “<latest user's title>” starts…` |
 | list warning | `! Warning: waits <wait> and can wait <hold>` |
@@ -575,6 +618,7 @@ Unit tests run under `npm test` (node, no DOM; `TZ` set in `beforeAll` and check
 | `test/web/state/share-link.test.ts` | the version 1 body of a two-step plan written out by hand; each decode error with a crafted payload (version 2, bad base64, deflate of 300 KB zeros, JSON with an index out of range, a cycle); each recorded sample (`recordings/*.json` through `validatePlan`) under 8,000, its length in a comment |
 | `test/web/state/share-link.pbt.ts` | P-UI1 round trip over `arbPlanAndKitchen()` × `arbServeTime()`; P-UI2 decode is total over strings and single-byte mutations of real payloads |
 | `test/web/components/timeline-layout.test.ts` (+ `.pbt.ts`) | H1 table, midnight ticks, two overlapping rests → two `Hands-free n` rows; P-UI3: bars never overlap in a row, each step on exactly its lanes or one hands-free row, hands-free row count = peak overlap by an oracle loop over minutes, `leftPx`/`widthPx` by the formula |
+| `test/core/critical-path.test.ts` (+ `.pbt.ts`) | the chains above, tie-breaks, a gap, a rebuilt-shaped input, CP8; P-UI7 |
 | `test/web/components/plan-list-items.test.ts` (+ `.pbt.ts`) | H1 and H3 tables, midnight headings; P-UI4: every step once, (start, id) order, group minutes strictly increasing |
 | `test/web/copy.test.ts` | every `COPY` string and copy-function output on sample arguments: no `!` except the warning mark, no `task`/`job`, no emoji, sentence case for headings and buttons, no `ANTHROPIC` |
 
@@ -600,8 +644,9 @@ E2E (`e2e/`, both projects; `test.use({ locale: 'en-GB', timezoneId: 'Europe/Lon
 
 ## Review notes (by hand, 2026-11-11)
 
-- Q1: steering updated. The label for a slack-0 step whose result keeps is "No slack" (not
-  "Back to back", which would be wrong for a lone step); replaced throughout this spec.
+- Q1: superseded the same day. "No slack" and the rule "slack 0 and a hold" are gone: the mark and
+  "On the critical path" go to core's `criticalPath` only; other steps read "Can slip <duration>" or
+  nothing (see "The critical path").
 - Q2: the share link carries plan, kitchen and serving time only, as designed here. The line in
   the rebuild design that mentions the share link concerns only persisted cook sessions.
 - Q3: short bars stay tappable; the plan list is the compliant alternative.

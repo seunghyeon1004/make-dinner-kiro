@@ -74,6 +74,9 @@ export {
 } from './sanity.js';
 export type { PlanCheck } from './sanity.js';
 
+export { criticalPath } from './critical-path.js';
+export type { CriticalPathInput } from './critical-path.js';
+
 export { normaliseRecipeText } from './normalise.js';
 
 export { schedule } from './schedule.js';

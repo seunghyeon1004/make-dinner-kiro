@@ -172,7 +172,7 @@ describe('removeDish (R4.6, R4.8)', () => {
     expect(plan.steps).toHaveLength(6);
     expect(plan.steps.find((s) => s.id === 'gravy.roux')?.after).toEqual([]);
     expect(notice).toBe(
-      'Removed the dish Roast chicken. Make a roux in the roasting tin no longer wait for it.',
+      'Removed the dish Roast chicken. Make a roux in the roasting tin no longer waits for it.',
     );
   });
   it('refuses to remove the last dish', () => {
