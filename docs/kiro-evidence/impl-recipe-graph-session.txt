@@ -3414,3 +3414,1810 @@ I saw this once for real, on a mistake in my own test. For the red-state checks 
 - Do you want the `draw` shrinking problem fixed under T2, or as its own task?
 
 --- run success (end_turn); credits reported by this session: 14.65 ---
+
+=== session 2026-11-11T04:57:28Z ===
+$ kiro-cli chat --output-format stream-json --v3 --agent sous-chef --trust-all-tools --trust-workspace --model auto "$(cat docs/kiro-evidence/prompts/06d-impl-recipe-graph-c.md)"
+--- prompt ---
+Spec: recipe-graph. First T2.7 (added to tasks.md by hand: failing properties must report a shrunk counterexample instead of crashing; you found this problem last session). Then T6 (plan and kitchen rules), T7 (normalisation) and T8 (public surface and the whole suite), in that order. That completes the spec.
+
+Each sub-task: test first, see it fail on an assertion, implement, run the proving command the task names, tick the sub-task only when it passed in this session. Property tasks are real fast-check properties using `fcParams()`; never lower the run count in code.
+
+Working rule: when the design is ambiguous or slightly off in a way that touches no guarantee, no schema bound and no sanity rule, choose the reading closest to the requirement, write it under "Decisions I made", and continue. Stop and ask only when a requirement, a guarantee or a property would have to change.
+
+Keep the example tests proportionate: one per rule and boundary the requirement names. Do not commit. End with the report kiro-conduct.md asks for, including the real counts from `npm test`, `npm run test:props`, `npm run typecheck`, `npm run lint`, `npx prettier --check .` and `npm run build`.
+--- transcript (rendered from the event stream by scripts/kiro-render.mjs) ---
+[steering] {"steeringDocuments":["file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/kiro-conduct.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/product.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/scheduler-guarantees.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/structure.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/tech.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/testing.md"],"kind":"steering_inclusion"}
+
+I'll start by reading the spec files in full.
+
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/recipe-graph/requirements.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/recipe-graph/design.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/recipe-graph/tasks.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/recipe-graph/design.md
+[tool:execute] $ git status --short; ls src/core test test/* ; wc -l src/core/*.ts test/support/*.ts test/core/* test/meta/*; cat package.json | head -40
+    … (75 earlier lines not shown)
+      "scripts": {
+        "test": "vitest run --project examples",
+        "test:props": "vitest run --project props --passWithNoTests",
+        "test:e2e": "playwright test",
+        "typecheck": "tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit",
+        "lint": "eslint .",
+        "format": "prettier --write .",
+        "build": "tsc -p tsconfig.core.json && tsc -p tsconfig.server.json && tsc -p tsconfig.mcp.json && tsx scripts/build-web.ts",
+        "dev": "tsx scripts/build-web.ts --watch & tsx watch src/server/index.ts",
+        "start": "node dist/server/index.js",
+        "check:contrast": "tsx scripts/check-contrast.ts",
+        "record": "tsx scripts/record.ts"
+      },
+      "dependencies": {
+        "@anthropic-ai/sdk": "1.8.0",
+        "@hono/node-server": "2.1.6",
+        "@modelcontextprotocol/sdk": "1.32.2",
+        "hono": "4.13.17",
+        "preact": "11.2.0",
+        "zod": "4.6.7"
+      },
+      "devDependencies": {
+        "@axe-core/playwright": "4.14.0",
+        "@playwright/test": "1.60.0",
+        "@types/node": "22.20.5",
+        "@vitest/eslint-plugin": "1.6.28",
+        "esbuild": "0.28.2",
+        "eslint": "10.14.0",
+        "eslint-plugin-import-x": "4.18.1",
+        "fast-check": "4.10.2",
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/sanity.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/support/arbitraries.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/index.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; cat test/support/fc-params.ts; sed -n 1,40p test/meta/arbitraries.test.ts; tail -40 test/meta/arbitraries.test.ts; cat vitest.config.ts
+    … (85 earlier lines not shown)
+      ])('some text has %s', (_name, fragment) => {
+        expect(texts.some((t) => t.includes(fragment))).toBe(true);
+      });
+      it('some text is already in NFC and some is not', () => {
+        expect(texts.some((t) => t === t.normalize('NFC'))).toBe(true);
+        expect(texts.some((t) => t !== t.normalize('NFC'))).toBe(true);
+      });
+    });
+    import { defineConfig } from 'vitest/config';
+    
+    export default defineConfig({
+      test: {
+        projects: [
+          {
+            test: {
+              name: 'examples',
+              include: ['test/**/*.test.ts'],
+              environment: 'node',
+            },
+          },
+          {
+            test: {
+              name: 'props',
+              include: ['test/**/*.pbt.ts'],
+              environment: 'node',
+            },
+          },
+        ],
+      },
+    });
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; cat >> test/meta/arbitraries.test.ts <<'EOF'
+
+describe('R10.1 a failing property reports a shrunk counterexample (T2.7)', () => {
+  // Session 3 found that a false property over arbPlan() ran out of memory while shrinking
+  // and crashed the worker instead of printing the failing plan.
+  it('fc.check over arbPlan() fails with a plan of exactly 3 steps, the smallest that breaks it', () => {
+    const result = fc.check(
+      fc.property(arbPlan(), (plan) => plan.steps.length < 3),
+      { numRuns: 200, seed: SEED },
+    );
+    expect(result.failed).toBe(true);
+    const counterexample = result.counterexample?.[0];
+    expect(counterexample?.steps.length).toBe(3);
+    expect(PlanSchema.safeParse(counterexample).success).toBe(true);
+  });
+  it('fc.check over arbBrokenPlan() also shrinks without crashing', () => {
+    const result = fc.check(
+      fc.property(arbBrokenPlan('unknown_dependency'), () => false),
+      { numRuns: 20, seed: SEED },
+    );
+    expect(result.failed).toBe(true);
+    expect(result.counterexample?.[0].rule).toBe('unknown_dependency');
+  });
+});
+EOF
+timeout 110 npx vitest run --project examples test/meta/arbitraries.test.ts 2>&1 | tail -40
+    … (9 earlier lines not shown)
+    74: 0x10256da98 node::SpinEventLoopInternal(node::Environment*) [~/.nvm/versions/node/v24.5.0/bin/node]
+    75: 0x1026c9074 node::NodeMainInstance::Run() [~/.nvm/versions/node/v24.5.0/bin/node]
+    76: 0x10262f628 node::Start(int, char**) [~/.nvm/versions/node/v24.5.0/bin/node]
+    77: 0x18a1bfda4 start [/usr/lib/dyld]
+    ⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+    
+    Vitest caught 1 unhandled error during the test run.
+    This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+    
+    ⎯⎯⎯⎯⎯⎯ Unhandled Error ⎯⎯⎯⎯⎯⎯⎯
+    Error: [vitest-pool]: Worker forks emitted error.
+     ❯ EventEmitter.onTaskError node_modules/vitest/dist/chunks/index.Di8au7q4.js:5926:21
+     ❯ EventEmitter.emit node:events:507:28
+     ❯ ChildProcess.emitUnexpectedExit node_modules/vitest/dist/chunks/index.Di8au7q4.js:5401:22
+     ❯ ChildProcess.emit node:events:507:28
+     ❯ ChildProcess._handle.onexit node:internal/child_process:294:12
+    
+    Caused by: Error: Worker exited unexpectedly with signal SIGABRT during started state while running test file ~/hackathons-2026/kiroween/makedinner/test/meta/arbitraries.test.ts
+     ❯ ChildProcess.emitUnexpectedExit node_modules/vitest/dist/chunks/index.Di8au7q4.js:5399:33
+     ❯ ChildProcess.emit node:events:507:28
+     ❯ ChildProcess._handle.onexit node:internal/child_process:294:12
+    
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+    
+    
+     Test Files   (1)
+          Tests  71 passed (86)
+         Errors  1 error
+       Start at  13:57:55
+       Duration  13.63s (import 98%, transform 2%)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; python3 - <<'EOF'
+p='test/support/arbitraries.ts'
+s=open(p).read()
+s=s.replace("""/** Draws one value of `arb` inside `fc.gen()`. */
+const draw = <T>(g: Draw, arb: fc.Arbitrary<T>): T => g(() => arb);""","""// `fc.gen()` remembers each draw by the identity of the builder function it is given. A fresh
+// closure per draw (`g(() => arb)`) made shrinking grow without bound until the worker ran
+// out of memory (T2.7). One stable builder, with the arbitrary as its argument, avoids that.
+const useArbitrary = <T>(arb: fc.Arbitrary<T>): fc.Arbitrary<T> => arb;
+
+/** Draws one value of `arb` inside `fc.gen()`. */
+const draw = <T>(g: Draw, arb: fc.Arbitrary<T>): T => g(useArbitrary, arb);""")
+open(p,'w').write(s)
+EOF
+timeout 110 npx vitest run --project examples test/meta/arbitraries.test.ts 2>&1 | tail -30
+    
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; time (timeout 100 npx vitest run --project examples test/meta/arbitraries.test.ts -t "T2.7" 2>&1 | tail -30)
+    
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+    
+    ( timeout 100 npx vitest run --project examples test/meta/arbitraries.test.ts)  0.28s user 0.09s system 0% cpu 1:40.02 total
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; python3 - <<'EOF'
+p='test/support/arbitraries.ts'
+s=open(p).read()
+a=s.index("/**\n * A plan that is valid by construction")
+b=s.index("function arbDefaultSizes")
+new='''/** Everything one step needs besides its id, drawn up front so no draw depends on a closure. */
+interface StepDraft {
+  dishPick: number;
+  earlier: number[];
+  title: string;
+  detail: string | undefined;
+  minutes: number;
+  appliance: Appliance;
+  handsOn: boolean;
+  holdMin: number | null;
+}
+
+function arbStepDraft(
+  k: number,
+  dishCount: number,
+  appliances: readonly Appliance[],
+): fc.Arbitrary<StepDraft> {
+  return fc.record({
+    dishPick: fc.integer({ min: 0, max: dishCount - 1 }),
+    earlier:
+      k === 0
+        ? fc.constant<number[]>([])
+        : fc.uniqueArray(fc.integer({ min: 0, max: k - 1 }), { maxLength: Math.min(k, 4) }),
+    title: arbTitle,
+    detail: arbDetail,
+    minutes: arbMinutes,
+    appliance: fc.constantFrom(...appliances),
+    handsOn: fc.boolean(),
+    holdMin: arbHold,
+  });
+}
+
+/**
+ * A plan that is valid by construction: step `k` may only wait on steps `0..k-1` (so it is
+ * acyclic), every dish gets a step, ids are unique, then everything is put in random order.
+ * Built with plain `chain`/`map` composition, not `fc.gen()`, so that a failing property
+ * shrinks to a counterexample instead of exhausting memory (T2.7).
+ */
+function arbShaped(
+  arbDishCount: fc.Arbitrary<number>,
+  arbStepCount: (dishCount: number) => fc.Arbitrary<number>,
+  appliances: readonly Appliance[],
+): fc.Arbitrary<Plan> {
+  return arbDishCount
+    .chain((dishCount) =>
+      arbStepCount(dishCount).chain((stepCount) =>
+        fc
+          .tuple(
+            fc.uniqueArray(arbDishId, { minLength: dishCount, maxLength: dishCount }),
+            fc.array(arbNonBlank(80), { minLength: dishCount, maxLength: dishCount }),
+            fc.uniqueArray(arbSlug, { minLength: stepCount, maxLength: stepCount }),
+            fc.tuple(
+              ...Array.from({ length: stepCount }, (_, k) =>
+                arbStepDraft(k, dishCount, appliances),
+              ),
+            ),
+            arbNonBlank(120),
+          )
+          .map(([dishIds, names, slugs, drafts, title]): Plan => {
+            const dishes: Dish[] = dishIds.map((id, i) => ({ id, name: names[i] ?? '' }));
+            const ids: string[] = [];
+            const steps: Step[] = drafts.map((draft, k): Step => {
+              const dish = dishIds[k < dishCount ? k : draft.dishPick] ?? '';
+              const id = `${dish}.${slugs[k] ?? ''}`;
+              ids.push(id);
+              return {
+                id,
+                dish,
+                title: draft.title,
+                ...(draft.detail === undefined ? {} : { detail: draft.detail }),
+                minutes: draft.minutes,
+                appliance: draft.appliance,
+                handsOn: draft.handsOn,
+                after: draft.earlier.map((i) => ids[i] ?? ''),
+                holdMin: draft.holdMin,
+              };
+            });
+            return { title, dishes, steps };
+          }),
+      ),
+    )
+    .chain((plan) => arbShuffledPlan(plan));
+}
+
+'''
+s=s[:a]+new+s[b:]
+a=s.index("/** The same plan with `steps`")
+b=s.index("// ----", a)
+new2='''/** The same plan with `steps`, `dishes` and every `after` list in another order. */
+export function arbShuffledPlan(plan: Plan): fc.Arbitrary<Plan> {
+  const indices = (n: number): number[] => Array.from({ length: n }, (_, i) => i);
+  return fc
+    .tuple(
+      arbPermutation(indices(plan.dishes.length)),
+      arbPermutation(indices(plan.steps.length)),
+      fc.tuple(...plan.steps.map((s) => arbPermutation(s.after))),
+    )
+    .map(([dishOrder, stepOrder, afters]): Plan => {
+      const steps = plan.steps.map((s, i) => ({ ...s, after: afters[i] ?? [] }));
+      return {
+        title: plan.title,
+        dishes: dishOrder.map((i) => ({ ...(plan.dishes[i] as Dish) })), // i is in range
+        steps: stepOrder.map((i) => steps[i] as Step), // i is in range
+      };
+    });
+}
+
+'''
+s=s[:a]+new2+s[b:]
+open(p,'w').write(s)
+EOF
+time (timeout 100 npx vitest run --project examples test/meta/arbitraries.test.ts 2>&1 | tail -40)
+    
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+    
+    ( timeout 100 npx vitest run --project examples test/meta/arbitraries.test.ts)  0.10s user 0.05s system 0% cpu 1:40.01 total
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; time (timeout 60 npx vitest run --project examples test/meta/arbitraries.test.ts -t "exactly 3 steps" 2>&1 | tail -30)
+    
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+    
+    
+     Test Files  1 passed (1)
+          Tests  1 passed | 85 skipped (86)
+       Start at  14:03:58
+       Duration  1.22s (import 99%, tests 1%)
+    
+    ( timeout 60 npx vitest run --project examples test/meta/arbitraries.test.ts )  2.09s user 0.17s system 149% cpu 1.514 total
+    exit 0
+
+arbPlan now shrinks. Checking which remaining test hangs.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; time (timeout 40 npx vitest run --project examples test/meta/arbitraries.test.ts -t "also shrinks" 2>&1 | tail -10); time (timeout 60 npx vitest run --project examples test/meta/arbitraries.test.ts -t "^(?!.*(T2.7|shrinks)).*" 2>&1 | tail -15)
+    
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+    
+    ( timeout 40 npx vitest run --project examples test/meta/arbitraries.test.ts )  0.13s user 0.05s system 0% cpu 40.012 total
+    
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+    
+    
+     Test Files  1 passed (1)
+          Tests  84 passed | 2 skipped (86)
+       Start at  14:04:47
+       Duration  2.42s (import 56%, tests 43%)
+    
+    ( timeout 60 npx vitest run --project examples test/meta/arbitraries.test.ts )  3.73s user 0.22s system 142% cpu 2.767 total
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/support/arbitraries.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; python3 - <<'EOF'
+p='test/support/arbitraries.ts'
+s=open(p).read()
+a=s.index("/** A valid plan with at most one random change")
+b=s.index("const TEXT_FRAGMENTS")
+new='''/** A valid plan with at most one random change, so inputs reach deep paths of the parser. */
+export function arbPlanLikeValue(): fc.Arbitrary<unknown> {
+  const unknownKeys = ['details', 'hold_min', 'notes', 'extra'] as const;
+  const oddValues: readonly unknown[] = [
+    null,
+    [],
+    {},
+    'x',
+    '',
+    0,
+    -1,
+    2.5,
+    1e9,
+    true,
+    [1],
+    ['a.b'],
+  ];
+  const minutesValues: readonly unknown[] = [0, -1, 481, 2.5, '5', null, true];
+  return fc
+    .tuple(
+      arbPlan(),
+      fc.integer({ min: 0, max: 6 }),
+      fc.nat(),
+      fc.nat(),
+      fc.jsonValue(),
+      fc.constantFrom(...unknownKeys),
+      fc.constantFrom(...oddValues),
+      fc.constantFrom(...minutesValues),
+      fc.constantFrom('dishes', 'steps'),
+    )
+    .map(
+      ([plan, kind, targetPick, keyPick, json, unknownKey, odd, badMinutes, list]): unknown => {
+        const root = structuredClone(plan) as unknown as Json & { dishes: Json[]; steps: Json[] };
+        if (kind === 6) return root; // unchanged: a valid plan
+
+        const targets: Json[] = [root, ...root.dishes, ...root.steps];
+        const target = targets[targetPick % targets.length] ?? root;
+        const keys = Object.keys(target);
+        const key = keys[keyPick % keys.length] ?? 'title';
+        switch (kind) {
+          case 0:
+            target[key] = json;
+            break;
+          case 1:
+            delete target[key];
+            break;
+          case 2:
+            target[unknownKey] = json;
+            break;
+          case 3:
+            target[key] = odd;
+            break;
+          case 4: {
+            const step = root.steps[targetPick % root.steps.length];
+            if (step !== undefined) step.minutes = badMinutes;
+            break;
+          }
+          default:
+            root[list] = [];
+            break;
+        }
+        return root;
+      },
+    );
+}
+
+'''
+s=s[:a]+new+s[b:]
+a=s.index("// ---------------------------------------------------------------------------------------\n// Broken plans")
+new2='''// ---------------------------------------------------------------------------------------
+// Broken plans: exactly one rule broken. Built with `chain`/`map` only, so a failing
+// property shrinks to a counterexample (T2.7). Every `map` clones the base plan before
+// changing it, because shrinking calls it again on the same value.
+
+const DEFAULT_BASE = arbDefaultSizes(1, ALL_APPLIANCES);
+
+/** `items[pick % length]`; the callers never pass an empty list. */
+const nth = <T>(items: readonly T[], pick: number): T => items[pick % items.length] as T;
+
+/** Ids of all steps that `id` waits on, directly or through other steps. */
+function ancestorsOf(plan: Plan, id: string): Set<string> {
+  const byId = new Map<string, readonly string[]>();
+  for (const s of plan.steps) byId.set(s.id, s.after);
+  const seen = new Set<string>();
+  const stack = [...(byId.get(id) ?? [])];
+  for (let next = stack.pop(); next !== undefined; next = stack.pop()) {
+    if (seen.has(next)) continue;
+    seen.add(next);
+    stack.push(...(byId.get(next) ?? []));
+  }
+  return seen;
+}
+
+const arbFreshDishId = (plan: Plan): fc.Arbitrary<string> =>
+  arbDishId.filter((id) => !plan.dishes.some((d) => d.id === id));
+
+const arbFreshStepId = (plan: Plan): fc.Arbitrary<string> =>
+  fc
+    .tuple(arbDishId, arbSlug)
+    .map(([dish, slug]) => `${dish}.${slug}`)
+    .filter((id) => !plan.steps.some((s) => s.id === id));
+
+/** What a rule's construction gives besides the rule and the kitchen. */
+interface Broken {
+  input: unknown;
+  target: BrokenCase['target'];
+}
+
+/** A clone of a default-size base plan, with draws that depend on it. */
+const onBase = <T>(
+  dependent: (plan: Plan) => fc.Arbitrary<T>,
+  change: (plan: Plan, drawn: T) => Broken,
+  baseArb: fc.Arbitrary<Plan> = DEFAULT_BASE,
+): fc.Arbitrary<Broken> =>
+  baseArb.chain((base) => dependent(base).map((drawn) => change(structuredClone(base), drawn)));
+
+const arbBadMinutes: fc.Arbitrary<unknown> = fc.oneof(
+  fc.constant<unknown>(0),
+  fc.integer({ min: -480, max: -1 }),
+  fc.integer({ min: 481, max: 100000 }),
+  fc.double({ min: 1.01, max: 479.99, noNaN: true }).filter((x) => !Number.isInteger(x)),
+  fc.constantFrom('5', '75'),
+  fc.constant(null),
+  fc.constant(true),
+  fc.constant(undefined),
+);
+
+const INVALID_VARIANTS = [
+  'appliance',
+  'handsOn',
+  'step_id',
+  'step_dish',
+  'after_entry',
+  'blank_title',
+  'long_title',
+  'empty_detail',
+  'hold',
+  'no_hold',
+  'long_dish_name',
+  'dish_id',
+  'no_title',
+  'unknown_key',
+  'root',
+] as const;
+
+function invalidField(
+  plan: Plan,
+  [stepPick, dishPick, variant, valuePick]: [number, number, (typeof INVALID_VARIANTS)[number], number],
+): Broken {
+  const input = plan as unknown as Json & { dishes: Json[]; steps: Json[] };
+  const index = stepPick % plan.steps.length;
+  const step = input.steps[index] as Json; // index is in range
+  const stepId = plan.steps[index]?.id ?? '';
+  const dishIndex = dishPick % plan.dishes.length;
+  const dish = input.dishes[dishIndex] as Json; // dishIndex is in range
+  const dishId = plan.dishes[dishIndex]?.id ?? '';
+  const value = <T>(items: readonly T[]): T => nth(items, valuePick);
+  switch (variant) {
+    case 'appliance':
+      step.appliance = value(['stove', 'Oven', '', 'BURNER', null, 3]);
+      return { input, target: { stepId } };
+    case 'handsOn':
+      step.handsOn = value(['yes', 1, 0, null, 'true']);
+      return { input, target: { stepId } };
+    case 'step_id':
+      step.id = value([
+        'Bad.id',
+        'nodot',
+        'a.b.c',
+        '',
+        'a b.c',
+        `${'x'.repeat(41)}.${'y'.repeat(40)}`,
+      ]);
+      return { input, target: {} };
+    case 'step_dish':
+      step.dish = value(['Bad Dish', '', 'UPPER', 'a'.repeat(41)]);
+      return { input, target: { stepId } };
+    case 'after_entry':
+      step.after = [...(plan.steps[index]?.after ?? []), value(['Not.valid', 'nodot', ''])];
+      return { input, target: { stepId } };
+    case 'blank_title':
+      step.title = value(['', '   ', '\\t\\n', '\\u00a0']);
+      return { input, target: { stepId } };
+    case 'long_title':
+      step.title = 'a'.repeat(121);
+      return { input, target: { stepId } };
+    case 'empty_detail':
+      step.detail = value(['', '  ']);
+      return { input, target: { stepId } };
+    case 'hold':
+      step.holdMin = value([-1, 481, 1.5, '5', true]);
+      return { input, target: { stepId } };
+    case 'no_hold':
+      delete step.holdMin;
+      return { input, target: { stepId } };
+    case 'long_dish_name':
+      dish.name = 'a'.repeat(81);
+      return { input, target: { dishId } };
+    case 'dish_id':
+      dish.id = value(['Bad Id', '', '-a', 'a--b']);
+      return { input, target: {} };
+    case 'no_title':
+      delete input.title;
+      return { input, target: {} };
+    case 'unknown_key': {
+      const key = value(['details', 'hold_min', 'notes', 'extra']);
+      const where = nth(['root', 'step', 'dish'] as const, Math.floor(valuePick / 4));
+      if (where === 'step') {
+        step[key] = 1;
+        return { input, target: { stepId } };
+      }
+      if (where === 'dish') {
+        dish[key] = 1;
+        return { input, target: { dishId } };
+      }
+      input[key] = 1;
+      return { input, target: {} };
+    }
+    case 'root':
+      return { input: value([null, 42, 'plan', [], true, 3.5, [1, 2]]), target: {} };
+  }
+}
+
+function brokenFor(rule: Exclude<ErrorCode, 'missing_appliance'>): fc.Arbitrary<Broken> {
+  const stepPick = fc.nat();
+  switch (rule) {
+    case 'empty_plan':
+      return onBase(
+        () => fc.constantFrom('steps', 'dishes', 'both'),
+        (plan, which) => ({
+          input: {
+            ...plan,
+            ...(which !== 'dishes' ? { steps: [] } : {}),
+            ...(which !== 'steps' ? { dishes: [] } : {}),
+          },
+          target: {},
+        }),
+      );
+    case 'too_many_dishes':
+      return arbShaped(
+        fc.integer({ min: 13, max: 20 }),
+        (d) => fc.integer({ min: d, max: 80 }),
+        ALL_APPLIANCES,
+      ).map((input) => ({ input, target: {} }));
+    case 'too_many_steps':
+      return arbShaped(
+        fc.integer({ min: 1, max: 12 }),
+        () => fc.integer({ min: 81, max: 120 }),
+        ALL_APPLIANCES,
+      ).map((input) => ({ input, target: {} }));
+    case 'minutes_out_of_range':
+      return onBase(
+        () => fc.tuple(stepPick, arbBadMinutes),
+        (plan, [pick, bad]) => {
+          const step = nth(plan.steps, pick) as Step & Json;
+          if (bad === undefined) delete (step as Json).minutes;
+          else (step as Json).minutes = bad;
+          return { input: plan, target: { stepId: step.id } };
+        },
+      );
+    case 'invalid_field':
+      return onBase(
+        () => fc.tuple(stepPick, fc.nat(), fc.constantFrom(...INVALID_VARIANTS), fc.nat()),
+        invalidField,
+      );
+    case 'unknown_dependency':
+      return onBase(
+        (base) => fc.tuple(stepPick, arbFreshStepId(base)),
+        (plan, [pick, ref]) => {
+          const step = nth(plan.steps, pick);
+          step.after.push(ref);
+          return { input: plan, target: { stepId: step.id } };
+        },
+      );
+    case 'self_dependency':
+      return onBase(
+        () => stepPick,
+        (plan, pick) => {
+          const step = nth(plan.steps, pick);
+          step.after.push(step.id);
+          return { input: plan, target: { stepId: step.id } };
+        },
+      );
+    case 'cycle':
+      return onBase(
+        (base) =>
+          fc.tuple(
+            fc.nat({ max: base.steps.length - 1 }),
+            fc.nat({ max: base.steps.length - 2 }),
+          ),
+        (plan, [x, y]) => {
+          const first = plan.steps[x] as Step; // x is in range
+          const second = plan.steps[y >= x ? y + 1 : y] as Step; // a different step
+          const addAfter = (s: Step, id: string): void => {
+            if (!s.after.includes(id)) s.after.push(id);
+          };
+          addAfter(first, second.id);
+          // If `second` already waits on `first`, that one edge closes the cycle; otherwise
+          // add the other way too.
+          if (!ancestorsOf(plan, second.id).has(first.id)) addAfter(second, first.id);
+          return { input: plan, target: {} };
+        },
+        arbDefaultSizes(2, ALL_APPLIANCES),
+      );
+    case 'duplicate_step_id':
+      return onBase(
+        (base) =>
+          fc.tuple(
+            stepPick,
+            fc.option(arbNonBlank(120), { nil: undefined }),
+            fc.option(arbMinutes, { nil: undefined }),
+            fc.nat({ max: base.steps.length }),
+          ),
+        (plan, [pick, title, minutes, at]) => {
+          const original = nth(plan.steps, pick);
+          const copy: Step = { ...original, after: [...original.after] };
+          if (title !== undefined) copy.title = title;
+          if (minutes !== undefined) copy.minutes = minutes;
+          plan.steps.splice(at, 0, copy);
+          return { input: plan, target: { stepId: original.id } };
+        },
+      );
+    case 'duplicate_dish_id':
+      return onBase(
+        (base) => fc.tuple(fc.nat(), arbNonBlank(80), fc.nat({ max: base.dishes.length })),
+        (plan, [pick, name, at]) => {
+          const original = nth(plan.dishes, pick);
+          plan.dishes.splice(at, 0, { id: original.id, name });
+          return { input: plan, target: { dishId: original.id } };
+        },
+      );
+    case 'unknown_dish':
+      return onBase(
+        (base) =>
+          fc.tuple(arbFreshDishId(base), stepPick, arbSlug, arbNonBlank(120), arbMinutes),
+        (plan, [missing, pick, slug, title, minutes]) => {
+          const crowded = plan.steps.filter(
+            (s) => plan.steps.filter((t) => t.dish === s.dish).length >= 2,
+          );
+          if (crowded.length > 0) {
+            const step = nth(crowded, pick);
+            step.dish = missing; // its old dish keeps at least one other step
+            return { input: plan, target: { stepId: step.id } };
+          }
+          const id = `${missing}.${slug}`;
+          plan.steps.push({
+            id,
+            dish: missing,
+            title,
+            minutes,
+            appliance: 'none',
+            handsOn: true,
+            after: [],
+            holdMin: null,
+          });
+          return { input: plan, target: { stepId: id } };
+        },
+      );
+    case 'dish_without_steps':
+      return onBase(
+        (base) =>
+          fc.tuple(arbFreshDishId(base), arbNonBlank(80), fc.nat({ max: base.dishes.length })),
+        (plan, [id, name, at]) => {
+          plan.dishes.splice(at, 0, { id, name });
+          return { input: plan, target: { dishId: id } };
+        },
+      );
+  }
+}
+
+/** Cases that break exactly one rule; see the table in the recipe-graph design. */
+export function arbBrokenPlan(rule: ErrorCode): fc.Arbitrary<BrokenCase> {
+  if (rule === 'missing_appliance') {
+    return arbPlanAndKitchen()
+      .filter(({ plan }) => plan.steps.some((s) => s.appliance !== 'none'))
+      .chain(({ plan, kitchen: complete }) =>
+        fc.nat().map((pick): BrokenCase => {
+          const step = nth(
+            plan.steps.filter((s) => s.appliance !== 'none'),
+            pick,
+          );
+          const kitchen: Kitchen =
+            step.appliance === 'burner' ? { ...complete, burners: 0 } : { ...complete, ovens: 0 };
+          return { rule, input: structuredClone(plan), kitchen, target: { stepId: step.id } };
+        }),
+      );
+  }
+  return fc
+    .tuple(arbEquippedKitchen, brokenFor(rule))
+    .map(([kitchen, { input, target }]): BrokenCase => ({ rule, input, kitchen, target }));
+}
+'''
+s=s[:a]+new2
+# remove now-unused gen helpers
+s=s.replace('''type Draw = fc.GeneratorValue;
+
+// `fc.gen()` remembers each draw by the identity of the builder function it is given. A fresh
+// closure per draw (`g(() => arb)`) made shrinking grow without bound until the worker ran
+// out of memory (T2.7). One stable builder, with the arbitrary as its argument, avoids that.
+const useArbitrary = <T>(arb: fc.Arbitrary<T>): fc.Arbitrary<T> => arb;
+
+/** Draws one value of `arb` inside `fc.gen()`. */
+const draw = <T>(g: Draw, arb: fc.Arbitrary<T>): T => g(useArbitrary, arb);
+
+''','')
+open(p,'w').write(s)
+EOF
+grep -n "draw\|fc.gen" test/support/arbitraries.ts | head; npx prettier --write test/support/arbitraries.ts test/meta/arbitraries.test.ts >/dev/null; npx tsc -p tsconfig.test.json --noEmit 2>&1 | head -20
+    185:/** Everything one step needs besides its id, drawn up front so no draw depends on a closure. */
+    220: * Built with plain `chain`/`map` composition, not `fc.gen()`, so that a failing property
+    462:/** A clone of a default-size base plan, with draws that depend on it. */
+    465:  change: (plan: Plan, drawn: T) => Broken,
+    468:  baseArb.chain((base) => dependent(base).map((drawn) => change(structuredClone(base), drawn)));
+    test/meta/arbitraries.test.ts(446,12): error TS2571: Object is of type 'unknown'.
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/meta/arbitraries.test.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; python3 - <<'EOF'
+p='test/meta/arbitraries.test.ts'
+s=open(p).read()
+a=s.index("describe('R10.1 a failing property reports")
+s=s[:a]+'''describe('R10.1 a failing property reports a shrunk counterexample (T2.7)', () => {
+  // Session 3 found that a false property over arbPlan() ran out of memory while shrinking
+  // and crashed the worker instead of printing the failing plan.
+  it('fc.check over arbPlan() fails with a valid plan of exactly 3 steps, the smallest that breaks it', () => {
+    const result = fc.check(
+      fc.property(arbPlan(), (plan) => plan.steps.length < 3),
+      { ...fcParams(), seed: SEED },
+    );
+    expect(result.failed).toBe(true);
+    const [counterexample] = (result.counterexample ?? []) as Plan[];
+    expect(counterexample?.steps.length).toBe(3);
+    expect(PlanSchema.safeParse(counterexample).success).toBe(true);
+  });
+  it.each(ERROR_CODES)('fc.check over arbBrokenPlan(%s) fails with a shrunk case of that rule', (rule) => {
+    const result = fc.check(
+      fc.property(arbBrokenPlan(rule), () => false),
+      { ...fcParams(), seed: SEED },
+    );
+    expect(result.failed).toBe(true);
+    const [counterexample] = (result.counterexample ?? []) as BrokenCase[];
+    expect(counterexample?.rule).toBe(rule);
+  });
+});
+'''
+s=s.replace("} from '../support/arbitraries.js';","} from '../support/arbitraries.js';\nimport type { BrokenCase } from '../support/arbitraries.js';\nimport { fcParams } from '../support/fc-params.js';",1)
+open(p,'w').write(s)
+EOF
+npx prettier --write test/meta/arbitraries.test.ts >/dev/null; npx tsc -p tsconfig.test.json --noEmit 2>&1 | head; time (timeout 110 npx vitest run --project examples test/meta/arbitraries.test.ts 2>&1 | tail -30)
+    
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+    
+    
+     Test Files  1 passed (1)
+          Tests  98 passed (98)
+       Start at  14:06:18
+       Duration  1.47s (tests 60%, import 38%, transform 2%)
+    
+    ( timeout 110 npx vitest run --project examples test/meta/arbitraries.test.ts)  2.31s user 0.14s system 140% cpu 1.750 total
+    exit 0
+
+All 98 pass, including the R10.2 coverage and validity tests that were already there. Now the second half of the T2.7 command:
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; time (npm run test:props 2>&1 | tail -15)
+    
+    > make-dinner@0.0.0 test:props
+    > vitest run --project props --passWithNoTests
+    
+    
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+    
+    
+     Test Files  2 passed (2)
+          Tests  12 passed (12)
+       Start at  14:06:24
+       Duration  611ms (tests 91%, import 7%, transform 2%)
+    
+    ( npm run test:props 2>&1 | tail -15; )  1.64s user 0.12s system 213% cpu 0.825 total
+    exit 0
+
+T2.7 passed. Ticking it.
+
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/recipe-graph/tasks.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/core/sanity.test.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/schema.ts
+
+Now T6. Reading the remaining test file, the oracles and the fixtures I'll rely on.
+
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/core/sanity.test.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/core/schema.pbt.ts
+[tool:search] Grep Search
+[tool:search] Grep Search
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/support/fixtures.ts
+
+Writing T6 stubs first (so tests compile and fail on assertions), then the T6.1–T6.3 example tests.
+
+[tool:edit] Append to File ~/hackathons-2026/kiroween/makedinner/src/core/sanity.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; python3 - <<'EOF'
+p='test/core/sanity.test.ts'
+s=open(p).read()
+s=s.replace("import { hasErrors, parseKitchen, parsePlan, sortIssues } from '../../src/core/sanity.js';\nimport type { Issue } from '../../src/core/schema.js';",
+"""import {
+  checkKitchen,
+  checkPlan,
+  hasErrors,
+  parseKitchen,
+  parsePlan,
+  sortIssues,
+  validatePlan,
+} from '../../src/core/sanity.js';
+import type { Dish, Issue, Plan, Step } from '../../src/core/schema.js';""")
+s+='''
+// ---------------------------------------------------------------------------------------
+// checkPlan, checkKitchen, validatePlan (T6.1 to T6.3)
+
+/** A step with neutral fields (no warning fires on it), overridden as given. */
+function step(id: string, fields: Partial<Step> = {}): Step {
+  return {
+    id,
+    dish: id.slice(0, id.indexOf('.')),
+    title: 'Chop',
+    minutes: 5,
+    appliance: 'none',
+    handsOn: true,
+    after: [],
+    holdMin: null,
+    ...fields,
+  };
+}
+
+function plan(steps: Step[], dishes: Dish[] = [{ id: 'a', name: 'A' }]): Plan {
+  return { title: 'Plan', dishes, steps };
+}
+
+describe('checkPlan errors (R4)', () => {
+  it('R4.1 unknown_dependency fires once per step and missing id', () => {
+    const p = plan([step('a.x'), step('a.y', { after: ['a.x', 'a.nope', 'a.nope'] })]);
+    expect(checkPlan(p)).toEqual([
+      {
+        severity: 'error',
+        code: 'unknown_dependency',
+        stepId: 'a.y',
+        ref: 'a.nope',
+        message:
+          'Step a.y waits for a.nope, which is not a step in this plan. Fix the prerequisite or remove it.',
+      },
+    ]);
+  });
+  it('R4.1 unknown_dependency does not fire when every prerequisite is a step', () => {
+    expect(checkPlan(plan([step('a.x'), step('a.y', { after: ['a.x'] })]))).toEqual([]);
+  });
+
+  it('R4.2 self_dependency fires once for a step listing itself, and no cycle fires', () => {
+    expect(checkPlan(plan([step('a.x', { after: ['a.x', 'a.x'] })]))).toEqual([
+      {
+        severity: 'error',
+        code: 'self_dependency',
+        stepId: 'a.x',
+        message: 'Step a.x lists itself as a prerequisite. Remove it.',
+      },
+    ]);
+  });
+  it('R4.2 self_dependency does not fire for a step that lists another step', () => {
+    expect(checkPlan(plan([step('a.x', { after: ['a.y'] }), step('a.y')]))).toEqual([]);
+  });
+
+  it('R4.3 cycle fires once with the path of the two steps that wait on each other', () => {
+    const p = plan([step('a.y', { after: ['a.x'] }), step('a.x', { after: ['a.y'] })]);
+    expect(checkPlan(p)).toEqual([
+      {
+        severity: 'error',
+        code: 'cycle',
+        stepId: 'a.x',
+        path: ['a.x', 'a.y'],
+        message:
+          'Steps a.x → a.y → a.x wait on each other, so none of them can start. Remove one of these prerequisites.',
+      },
+    ]);
+  });
+  it('R4.3 cycle does not fire on a chain', () => {
+    const p = plan([step('a.z', { after: ['a.y'] }), step('a.y', { after: ['a.x'] }), step('a.x')]);
+    expect(checkPlan(p)).toEqual([]);
+  });
+
+  it('R4.4 duplicate_step_id fires once with the number of occurrences', () => {
+    const p = plan([step('a.x'), step('a.x', { title: 'Dice' }), step('a.x', { minutes: 7 })]);
+    expect(checkPlan(p)).toEqual([
+      {
+        severity: 'error',
+        code: 'duplicate_step_id',
+        stepId: 'a.x',
+        count: 3,
+        message: '3 steps have the id a.x. Give each step its own id.',
+      },
+    ]);
+  });
+  it('R4.4 duplicate_step_id does not fire when step ids differ', () => {
+    expect(checkPlan(plan([step('a.x'), step('a.y')]))).toEqual([]);
+  });
+
+  it('R4.4 duplicate_dish_id fires once with the number of occurrences', () => {
+    const p = plan(
+      [step('a.x')],
+      [
+        { id: 'a', name: 'A' },
+        { id: 'a', name: 'Another A' },
+      ],
+    );
+    expect(checkPlan(p)).toEqual([
+      {
+        severity: 'error',
+        code: 'duplicate_dish_id',
+        dishId: 'a',
+        count: 2,
+        message: '2 dishes have the id a. Give each dish its own id.',
+      },
+    ]);
+  });
+  it('R4.4 duplicate_dish_id does not fire when dish ids differ', () => {
+    const p = plan(
+      [step('a.x'), step('b.x')],
+      [
+        { id: 'a', name: 'A' },
+        { id: 'b', name: 'B' },
+      ],
+    );
+    expect(checkPlan(p)).toEqual([]);
+  });
+
+  it('R4.5 unknown_dish fires for a step whose dish is not in the plan', () => {
+    const p = plan([step('a.x'), step('a.y', { dish: 'sauce' })]);
+    expect(checkPlan(p)).toEqual([
+      {
+        severity: 'error',
+        code: 'unknown_dish',
+        stepId: 'a.y',
+        dishId: 'sauce',
+        message:
+          "Step a.y belongs to dish sauce, which is not in this plan. Pick one of the plan's dishes.",
+      },
+    ]);
+  });
+  it('R4.5 unknown_dish does not fire when a step id prefix differs from its dish', () => {
+    expect(checkPlan(plan([step('b.x', { dish: 'a' })]))).toEqual([]);
+  });
+
+  it('R4.6 dish_without_steps fires for a dish no step belongs to', () => {
+    const p = plan(
+      [step('a.x')],
+      [
+        { id: 'greens', name: 'Greens' },
+        { id: 'a', name: 'A' },
+      ],
+    );
+    expect(checkPlan(p)).toEqual([
+      {
+        severity: 'error',
+        code: 'dish_without_steps',
+        dishId: 'greens',
+        message: 'Dish greens has no steps. Add a step or remove the dish.',
+      },
+    ]);
+  });
+  it('R4.6 dish_without_steps does not fire when every dish has a step', () => {
+    expect(checkPlan(plan([step('a.x')]))).toEqual([]);
+  });
+
+  it.each([
+    ['SUNDAY_ROAST', SUNDAY_ROAST],
+    ['MEZZE', MEZZE],
+    ['TIGHT_OVEN', TIGHT_OVEN],
+  ])('R4.7 the fixture %s gives no issues', (_name, fixture) => {
+    expect(checkPlan(fixture)).toEqual([]);
+  });
+
+  it('R7.3 several errors come sorted by code, then step id', () => {
+    const p = plan(
+      [
+        step('a.z', { after: ['a.missing'] }),
+        step('a.y', { after: ['a.y'] }),
+        step('a.x'),
+        step('a.x'),
+      ],
+      [
+        { id: 'a', name: 'A' },
+        { id: 'b', name: 'B' },
+      ],
+    );
+    // compareIds order of the codes: dish_without_steps < duplicate_step_id <
+    // self_dependency < unknown_dependency.
+    expect(checkPlan(p).map((i) => [i.code, 'stepId' in i ? i.stepId : i.dishId])).toEqual([
+      ['dish_without_steps', 'b'],
+      ['duplicate_step_id', 'a.x'],
+      ['self_dependency', 'a.y'],
+      ['unknown_dependency', 'a.z'],
+    ]);
+  });
+});
+
+describe('checkPlan warnings (R5)', () => {
+  const mismatch = (
+    stepId: string,
+    word: string,
+    suggested: 'burner' | 'oven',
+  ): Issue => ({
+    severity: 'warning',
+    code: 'appliance_mismatch',
+    stepId,
+    word,
+    suggested,
+    message:
+      suggested === 'oven'
+        ? `Step ${stepId} mentions "${word}" but uses no appliance. If it needs the oven, set its appliance to oven.`
+        : `Step ${stepId} mentions "${word}" but uses no appliance. If it needs a burner, set its appliance to burner.`,
+  });
+
+  it('R5.1 "Roasting tin" on a none step fires with the base word roast', () => {
+    expect(checkPlan(plan([step('a.x', { title: 'Roasting tin' })]))).toEqual([
+      mismatch('a.x', 'roast', 'oven'),
+    ]);
+  });
+  it('R5.1 a hyphen is a word boundary: "stir-fry" fires with fry', () => {
+    expect(checkPlan(plan([step('a.x', { title: 'Quick stir-fry' })]))).toEqual([
+      mismatch('a.x', 'fry', 'burner'),
+    ]);
+  });
+  it('R5.1 a decomposed "saute\\u0301" fires after NFC with sauté', () => {
+    expect(checkPlan(plan([step('a.x', { title: 'Saute\\u0301 the onions' })]))).toEqual([
+      mismatch('a.x', 'saut\\u00e9', 'burner'),
+    ]);
+  });
+  it('R5.1 a match in the detail only fires', () => {
+    expect(
+      checkPlan(plan([step('a.x', { title: 'Finish', detail: 'Then bake it for a while.' })])),
+    ).toEqual([mismatch('a.x', 'bake', 'oven')]);
+  });
+  it('R5.1 the title match wins over the detail match', () => {
+    expect(
+      checkPlan(plan([step('a.x', { title: 'Boil the kettle', detail: 'Roast the nuts.' })])),
+    ).toEqual([mismatch('a.x', 'boil', 'burner')]);
+  });
+  it.each([['Use the ovenproof dish'], ['Fill the boiler'], ['Set out the roaster']])(
+    'R5.1 "%s" does not fire: the word is part of a longer word',
+    (title) => {
+      expect(checkPlan(plan([step('a.x', { title })]))).toEqual([]);
+    },
+  );
+  it('R5.1 a burner step that says boil does not fire', () => {
+    expect(checkPlan(plan([step('a.x', { title: 'Boil the pasta', appliance: 'burner' })]))).toEqual(
+      [],
+    );
+  });
+
+  it('R5.2 long_hands_on does not fire at 45 minutes', () => {
+    expect(checkPlan(plan([step('a.x', { minutes: 45 })]))).toEqual([]);
+  });
+  it('R5.2 long_hands_on fires at 46 minutes', () => {
+    expect(checkPlan(plan([step('a.x', { minutes: 46 })]))).toEqual([
+      {
+        severity: 'warning',
+        code: 'long_hands_on',
+        stepId: 'a.x',
+        minutes: 46,
+        message:
+          'Step a.x keeps a cook busy for 46 minutes. If part of it runs by itself, split it into a hands-on step and a hands-free step.',
+      },
+    ]);
+  });
+
+  it('R5.3 short_hands_free fires at 1 minute, hands-free, no appliance', () => {
+    expect(checkPlan(plan([step('a.x', { minutes: 1, handsOn: false })]))).toEqual([
+      {
+        severity: 'warning',
+        code: 'short_hands_free',
+        stepId: 'a.x',
+        minutes: 1,
+        message:
+          'Step a.x runs by itself for only 1 minute. Mark it hands-on or merge it into the step after it.',
+      },
+    ]);
+  });
+  it.each([
+    ['2 minutes', { minutes: 2, handsOn: false }],
+    ['1 minute hands-on', { minutes: 1, handsOn: true }],
+    ['1 minute on a burner', { minutes: 1, handsOn: false, appliance: 'burner' as const }],
+  ])('R5.3 short_hands_free does not fire at %s', (_name, fields) => {
+    expect(checkPlan(plan([step('a.x', fields)]))).toEqual([]);
+  });
+
+  it('R5.4 hasErrors is false for a plan with warnings only', () => {
+    const issues = checkPlan(plan([step('a.x', { minutes: 50, title: 'Roast' })]));
+    expect(issues.map((i) => i.code)).toEqual(['appliance_mismatch', 'long_hands_on']);
+    expect(hasErrors(issues)).toBe(false);
+  });
+});
+
+describe('checkKitchen and validatePlan (R6.1, R2.9)', () => {
+  const missing = (stepId: string, appliance: 'burner' | 'oven'): Issue => ({
+    severity: 'error',
+    code: 'missing_appliance',
+    stepId,
+    appliance,
+    message:
+      appliance === 'oven'
+        ? `Step ${stepId} needs an oven and the kitchen has none. Add an oven in the kitchen settings or change the step.`
+        : `Step ${stepId} needs a burner and the kitchen has none. Add a burner in the kitchen settings or change the step.`,
+  });
+
+  it('R6.1 SUNDAY_ROAST with no burners gives the three burner steps', () => {
+    expect(checkKitchen(SUNDAY_ROAST, { ...HOME_KITCHEN, burners: 0 })).toEqual([
+      missing('gravy.roux', 'burner'),
+      missing('gravy.simmer', 'burner'),
+      missing('greens.boil', 'burner'),
+    ]);
+  });
+  it('R6.1 TIGHT_OVEN with no oven gives the two oven steps', () => {
+    expect(checkKitchen(TIGHT_OVEN, { ...HOME_KITCHEN, ovens: 0 })).toEqual([
+      missing('pie.bake', 'oven'),
+      missing('potatoes.roast', 'oven'),
+    ]);
+  });
+  it('R6.1 HOME_KITCHEN has every appliance SUNDAY_ROAST needs', () => {
+    expect(checkKitchen(SUNDAY_ROAST, HOME_KITCHEN)).toEqual([]);
+  });
+  it('R6.1 a duplicated burner step gives one issue', () => {
+    const p = plan([step('a.x', { appliance: 'burner' }), step('a.x', { appliance: 'burner' })]);
+    expect(checkKitchen(p, { burners: 0, ovens: 1, cooks: 1 })).toEqual([
+      missing('a.x', 'burner'),
+    ]);
+  });
+
+  it('R2.9 validatePlan({}) gives no plan and the parse issues', () => {
+    const result = validatePlan({});
+    expect(result.plan).toBe(null);
+    expect(result.issues.map((i) => [i.code, i.code === 'invalid_field' ? i.field : ''])).toEqual(
+      [
+        ['invalid_field', 'dishes'],
+        ['invalid_field', 'steps'],
+        ['invalid_field', 'title'],
+      ],
+    );
+  });
+  it('R2.9 validatePlan on a fixture as JSON gives the plan and no issues', () => {
+    expect(validatePlan(JSON.parse(JSON.stringify(MEZZE)))).toStrictEqual({
+      plan: MEZZE,
+      issues: [],
+    });
+  });
+  it('R2.9 validatePlan on a parsed plan with an error gives the checkPlan issues', () => {
+    const result = validatePlan(plan([step('a.x', { after: ['a.x'] })]));
+    expect(result.plan?.steps.map((s) => s.id)).toEqual(['a.x']);
+    expect(result.issues.map((i) => i.code)).toEqual(['self_dependency']);
+  });
+});
+'''
+open(p,'w').write(s)
+EOF
+grep -n "u0301\|u00e9" test/core/sanity.test.ts
+    607:  it('R5.1 a decomposed "saute\u0301" fires after NFC with sauté', () => {
+    608:    expect(checkPlan(plan([step('a.x', { title: 'Saute\u0301 the onions' })]))).toEqual([
+    609:      mismatch('a.x', 'saut\u00e9', 'burner'),
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; npx prettier --write test/core/sanity.test.ts src/core/sanity.ts >/dev/null; npx vitest run --project examples test/core/sanity.test.ts 2>&1 | grep -E "✓|×|FAIL|Tests|AssertionError" | head -60
+    … (30 earlier lines not shown)
+    AssertionError: expected [] to deeply equal [ { severity: 'error', …(4) } ]
+     FAIL  |examples| test/core/sanity.test.ts > checkPlan errors (R4) > R4.4 duplicate_dish_id fires once with the number of occurrences
+    AssertionError: expected [] to deeply equal [ { severity: 'error', …(4) } ]
+     FAIL  |examples| test/core/sanity.test.ts > checkPlan errors (R4) > R4.5 unknown_dish fires for a step whose dish is not in the plan
+    AssertionError: expected [] to deeply equal [ { severity: 'error', …(4) } ]
+     FAIL  |examples| test/core/sanity.test.ts > checkPlan errors (R4) > R4.6 dish_without_steps fires for a dish no step belongs to
+    AssertionError: expected [] to deeply equal [ { severity: 'error', …(3) } ]
+     FAIL  |examples| test/core/sanity.test.ts > checkPlan errors (R4) > R7.3 several errors come sorted by code, then step id
+    AssertionError: expected [] to deeply equal [ [ 'dish_without_steps', 'b' ], …(3) ]
+     FAIL  |examples| test/core/sanity.test.ts > checkPlan warnings (R5) > R5.1 "Roasting tin" on a none step fires with the base word roast
+    AssertionError: expected [] to deeply equal [ { severity: 'warning', …(5) } ]
+     FAIL  |examples| test/core/sanity.test.ts > checkPlan warnings (R5) > R5.1 a hyphen is a word boundary: "stir-fry" fires with fry
+    AssertionError: expected [] to deeply equal [ { severity: 'warning', …(5) } ]
+     FAIL  |examples| test/core/sanity.test.ts > checkPlan warnings (R5) > R5.1 a decomposed "sauté" fires after NFC with sauté
+    AssertionError: expected [] to deeply equal [ { severity: 'warning', …(5) } ]
+     FAIL  |examples| test/core/sanity.test.ts > checkPlan warnings (R5) > R5.1 a match in the detail only fires
+    AssertionError: expected [] to deeply equal [ { severity: 'warning', …(5) } ]
+     FAIL  |examples| test/core/sanity.test.ts > checkPlan warnings (R5) > R5.1 the title match wins over the detail match
+    AssertionError: expected [] to deeply equal [ { severity: 'warning', …(5) } ]
+     FAIL  |examples| test/core/sanity.test.ts > checkPlan warnings (R5) > R5.2 long_hands_on fires at 46 minutes
+    AssertionError: expected [] to deeply equal [ { severity: 'warning', …(4) } ]
+     FAIL  |examples| test/core/sanity.test.ts > checkPlan warnings (R5) > R5.3 short_hands_free fires at 1 minute, hands-free, no appliance
+    AssertionError: expected [] to deeply equal [ { severity: 'warning', …(4) } ]
+     FAIL  |examples| test/core/sanity.test.ts > checkPlan warnings (R5) > R5.4 hasErrors is false for a plan with warnings only
+    AssertionError: expected [] to deeply equal [ 'appliance_mismatch', …(1) ]
+     FAIL  |examples| test/core/sanity.test.ts > checkKitchen and validatePlan (R6.1, R2.9) > R6.1 SUNDAY_ROAST with no burners gives the three burner steps
+    AssertionError: expected [] to deeply equal [ { severity: 'error', …(4) }, …(2) ]
+     FAIL  |examples| test/core/sanity.test.ts > checkKitchen and validatePlan (R6.1, R2.9) > R6.1 TIGHT_OVEN with no oven gives the two oven steps
+    AssertionError: expected [] to deeply equal [ { severity: 'error', …(4) }, …(1) ]
+     FAIL  |examples| test/core/sanity.test.ts > checkKitchen and validatePlan (R6.1, R2.9) > R6.1 a duplicated burner step gives one issue
+    exit 0
+
+All 22 firing examples fail on assertions; the non-firing ones pass against the stub, as they should. Now the property tests T6.4–T6.7. First a look at the oracle's warning shape:
+
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/support/oracles.ts
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/test/core/sanity.pbt.ts
+
+Adding the `checkPlan(canonicalPlan(p))` clause of P-RG1 (T6.6):
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; python3 - <<'EOF'
+p='test/core/schema.pbt.ts'
+s=open(p).read()
+s=s.replace("import { parsePlan } from '../../src/core/sanity.js';","import { checkPlan, parsePlan } from '../../src/core/sanity.js';")
+anchor="describe('P-RG8 JSON round trip'"
+s=s.replace("});\n\n"+anchor, """
+  it('P-RG1 canonical: checkPlan(canonicalPlan(p)) equals checkPlan(p)', () => {
+    fc.assert(
+      fc.property(fc.oneof(arbPlan(), arbPlan({ large: true }), arbGraphRulePlan), (plan) => {
+        expect(checkPlan(canonicalPlan(plan))).toStrictEqual(checkPlan(plan));
+      }),
+      fcParams(),
+    );
+  });
+});
+
+"""+anchor,1)
+open(p,'w').write(s)
+EOF
+npx prettier --write test/core/sanity.pbt.ts test/core/schema.pbt.ts >/dev/null; npx tsc -p tsconfig.test.json --noEmit; npx vitest run --project props test/core/sanity.pbt.ts test/core/schema.pbt.ts 2>&1 | grep -E "^ +(✓|×)|Tests |AssertionError|Counterexample" | head -40
+    … (12 earlier lines not shown)
+         × S2 sound: duplicate_dish_id fires, alone among the errors, on a plan built to break it 2ms
+         × S2 sound: unknown_dish fires, alone among the errors, on a plan built to break it 2ms
+         × S2 sound: dish_without_steps fires, alone among the errors, on a plan built to break it 2ms
+         × S2 sound: missing_appliance fires, alone among the errors, on a plan built to break it 6ms
+         × S2 sound: no error fires on a valid plan and its kitchen 2ms
+         × P-RG9 warnings: the (code, stepId) pairs of the warnings equal the oracle 3ms
+    ⎯⎯⎯⎯⎯⎯ Failed Tests 16 ⎯⎯⎯⎯⎯⎯⎯
+    Counterexample: [{"title":[],"dishes":[{"id":"a","name":"!"}],"steps":[{"id":"a.a","dish":"a","title":"oven","detail":"Sauté the onions","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":null}]},{"burners":0,"ovens":0,"cooks":1}]
+    Caused by: AssertionError: expected { plan: null, issues: [] } to strictly equal { plan: null, issues: [ { …(4) } ] }
+    Counterexample: [{"rule":"invalid_field","input":{"title":"!","dishes":[{"id":"a","name":"Sauté the onions"}],"steps":[{"id":"a.a","dish":"a","title":"!","detail":"oven","minutes":11,"appliance":"stove","handsOn":false,"after":[],"holdMin":31}]},"kitchen":{"burners":1,"ovens":1,"cooks":1},"target":{"stepId":"a.a"}}]
+    Caused by: AssertionError: expected [] to deeply equal [ 'invalid_field' ]
+    Counterexample: [{"rule":"minutes_out_of_range","input":{"title":"!","dishes":[{"id":"a","name":"!"}],"steps":[{"id":"a.a","dish":"a","title":"oven","detail":"!","minutes":null,"appliance":"burner","handsOn":false,"after":[],"holdMin":null}]},"kitchen":{"burners":1,"ovens":1,"cooks":1},"target":{"stepId":"a.a"}}]
+    Caused by: AssertionError: expected [] to deeply equal [ 'minutes_out_of_range' ]
+    Counterexample: [{"rule":"empty_plan","input":{"title":"!","dishes":[{"id":"a","name":"!"}],"steps":[]},"kitchen":{"burners":1,"ovens":1,"cooks":1},"target":{}}]
+    Caused by: AssertionError: expected [] to deeply equal [ 'empty_plan' ]
+    Counterexample: [{"rule":"too_many_dishes","input":{"title":"!","dishes":[{"id":"a","name":"!"},{"id":"g","name":"!"},{"id":"s","name":"!"},{"id":"9","name":"!"},{"id":"p","name":"!"},{"id":"h","name":"!"},{"id":"y","name":"! "},{"id":"t","name":"!"},{"id":"e","name":"!"},{"id":"v","name":"!"},{"id":"aa","name":"!"},{"id":"d","name":"!"},{"id":"i","name":"!"}],"steps":[{"id":"d.5","dish":"d","title":"!","detail":"oven","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"t.q","dish":"t","title":"oven","detail":"oven","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"i.m","dish":"i","title":"oven","detail":"!","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"9.aa","dish":"9","title":"!","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"aa.a4","dish":"aa","title":"oven","detail":"oven","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"e.z","dish":"e","title":"oven","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"s.1","dish":"s","title":"!","detail":"oven","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"p.3","dish":"p","title":"!","detail":"oven","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.a","dish":"a","title":"!","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"v.a-a","dish":"v","title":"!","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"h.a1","dish":"h","title":"!","detail":"!","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"y.4","dish":"y","title":"!","detail":"oven","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"g.a3","dish":"g","title":"!","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":null}]},"kitchen":{"burners":1,"ovens":1,"cooks":1},"target":{}}]
+    Caused by: AssertionError: expected [] to deeply equal [ 'too_many_dishes' ]
+    Counterexample: [{"rule":"too_many_steps","input":{"title":"!","dishes":[{"id":"a","name":"!"}],"steps":[{"id":"a.ah","dish":"a","title":"Sauté the onions","detail":"!","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.d","dish":"a","title":"oven","detail":"oven","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.a","dish":"a","title":"oven","detail":"!","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.ar","dish":"a","title":"!","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.z","dish":"a","title":"oven","detail":"oven","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.n","dish":"a","title":"oven","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.aq","dish":"a","title":"!","detail":"!","minutes":1,"appliance":"burner","handsOn":false,"after":[],"holdMin":31},{"id":"a.a4","dish":"a","title":"!","detail":"!","minutes":1,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.5","dish":"a","title":"Sauté the onions","minutes":61,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.p","dish":"a","title":"oven","detail":"!","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.8","dish":"a","title":"!","minutes":1,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.ta","dish":"a","title":"!","detail":"!","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.ai","dish":"a","title":"oven","detail":"oven","minutes":1,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.ja","dish":"a","title":"oven","detail":"Sauté the onions","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.a8","dish":"a","title":"!","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.5a","dish":"a","title":"!","detail":"!","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.w","dish":"a","title":"oven","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.1a","dish":"a","title":"oven","detail":"!","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.az","dish":"a","title":"!","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.pa","dish":"a","title":"!","detail":"!","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":31},{"id":"a.p-h","dish":"a","title":"oven","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.sa","dish":"a","title":"oven","detail":"oven","minutes":61,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.aa","dish":"a","title":"!","detail":"oven","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.m","dish":"a","title":"!","detail":"!","minutes":1,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.ap","dish":"a","title":"!","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.a-h","dish":"a","title":"!","minutes":1,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.a5","dish":"a","title":"!","detail":"oven","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.b","dish":"a","title":"!","detail":"!","minutes":61,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.as","dish":"a","title":"oven","detail":"! ","minutes":1,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.ad","dish":"a","title":"oven","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.r","dish":"a","title":"!","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.f","dish":"a","title":"!","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.fa","dish":"a","title":"oven","detail":"oven","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.a3","dish":"a","title":"oven","detail":"oven","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.s","dish":"a","title":"oven","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.t","dish":"a","title":"Sauté the onions","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.a-a","dish":"a","title":"!","detail":"oven","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.v","dish":"a","title":"oven","minutes":61,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.ca","dish":"a","title":"oven","detail":"Sauté the onions","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.h","dish":"a","title":"!","detail":"!","minutes":1,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.i","dish":"a","title":"!","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.al","dish":"a","title":"oven","detail":"!","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.j","dish":"a","title":"!","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.7","dish":"a","title":"oven","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.3","dish":"a","title":"oven","detail":"oven","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.4","dish":"a","title":"oven","detail":"!","minutes":61,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.an","dish":"a","title":"Sauté the onions","minutes":1,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.q","dish":"a","title":"oven","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":31},{"id":"a.k","dish":"a","title":"oven","minutes":1,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.e","dish":"a","title":"oven","detail":"!","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.a-s","dish":"a","title":"oven","minutes":1,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.y","dish":"a","title":"oven","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.x","dish":"a","title":"oven","detail":"oven","minutes":1,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.6","dish":"a","title":"oven","detail":"!","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.ax","dish":"a","title":"!","minutes":61,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.ag","dish":"a","title":"oven","detail":"!","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.g","dish":"a","title":"oven","minutes":1,"appliance":"burner","handsOn":false,"after":[],"holdMin":31},{"id":"a.p-a","dish":"a","title":"oven","detail":"!","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.a-n","dish":"a","title":"!","detail":"oven","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.1","dish":"a","title":"oven","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.o","dish":"a","title":"!","detail":"Sauté the onions","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":31},{"id":"a.ab","dish":"a","title":"oven","detail":"!","minutes":61,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.a-aa","dish":"a","title":"oven","minutes":1,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.u","dish":"a","title":"!","detail":"oven","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.a0","dish":"a","title":"!","detail":"oven","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.a7","dish":"a","title":"!","detail":"Sauté the onions","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.a-f","dish":"a","title":"!","detail":"oven","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.ao","dish":"a","title":"!","detail":"!","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":31},{"id":"a.za","dish":"a","title":"oven","detail":"Sauté the onions","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.aw","dish":"a","title":"Sauté the onions","detail":"!","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.2","dish":"a","title":"oven","detail":"!","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.wa","dish":"a","title":"!","detail":"!","minutes":61,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.0","dish":"a","title":"!","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.ay","dish":"a","title":"Sauté the onions","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.a-7","dish":"a","title":"! ","detail":"!","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.a-u","dish":"a","title":"oven","detail":"!","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.a-o","dish":"a","title":"oven","detail":"!","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":31},{"id":"a.va","dish":"a","title":"oven","detail":"oven","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.ha","dish":"a","title":"oven","minutes":1,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.ae","dish":"a","title":"Sauté the onions","detail":"!","minutes":11,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"a.l","dish":"a","title":"!","detail":"oven","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0}]},"kitchen":{"burners":1,"ovens":1,"cooks":1},"target":{}}]
+    Caused by: AssertionError: expected [] to deeply equal [ 'too_many_steps' ]
+    Counterexample: [{"rule":"unknown_dependency","input":{"title":"!","dishes":[{"id":"a","name":"!"}],"steps":[{"id":"a.a","dish":"a","title":"oven","detail":"!","minutes":11,"appliance":"burner","handsOn":false,"after":["a.x"],"holdMin":null}]},"kitchen":{"burners":1,"ovens":1,"cooks":1},"target":{"stepId":"a.a"}}]
+    Caused by: AssertionError: expected [] to deeply equal [ 'unknown_dependency' ]
+    Counterexample: [{"rule":"self_dependency","input":{"title":"!","dishes":[{"id":"a","name":"!"}],"steps":[{"id":"a.a","dish":"a","title":"!","minutes":61,"appliance":"burner","handsOn":false,"after":["a.a"],"holdMin":null}]},"kitchen":{"burners":1,"ovens":1,"cooks":1},"target":{"stepId":"a.a"}}]
+    Caused by: AssertionError: expected [] to deeply equal [ 'self_dependency' ]
+    Counterexample: [{"rule":"cycle","input":{"title":"!","dishes":[{"id":"a","name":"!"}],"steps":[{"id":"a.a","dish":"a","title":"oven","detail":"oven","minutes":2,"appliance":"burner","handsOn":false,"after":["a.aa"],"holdMin":0},{"id":"a.aa","dish":"a","title":"oven","detail":"!","minutes":2,"appliance":"burner","handsOn":false,"after":["a.a"],"holdMin":0}]},"kitchen":{"burners":1,"ovens":1,"cooks":1},"target":{}}]
+    Caused by: AssertionError: expected [] to deeply equal [ 'cycle' ]
+    Counterexample: [{"rule":"duplicate_step_id","input":{"title":"! ","dishes":[{"id":"a","name":"!"}],"steps":[{"id":"a.a","dish":"a","title":"!","detail":"oven","minutes":61,"appliance":"burner","handsOn":false,"after":[],"holdMin":null},{"id":"a.a","dish":"a","title":"!","detail":"oven","minutes":61,"appliance":"burner","handsOn":false,"after":[],"holdMin":null}]},"kitchen":{"burners":1,"ovens":1,"cooks":1},"target":{"stepId":"a.a"}}]
+    Caused by: AssertionError: expected [] to deeply equal [ 'duplicate_step_id' ]
+    Counterexample: [{"rule":"duplicate_dish_id","input":{"title":"Sauté the onions","dishes":[{"id":"a","name":"!"},{"id":"a","name":"!"}],"steps":[{"id":"a.a","dish":"a","title":"!","minutes":1,"appliance":"burner","handsOn":false,"after":[],"holdMin":0}]},"kitchen":{"burners":1,"ovens":1,"cooks":1},"target":{"dishId":"a"}}]
+    Caused by: AssertionError: expected [] to deeply equal [ 'duplicate_dish_id' ]
+    Counterexample: [{"rule":"unknown_dish","input":{"title":"!","dishes":[{"id":"a","name":"!"}],"steps":[{"id":"a.a","dish":"a","title":"oven","detail":"oven","minutes":2,"appliance":"burner","handsOn":false,"after":[],"holdMin":0},{"id":"h.a","dish":"h","title":"!","minutes":1,"appliance":"none","handsOn":true,"after":[],"holdMin":null}]},"kitchen":{"burners":1,"ovens":1,"cooks":1},"target":{"stepId":"h.a"}}]
+    exit 0
+
+Every property fails on an assertion and prints a shrunk counterexample, which also confirms the T2.7 fix. Fixing the type error in my R7.3 example, then implementing.
+
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/test/core/sanity.test.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; python3 - <<'EOF'
+p='src/core/sanity.ts'
+s=open(p).read()
+a=s.index("// ---------------------------------------------------------------------------------------\n// Plan and kitchen rules")
+s=s[:a]+'''// ---------------------------------------------------------------------------------------
+// Plan and kitchen rules
+
+type Suggested = 'burner' | 'oven';
+
+/** Base word, the appliance it suggests, and every form matched (design table). */
+const MISMATCH_WORDS: readonly (readonly [string, Suggested, readonly string[]])[] = [
+  ['oven', 'oven', ['oven', 'ovens']],
+  ['roast', 'oven', ['roast', 'roasts', 'roasted', 'roasting']],
+  ['bake', 'oven', ['bake', 'bakes', 'baked', 'baking']],
+  ['simmer', 'burner', ['simmer', 'simmers', 'simmered', 'simmering']],
+  ['boil', 'burner', ['boil', 'boils', 'boiled', 'boiling']],
+  ['fry', 'burner', ['fry', 'fries', 'fried', 'frying']],
+  ['sear', 'burner', ['sear', 'sears', 'seared', 'searing']],
+  [
+    'saut\\u00e9',
+    'burner',
+    [
+      'saut\\u00e9',
+      'saut\\u00e9s',
+      'saut\\u00e9ed',
+      'saut\\u00e9ing',
+      'saute',
+      'sautes',
+      'sauteed',
+      'sauteing',
+    ],
+  ],
+];
+
+const FORM_TO_BASE = new Map<string, { word: string; suggested: Suggested }>(
+  MISMATCH_WORDS.flatMap(([word, suggested, forms]) =>
+    forms.map((form) => [form, { word, suggested }] as const),
+  ),
+);
+
+// A listed form with no letter, mark or digit on either side; hyphens are boundaries.
+const MISMATCH_PATTERN = new RegExp(
+  `(?<![\\\\p{L}\\\\p{M}\\\\p{N}])(${[...FORM_TO_BASE.keys()].join('|')})(?![\\\\p{L}\\\\p{M}\\\\p{N}])`,
+  'iu',
+);
+
+/** The first listed word in the title, else in the detail. */
+function mismatchWord(title: string, detail: string | undefined): { word: string; suggested: Suggested } | undefined {
+  for (const text of [title, detail]) {
+    if (text === undefined) continue;
+    const match = MISMATCH_PATTERN.exec(text.normalize('NFC'));
+    const form = match?.[1];
+    if (form !== undefined) return FORM_TO_BASE.get(form.toLowerCase());
+  }
+  return undefined;
+}
+
+function countIds(ids: readonly string[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const id of ids) counts.set(id, (counts.get(id) ?? 0) + 1);
+  return counts;
+}
+
+/** Every sanity rule that does not need the kitchen. */
+export function checkPlan(plan: Plan): Issue[] {
+  const issues: Issue[] = [];
+  const stepIds = new Set(plan.steps.map((s) => s.id));
+  const dishIds = new Set(plan.dishes.map((d) => d.id));
+
+  for (const [stepId, count] of countIds(plan.steps.map((s) => s.id))) {
+    if (count < 2) continue;
+    issues.push({
+      severity: 'error',
+      code: 'duplicate_step_id',
+      stepId,
+      count,
+      message: `${count} steps have the id ${stepId}. Give each step its own id.`,
+    });
+  }
+  for (const [dishId, count] of countIds(plan.dishes.map((d) => d.id))) {
+    if (count < 2) continue;
+    issues.push({
+      severity: 'error',
+      code: 'duplicate_dish_id',
+      dishId,
+      count,
+      message: `${count} dishes have the id ${dishId}. Give each dish its own id.`,
+    });
+  }
+
+  const usedDishes = new Set<string>();
+  for (const step of plan.steps) {
+    usedDishes.add(step.dish);
+    if (!dishIds.has(step.dish)) {
+      issues.push({
+        severity: 'error',
+        code: 'unknown_dish',
+        stepId: step.id,
+        dishId: step.dish,
+        message: `Step ${step.id} belongs to dish ${step.dish}, which is not in this plan. Pick one of the plan's dishes.`,
+      });
+    }
+  }
+  for (const dishId of dishIds) {
+    if (usedDishes.has(dishId)) continue;
+    issues.push({
+      severity: 'error',
+      code: 'dish_without_steps',
+      dishId,
+      message: `Dish ${dishId} has no steps. Add a step or remove the dish.`,
+    });
+  }
+
+  for (const step of plan.steps) {
+    for (const ref of new Set(step.after)) {
+      if (ref === step.id) {
+        issues.push({
+          severity: 'error',
+          code: 'self_dependency',
+          stepId: step.id,
+          message: `Step ${step.id} lists itself as a prerequisite. Remove it.`,
+        });
+      } else if (!stepIds.has(ref)) {
+        issues.push({
+          severity: 'error',
+          code: 'unknown_dependency',
+          stepId: step.id,
+          ref,
+          message: `Step ${step.id} waits for ${ref}, which is not a step in this plan. Fix the prerequisite or remove it.`,
+        });
+      }
+    }
+  }
+
+  for (const path of findCycles(plan)) {
+    const [first] = path;
+    if (first === undefined) continue; // findCycles never returns an empty path
+    issues.push({
+      severity: 'error',
+      code: 'cycle',
+      stepId: first,
+      path,
+      message: `Steps ${[...path, first].join(' → ')} wait on each other, so none of them can start. Remove one of these prerequisites.`,
+    });
+  }
+
+  for (const step of plan.steps) {
+    if (step.appliance === 'none') {
+      const found = mismatchWord(step.title, step.detail);
+      if (found !== undefined) {
+        const advice =
+          found.suggested === 'oven'
+            ? 'If it needs the oven, set its appliance to oven.'
+            : 'If it needs a burner, set its appliance to burner.';
+        issues.push({
+          severity: 'warning',
+          code: 'appliance_mismatch',
+          stepId: step.id,
+          word: found.word,
+          suggested: found.suggested,
+          message: `Step ${step.id} mentions "${found.word}" but uses no appliance. ${advice}`,
+        });
+      }
+    }
+    if (step.handsOn && step.minutes > LIMITS.handsOnWarnOverMin) {
+      issues.push({
+        severity: 'warning',
+        code: 'long_hands_on',
+        stepId: step.id,
+        minutes: step.minutes,
+        message: `Step ${step.id} keeps a cook busy for ${step.minutes} minutes. If part of it runs by itself, split it into a hands-on step and a hands-free step.`,
+      });
+    }
+    if (
+      !step.handsOn &&
+      step.appliance === 'none' &&
+      step.minutes < LIMITS.handsFreeWarnUnderMin
+    ) {
+      issues.push({
+        severity: 'warning',
+        code: 'short_hands_free',
+        stepId: step.id,
+        minutes: step.minutes,
+        message: `Step ${step.id} runs by itself for only ${plural(step.minutes, 'minute', 'minutes')}. Mark it hands-on or merge it into the step after it.`,
+      });
+    }
+  }
+
+  return sortIssues(issues);
+}
+
+/** The missing-appliance error, one per step and appliance. */
+export function checkKitchen(plan: Plan, kitchen: Kitchen): Issue[] {
+  const issues: Issue[] = [];
+  // Every occurrence is looked at, not the first, so step order cannot change the result;
+  // sortIssues drops the exact duplicates a repeated id gives.
+  for (const step of plan.steps) {
+    if (step.appliance === 'burner' && kitchen.burners === 0) {
+      issues.push({
+        severity: 'error',
+        code: 'missing_appliance',
+        stepId: step.id,
+        appliance: 'burner',
+        message: `Step ${step.id} needs a burner and the kitchen has none. Add a burner in the kitchen settings or change the step.`,
+      });
+    }
+    if (step.appliance === 'oven' && kitchen.ovens === 0) {
+      issues.push({
+        severity: 'error',
+        code: 'missing_appliance',
+        stepId: step.id,
+        appliance: 'oven',
+        message: `Step ${step.id} needs an oven and the kitchen has none. Add an oven in the kitchen settings or change the step.`,
+      });
+    }
+  }
+  return sortIssues(issues);
+}
+
+export type PlanCheck = { plan: Plan; issues: Issue[] } | { plan: null; issues: Issue[] };
+
+/** Parse, then check: the one pipeline every plan source uses. Never throws on input. */
+export function validatePlan(input: unknown): PlanCheck {
+  const parsed = parsePlan(input);
+  if (!parsed.ok) return { plan: null, issues: parsed.error };
+  return { plan: parsed.value, issues: checkPlan(parsed.value) };
+}
+'''
+s=s.replace("import { err, ok, type Result } from './result.js';","import { findCycles } from './graph.js';\nimport { err, ok, type Result } from './result.js';")
+open(p,'w').write(s)
+EOF
+grep -n "MISMATCH_PATTERN = " -A4 src/core/sanity.ts; grep -n "u00e9" src/core/sanity.ts | head -3
+    331:const MISMATCH_PATTERN = new RegExp(
+    332-  `(?<![\\p{L}\\p{M}\\p{N}])(${[...FORM_TO_BASE.keys()].join('|')})(?![\\p{L}\\p{M}\\p{N}])`,
+    333-  'iu',
+    334-);
+    335-
+    309:    'saut\u00e9',
+    312:      'saut\u00e9',
+    313:      'saut\u00e9s',
+    exit 0
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/src/core/sanity.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; npx prettier --write src/core/sanity.ts test/core/sanity.test.ts >/dev/null; npx tsc -p tsconfig.core.json --noEmit && npx tsc -p tsconfig.test.json --noEmit; npx vitest run --project examples test/core/sanity.test.ts 2>&1 | grep -E "×|Tests |AssertionError" | head -30
+          Tests  77 passed (77)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; npx vitest run --project props test/core/sanity.pbt.ts test/core/schema.pbt.ts 2>&1 | grep -E "^ +(✓|×)|Tests |AssertionError|Counterexample|Seed" | cut -c1-600 | head -40
+          Tests  23 passed (23)
+    exit 0
+
+Both pass. Running the exact T6.8 command, which covers the commands of T6.1–T6.7:
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; npx vitest run --project examples test/core/sanity.test.ts 2>&1 | grep -E "Tests |Test Files" && npx vitest run --project props test/core/sanity.pbt.ts test/core/schema.pbt.ts 2>&1 | grep -E "Tests |Test Files"; echo exit=$?
+     Test Files  1 passed (1)
+          Tests  77 passed (77)
+     Test Files  2 passed (2)
+          Tests  23 passed (23)
+    exit=0
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; python3 - <<'EOF'
+p='.kiro/specs/recipe-graph/tasks.md'
+s=open(p).read()
+for t in ['T6.1','T6.2','T6.3','T6.4','T6.5','T6.6','T6.7','T6.8']:
+    s=s.replace(f'- [ ] {t} ', f'- [x] {t} ',1)
+open(p,'w').write(s)
+EOF
+grep -n "^- \[.\] T6" .kiro/specs/recipe-graph/tasks.md; ls samples
+    180:- [x] T6.1 Example tests for `checkPlan` errors: one firing and one non-firing example per
+    187:- [x] T6.2 Example tests for warnings: `appliance_mismatch` ("Roasting tin" on a `none`
+    196:- [x] T6.3 Example tests for `checkKitchen` and `validatePlan`: `SUNDAY_ROAST` with
+    204:- [x] T6.4 Property S1 total.
+    208:- [x] T6.5 Property S2 sound, one `it` per error code with the title
+    213:- [x] T6.6 Property P-RG2 order-free, and the `checkPlan(canonicalPlan(p))` clause of
+    218:- [x] T6.7 Property P-RG9 warnings.
+    222:- [x] T6.8 Implement `checkPlan`, `checkKitchen` and `validatePlan` until T6.1 to T6.7
+    halloween-party.md
+    korean-table.md
+    sunday-roast.md
+    vegetarian-feast.md
+    weeknight-curry.md
+    exit 0
+
+T6 done. Now T7: stub, then examples and property.
+
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/src/core/normalise.ts
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/test/core/normalise.test.ts
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/test/core/normalise.pbt.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; npx prettier --write test/core/normalise.test.ts test/core/normalise.pbt.ts >/dev/null; npx tsc -p tsconfig.test.json --noEmit; npx vitest run --project examples test/core/normalise.test.ts 2>&1 | grep -E "✓|×|Tests |AssertionError" | head -30; npx vitest run --project props test/core/normalise.pbt.ts 2>&1 | grep -E "Tests |AssertionError|Counterexample"
+         × R9.1 applies Unicode NFC: e plus a combining acute becomes é 2ms
+         × R9.1 turns CRLF into LF 0ms
+         × R9.1 turns a lone CR into LF 0ms
+         × R9.1 removes trailing spaces and tabs from every line 0ms
+         × R9.1 collapses three blank lines into one 0ms
+         × R9.1 counts a line of only spaces and tabs as blank 0ms
+         × R9.1 trims the whole text at both ends 0ms
+         × R9.1 keeps the indentation of lines after the first 0ms
+         × R9.2 halloween-party.md normalises to non-empty text and is idempotent 0ms
+         × R9.2 korean-table.md normalises to non-empty text and is idempotent 0ms
+         × R9.2 sunday-roast.md normalises to non-empty text and is idempotent 1ms
+         × R9.2 vegetarian-feast.md normalises to non-empty text and is idempotent 0ms
+         × R9.2 weeknight-curry.md normalises to non-empty text and is idempotent 0ms
+    ⎯⎯⎯⎯⎯⎯ Failed Tests 13 ⎯⎯⎯⎯⎯⎯⎯
+    AssertionError: expected '' to be 'Café au lait' // Object.is equality
+    AssertionError: expected '' to be 'Chop\nStir' // Object.is equality
+    AssertionError: expected '' to be 'Chop\nStir' // Object.is equality
+    AssertionError: expected '' to be 'Chop\nStir\nServe' // Object.is equality
+    AssertionError: expected '' to be 'Chop\n\nStir' // Object.is equality
+    AssertionError: expected '' to be 'Chop\n\nStir' // Object.is equality
+    AssertionError: expected '' to be 'Chop\nStir' // Object.is equality
+    AssertionError: expected '' to be 'Method\n  1. Chop\n\t2. Stir' // Object.is equality
+    AssertionError: expected 0 to be greater than 0
+          Tests  13 failed | 1 passed (14)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    Counterexample: ["́"]
+    Caused by: AssertionError: expected '' to be '́' // Object.is equality
+          Tests  1 failed (1)
+    exit 0
+
+Failing on assertions as expected. Implementing per the design:
+
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/src/core/normalise.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; npx tsc -p tsconfig.core.json --noEmit; npx vitest run --project examples test/core/normalise.test.ts 2>&1 | grep -E "Tests |AssertionError" && npx vitest run --project props test/core/normalise.pbt.ts 2>&1 | grep -E "Tests |AssertionError|Counterexample"; echo exit=$?
+          Tests  14 passed (14)
+          Tests  1 passed (1)
+    exit=0
+    exit 0
+
+The two calls ran in parallel, so I can't be sure the run saw the new file. Re-running the T7.3 command on its own:
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; npx vitest run --project examples test/core/normalise.test.ts 2>&1 | grep -E "Test Files|Tests " && npx vitest run --project props test/core/normalise.pbt.ts 2>&1 | grep -E "Test Files|Tests "; echo exit=$?
+     Test Files  1 passed (1)
+          Tests  14 passed (14)
+     Test Files  1 passed (1)
+          Tests  1 passed (1)
+    exit=0
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; python3 - <<'EOF'
+p='.kiro/specs/recipe-graph/tasks.md'
+s=open(p).read()
+for t in ['T7.1','T7.2','T7.3']:
+    s=s.replace(f'- [ ] {t} ', f'- [x] {t} ',1)
+open(p,'w').write(s)
+EOF
+grep -n "^- \[.\] T7" .kiro/specs/recipe-graph/tasks.md; grep -n "no-restricted\|index" eslint.config.js | head -20
+    230:- [x] T7.1 Example tests: one per rule of R9.1 (NFC, CRLF, lone CR, trailing spaces and
+    237:- [x] T7.2 Property P-RG7 normalise.
+    241:- [x] T7.3 Implement `normaliseRecipeText` until T7.1 and T7.2 pass.
+    13:/** server, web and mcp reach core only through src/core/index.js. */
+    15:  group: ['**/core/**', '!**/core/index.js'],
+    16:  message: 'Import core only through src/core/index.js.',
+    77:      'no-restricted-imports': [
+    93:      'no-restricted-globals': [
+    99:      'no-restricted-syntax': [
+    109:  // src/server: core through index only; never web or mcp.
+    113:      'no-restricted-imports': [
+    129:  // src/web: core through index only; never server, mcp, Node, the SDK or hono.
+    133:      'no-restricted-imports': [
+    155:  // src/mcp: core through index only; neither server nor web.
+    159:      'no-restricted-imports': [
+    182:      'no-restricted-syntax': [
+    199:      'no-restricted-syntax': [
+    exit 0
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/test/core/index.test.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; npx prettier --write test/core/index.test.ts >/dev/null; npx vitest run --project examples test/core/index.test.ts 2>&1 | grep -E "×|Tests |AssertionError" | head -8
+         × N4 exports exactly the values the design lists 4ms
+         × N4 LIMITS is the module export, of the right kind 1ms
+         × N4 DISH_ID_PATTERN is the module export, of the right kind 0ms
+         × N4 STEP_ID_PATTERN is the module export, of the right kind 0ms
+         × N4 DishIdSchema is the module export, of the right kind 0ms
+         × N4 StepIdSchema is the module export, of the right kind 0ms
+         × N4 ApplianceSchema is the module export, of the right kind 0ms
+         × N4 StepSchema is the module export, of the right kind 0ms
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; npx prettier --check src/core/index.ts; npm run typecheck 2>&1 | tail -5; npx vitest run --project examples test/core/index.test.ts 2>&1 | grep -E "Test Files|Tests |×"
+    … (9 earlier lines not shown)
+         × N4 DISH_ID_PATTERN is the module export, of the right kind 0ms
+         × N4 STEP_ID_PATTERN is the module export, of the right kind 0ms
+         × N4 DishIdSchema is the module export, of the right kind 0ms
+         × N4 StepIdSchema is the module export, of the right kind 0ms
+         × N4 ApplianceSchema is the module export, of the right kind 0ms
+         × N4 StepSchema is the module export, of the right kind 0ms
+         × N4 DishSchema is the module export, of the right kind 0ms
+         × N4 PlanSchema is the module export, of the right kind 0ms
+         × N4 KitchenSchema is the module export, of the right kind 0ms
+         × N4 IssueSchema is the module export, of the right kind 0ms
+         × N4 ERROR_CODES is the module export, of the right kind 0ms
+         × N4 WARNING_CODES is the module export, of the right kind 0ms
+         × N4 compareIds is the module export, of the right kind 0ms
+         × N4 canonicalPlan is the module export, of the right kind 0ms
+         × N4 successors is the module export, of the right kind 0ms
+         × N4 terminalSteps is the module export, of the right kind 0ms
+         × N4 topologicalOrder is the module export, of the right kind 0ms
+         × N4 findCycles is the module export, of the right kind 0ms
+         × N4 longestChainMinutes is the module export, of the right kind 0ms
+         × N4 parsePlan is the module export, of the right kind 0ms
+         × N4 parseKitchen is the module export, of the right kind 0ms
+         × N4 checkPlan is the module export, of the right kind 0ms
+         × N4 checkKitchen is the module export, of the right kind 0ms
+         × N4 validatePlan is the module export, of the right kind 0ms
+         × N4 sortIssues is the module export, of the right kind 0ms
+         × N4 hasErrors is the module export, of the right kind 0ms
+         × N4 normaliseRecipeText is the module export, of the right kind 0ms
+    ⎯⎯⎯⎯⎯⎯ Failed Tests 29 ⎯⎯⎯⎯⎯⎯⎯
+     Test Files  1 failed (1)
+          Tests  29 failed | 3 passed (32)
+    exit 0
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/src/core/index.ts
+
+The parallel run raced the write again. Running it alone:
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; npx vitest run --project examples test/core/index.test.ts 2>&1 | grep -E "Test Files|Tests |×"; npm run typecheck >/dev/null 2>&1; echo typecheck=$?
+     Test Files  1 passed (1)
+          Tests  32 passed (32)
+    typecheck=0
+    exit 0
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/recipe-graph/tasks.md
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; unset ANTHROPIC_API_KEY; npm test 2>&1 | grep -E "Test Files|Tests |×|FAIL" | head -20; echo test=${pipestatus[1]}; npm run test:props 2>&1 | grep -E "Test Files|Tests |×|FAIL" | head; echo props=${pipestatus[1]}; npm run typecheck >/dev/null 2>&1; echo typecheck=$?; npm run lint 2>&1 | tail -25; echo lint=${pipestatus[1]}; npx prettier --check . 2>&1 | tail -8; echo prettier=${pipestatus[1]}
+     Test Files  15 passed (15)
+          Tests  584 passed (584)
+    test=0
+     Test Files  4 passed (4)
+          Tests  32 passed (32)
+    props=0
+    typecheck=0
+    
+    > make-dinner@0.0.0 lint
+    > eslint .
+    
+    lint=0
+    Checking formatting...
+    All matched files use Prettier code style!
+    prettier=0
+    exit 0
+
+T8.2's whole chain passes. Running it once more as one command, after the last tick, plus `npm run build`:
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; unset ANTHROPIC_API_KEY; (npm test && npm run test:props && npm run typecheck && npm run lint && npx prettier --check .) > /tmp/t82.log 2>&1; echo t82=$?; grep -E "Test Files|Tests |All matched|warn" /tmp/t82.log; npm run build > /tmp/build.log 2>&1; echo build=$?; tail -5 /tmp/build.log; rm -f /tmp/t82.log /tmp/build.log; git status --short
+    … (6 earlier lines not shown)
+    build=0
+    
+      public/assets/main.js   10.8kb
+      public/assets/main.css   1.8kb
+    
+    ⚡ Done in 8ms
+     M .kiro/specs/recipe-graph/tasks.md
+     M docs/kiro-evidence/credits.log
+     M docs/kiro-evidence/hook-fires.log
+     M docs/kiro-evidence/impl-recipe-graph-session.txt
+     M docs/kiro-evidence/spec-dinnerfile-session.txt
+     M docs/kiro-evidence/spec-recipe-reader-session.txt
+     M src/core/index.ts
+     M src/core/sanity.ts
+     M test/core/sanity.test.ts
+     M test/core/schema.pbt.ts
+     M test/meta/arbitraries.test.ts
+     M test/support/arbitraries.ts
+    ?? .kiro/specs/dinnerfile/
+    ?? .kiro/specs/recipe-reader/
+    ?? docs/kiro-evidence/prompts/06d-impl-recipe-graph-c.md
+    ?? docs/kiro-evidence/prompts/09-spec-rebuild.md
+    ?? docs/kiro-evidence/prompts/10-spec-plan-ui.md
+    ?? docs/kiro-evidence/prompts/11-spec-cooking-mode.md
+    ?? docs/kiro-evidence/prompts/12-spec-kitchen-mcp.md
+    ?? src/core/normalise.ts
+    ?? test/core/index.test.ts
+    ?? test/core/normalise.pbt.ts
+    ?? test/core/normalise.test.ts
+    ?? test/core/sanity.pbt.ts
+    exit 0
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/recipe-graph/tasks.md
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner; grep -c "^- \[ \]" .kiro/specs/recipe-graph/tasks.md; npx prettier --check .kiro/specs/recipe-graph/tasks.md
+    0
+    Checking formatting...
+    All matched files use Prettier code style!
+    exit 0
+
+The recipe-graph spec is finished. T2.7 and T6.1–T8.2 are ticked, and no task in `tasks.md` is left unticked. Every tick was made after that task's own command passed in this session. Nothing is committed.
+
+## What changed
+
+- **T2.7 (shrinking).** The new test showed the problem first. With the old generators, a false property over `arbPlan()` crashed the worker (SIGABRT, out of memory), and over `arbBrokenPlan()` it hung past a 40 s timeout.
+  - Making the `fc.gen()` builder function stable did not fix it.
+  - So I rewrote `arbPlan`, `arbShuffledPlan`, `arbPlanLikeValue` and `arbBrokenPlan` using plain `chain`/`map` instead of `fc.gen()`. The constructions and value lists are unchanged.
+  - The new test checks that a false property over `arbPlan()` shrinks to a valid 3-step plan, and that `arbBrokenPlan(rule)` shrinks for every error code.
+  - The T6 properties confirm it: failures now print shrunk counterexamples.
+- **T6.** `checkPlan`, `checkKitchen` and `validatePlan` are in `src/core/sanity.ts`. There are example tests for each rule, firing and not firing, plus the warning boundaries named in the tasks. The properties S1, S2 (one test per error code plus one for valid plans), P-RG2 and P-RG9 are in a new `test/core/sanity.pbt.ts`. The `checkPlan(canonicalPlan(p))` check of P-RG1 is in `test/core/schema.pbt.ts`.
+- **T7.** `normaliseRecipeText` is in a new `src/core/normalise.ts`. There is one example per rule, and every sample normalises and gives the same text when run twice. P-RG7 checks it against the oracle.
+- **T8.** `src/core/index.ts` now exports everything the design lists. A new `test/core/index.test.ts` checks the exact export list, that each value is the module's own export, and the types.
+
+**Files:** `src/core/{sanity,index,normalise}.ts`, `test/support/arbitraries.ts`, `test/meta/arbitraries.test.ts`, `test/core/{sanity.test,sanity.pbt,schema.pbt,normalise.test,normalise.pbt,index.test}.ts`, `.kiro/specs/recipe-graph/tasks.md` (ticks only).
+
+## Checks (final run, `ANTHROPIC_API_KEY` unset)
+
+| command | result |
+| --- | --- |
+| `npm test` | 15 files, 584 passed, 0 failed, 0 skipped |
+| `npm run test:props` | 4 files, 32 passed, 0 failed, 0 skipped (200 runs each) |
+| `npm run typecheck` | exit 0 |
+| `npm run lint` | exit 0, no output |
+| `npx prettier --check .` | "All matched files use Prettier code style!" |
+| `npm run build` | exit 0 (`main.js` 10.8kb, `main.css` 1.8kb) |
+
+Every new test failed on an assertion before its code was written.
+
+## Decisions I made
+
+1. **Burner messages.** The design only gives oven examples, so I wrote: "Step x needs a burner and the kitchen has none. Add a burner in the kitchen settings or change the step." and "…If it needs a burner, set its appliance to burner."
+2. **Words in messages.** In `appliance_mismatch`, `word` is the base form ("sauté" in composed form, even when the input was "saute" plus a combining accent). That keeps messages free of input text (R7.2).
+3. **Cycle message.** It repeats the first step at the end ("a.x → a.y → a.x"), as the design's example does.
+4. **Picking from fixed lists.** In the rewritten generators, a value from a fixed list is now chosen by a drawn number modulo the list length, instead of by a separate draw. Every option can still be reached, so nothing was narrowed.
+5. **Sort-order check in P-RG2.** It checks the order of severity, code, `stepId` and `dishId` itself, rather than comparing against `sortIssues`, so it does not use the code it tests.
+
+## Not verified, and things I noticed
+
+- I did not run `npm run test:e2e`; it is not part of this spec.
+- `samples/` contains `korean-table.md`, which is not in the sample list in `structure.md`. I didn't check whether it has a recording.
+- `git status` shows changes I didn't make: several files under `docs/kiro-evidence/`, plus new `.kiro/specs/dinnerfile/` and `.kiro/specs/recipe-reader/`. I left them alone.
+
+No open questions on this spec.
+
+--- run success (end_turn); credits reported by this session: 16.87 ---

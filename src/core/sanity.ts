@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import { findCycles } from './graph.js';
 import { err, ok, type Result } from './result.js';
 import {
   compareIds,
@@ -288,4 +289,228 @@ export function parseKitchen(input: unknown): Result<Kitchen, Issue[]> {
   const parsed = KitchenSchema.safeParse(input);
   if (parsed.success) return ok(parsed.data);
   return err(sortIssues(kitchenIssues(parsed.error.issues)));
+}
+
+// ---------------------------------------------------------------------------------------
+// Plan and kitchen rules
+
+type Suggested = 'burner' | 'oven';
+
+/** Base word, the appliance it suggests, and every form matched (design table). */
+const MISMATCH_WORDS: readonly (readonly [string, Suggested, readonly string[]])[] = [
+  ['oven', 'oven', ['oven', 'ovens']],
+  ['roast', 'oven', ['roast', 'roasts', 'roasted', 'roasting']],
+  ['bake', 'oven', ['bake', 'bakes', 'baked', 'baking']],
+  ['simmer', 'burner', ['simmer', 'simmers', 'simmered', 'simmering']],
+  ['boil', 'burner', ['boil', 'boils', 'boiled', 'boiling']],
+  ['fry', 'burner', ['fry', 'fries', 'fried', 'frying']],
+  ['sear', 'burner', ['sear', 'sears', 'seared', 'searing']],
+  [
+    'saut\u00e9',
+    'burner',
+    [
+      'saut\u00e9',
+      'saut\u00e9s',
+      'saut\u00e9ed',
+      'saut\u00e9ing',
+      'saute',
+      'sautes',
+      'sauteed',
+      'sauteing',
+    ],
+  ],
+];
+
+const FORM_TO_BASE = new Map<string, { word: string; suggested: Suggested }>(
+  MISMATCH_WORDS.flatMap(([word, suggested, forms]) =>
+    forms.map((form) => [form, { word, suggested }] as const),
+  ),
+);
+
+// A listed form with no letter, mark or digit on either side; hyphens are boundaries.
+const MISMATCH_PATTERN = new RegExp(
+  `(?<![\\p{L}\\p{M}\\p{N}])(${[...FORM_TO_BASE.keys()].join('|')})(?![\\p{L}\\p{M}\\p{N}])`,
+  'iu',
+);
+
+/** The first listed word in the title, else in the detail. */
+function mismatchWord(
+  title: string,
+  detail: string | undefined,
+): { word: string; suggested: Suggested } | undefined {
+  for (const text of [title, detail]) {
+    if (text === undefined) continue;
+    const match = MISMATCH_PATTERN.exec(text.normalize('NFC'));
+    const form = match?.[1];
+    const found = form === undefined ? undefined : FORM_TO_BASE.get(form.toLowerCase());
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
+function countIds(ids: readonly string[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const id of ids) counts.set(id, (counts.get(id) ?? 0) + 1);
+  return counts;
+}
+
+/** Every sanity rule that does not need the kitchen. */
+export function checkPlan(plan: Plan): Issue[] {
+  const issues: Issue[] = [];
+  const stepIds = new Set(plan.steps.map((s) => s.id));
+  const dishIds = new Set(plan.dishes.map((d) => d.id));
+
+  for (const [stepId, count] of countIds(plan.steps.map((s) => s.id))) {
+    if (count < 2) continue;
+    issues.push({
+      severity: 'error',
+      code: 'duplicate_step_id',
+      stepId,
+      count,
+      message: `${count} steps have the id ${stepId}. Give each step its own id.`,
+    });
+  }
+  for (const [dishId, count] of countIds(plan.dishes.map((d) => d.id))) {
+    if (count < 2) continue;
+    issues.push({
+      severity: 'error',
+      code: 'duplicate_dish_id',
+      dishId,
+      count,
+      message: `${count} dishes have the id ${dishId}. Give each dish its own id.`,
+    });
+  }
+
+  const usedDishes = new Set<string>();
+  for (const step of plan.steps) {
+    usedDishes.add(step.dish);
+    if (!dishIds.has(step.dish)) {
+      issues.push({
+        severity: 'error',
+        code: 'unknown_dish',
+        stepId: step.id,
+        dishId: step.dish,
+        message: `Step ${step.id} belongs to dish ${step.dish}, which is not in this plan. Pick one of the plan's dishes.`,
+      });
+    }
+  }
+  for (const dishId of dishIds) {
+    if (usedDishes.has(dishId)) continue;
+    issues.push({
+      severity: 'error',
+      code: 'dish_without_steps',
+      dishId,
+      message: `Dish ${dishId} has no steps. Add a step or remove the dish.`,
+    });
+  }
+
+  for (const step of plan.steps) {
+    for (const ref of new Set(step.after)) {
+      if (ref === step.id) {
+        issues.push({
+          severity: 'error',
+          code: 'self_dependency',
+          stepId: step.id,
+          message: `Step ${step.id} lists itself as a prerequisite. Remove it.`,
+        });
+      } else if (!stepIds.has(ref)) {
+        issues.push({
+          severity: 'error',
+          code: 'unknown_dependency',
+          stepId: step.id,
+          ref,
+          message: `Step ${step.id} waits for ${ref}, which is not a step in this plan. Fix the prerequisite or remove it.`,
+        });
+      }
+    }
+  }
+
+  for (const path of findCycles(plan)) {
+    const [first] = path;
+    if (first === undefined) continue; // findCycles never returns an empty path
+    issues.push({
+      severity: 'error',
+      code: 'cycle',
+      stepId: first,
+      path,
+      message: `Steps ${[...path, first].join(' → ')} wait on each other, so none of them can start. Remove one of these prerequisites.`,
+    });
+  }
+
+  for (const step of plan.steps) {
+    if (step.appliance === 'none') {
+      const found = mismatchWord(step.title, step.detail);
+      if (found !== undefined) {
+        const advice =
+          found.suggested === 'oven'
+            ? 'If it needs the oven, set its appliance to oven.'
+            : 'If it needs a burner, set its appliance to burner.';
+        issues.push({
+          severity: 'warning',
+          code: 'appliance_mismatch',
+          stepId: step.id,
+          word: found.word,
+          suggested: found.suggested,
+          message: `Step ${step.id} mentions "${found.word}" but uses no appliance. ${advice}`,
+        });
+      }
+    }
+    if (step.handsOn && step.minutes > LIMITS.handsOnWarnOverMin) {
+      issues.push({
+        severity: 'warning',
+        code: 'long_hands_on',
+        stepId: step.id,
+        minutes: step.minutes,
+        message: `Step ${step.id} keeps a cook busy for ${step.minutes} minutes. If part of it runs by itself, split it into a hands-on step and a hands-free step.`,
+      });
+    }
+    if (!step.handsOn && step.appliance === 'none' && step.minutes < LIMITS.handsFreeWarnUnderMin) {
+      issues.push({
+        severity: 'warning',
+        code: 'short_hands_free',
+        stepId: step.id,
+        minutes: step.minutes,
+        message: `Step ${step.id} runs by itself for only ${plural(step.minutes, 'minute', 'minutes')}. Mark it hands-on or merge it into the step after it.`,
+      });
+    }
+  }
+
+  return sortIssues(issues);
+}
+
+/** The missing-appliance error, one per step and appliance. */
+export function checkKitchen(plan: Plan, kitchen: Kitchen): Issue[] {
+  const issues: Issue[] = [];
+  // Every occurrence is looked at, not the first, so step order cannot change the result;
+  // sortIssues drops the exact duplicates a repeated id gives.
+  for (const step of plan.steps) {
+    if (step.appliance === 'burner' && kitchen.burners === 0) {
+      issues.push({
+        severity: 'error',
+        code: 'missing_appliance',
+        stepId: step.id,
+        appliance: 'burner',
+        message: `Step ${step.id} needs a burner and the kitchen has none. Add a burner in the kitchen settings or change the step.`,
+      });
+    }
+    if (step.appliance === 'oven' && kitchen.ovens === 0) {
+      issues.push({
+        severity: 'error',
+        code: 'missing_appliance',
+        stepId: step.id,
+        appliance: 'oven',
+        message: `Step ${step.id} needs an oven and the kitchen has none. Add an oven in the kitchen settings or change the step.`,
+      });
+    }
+  }
+  return sortIssues(issues);
+}
+
+export type PlanCheck = { plan: Plan; issues: Issue[] } | { plan: null; issues: Issue[] };
+
+/** Parse, then check: the one pipeline every plan source uses. Never throws on input. */
+export function validatePlan(input: unknown): PlanCheck {
+  const parsed = parsePlan(input);
+  if (!parsed.ok) return { plan: null, issues: parsed.error };
+  return { plan: parsed.value, issues: checkPlan(parsed.value) };
 }

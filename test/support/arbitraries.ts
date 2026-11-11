@@ -26,11 +26,6 @@ const ALL_APPLIANCES: readonly Appliance[] = ['burner', 'oven', 'none'];
 // ---------------------------------------------------------------------------------------
 // Small building blocks
 
-type Draw = fc.GeneratorValue;
-
-/** Draws one value of `arb` inside `fc.gen()`. */
-const draw = <T>(g: Draw, arb: fc.Arbitrary<T>): T => g(() => arb);
-
 const ALNUM: readonly string[] = [...'abcdefghijklmnopqrstuvwxyz0123456789'];
 
 const arbSegment = (maxLength: number): fc.Arbitrary<string> =>
@@ -187,59 +182,88 @@ const arbEquippedKitchen: fc.Arbitrary<Kitchen> = fc.record({
   cooks: fc.integer({ min: 1, max: 6 }),
 });
 
+/** Everything one step needs besides its id, drawn up front so no draw depends on a closure. */
+interface StepDraft {
+  dishPick: number;
+  earlier: number[];
+  title: string;
+  detail: string | undefined;
+  minutes: number;
+  appliance: Appliance;
+  handsOn: boolean;
+  holdMin: number | null;
+}
+
+function arbStepDraft(
+  k: number,
+  dishCount: number,
+  appliances: readonly Appliance[],
+): fc.Arbitrary<StepDraft> {
+  return fc.record({
+    dishPick: fc.integer({ min: 0, max: dishCount - 1 }),
+    earlier:
+      k === 0
+        ? fc.constant<number[]>([])
+        : fc.uniqueArray(fc.integer({ min: 0, max: k - 1 }), { maxLength: Math.min(k, 4) }),
+    title: arbTitle,
+    detail: arbDetail,
+    minutes: arbMinutes,
+    appliance: fc.constantFrom(...appliances),
+    handsOn: fc.boolean(),
+    holdMin: arbHold,
+  });
+}
+
 /**
  * A plan that is valid by construction: step `k` may only wait on steps `0..k-1` (so it is
  * acyclic), every dish gets a step, ids are unique, then everything is put in random order.
+ * Built with plain `chain`/`map` composition, not `fc.gen()`, so that a failing property
+ * shrinks to a counterexample instead of exhausting memory (T2.7).
  */
 function arbShaped(
   arbDishCount: fc.Arbitrary<number>,
   arbStepCount: (dishCount: number) => fc.Arbitrary<number>,
   appliances: readonly Appliance[],
 ): fc.Arbitrary<Plan> {
-  return fc.gen().map((g): Plan => {
-    const dishCount = draw(g, arbDishCount);
-    const dishIds = draw(
-      g,
-      fc.uniqueArray(arbDishId, { minLength: dishCount, maxLength: dishCount }),
-    );
-    const dishes: Dish[] = dishIds.map((id) => ({ id, name: draw(g, arbNonBlank(80)) }));
-
-    const stepCount = draw(g, arbStepCount(dishCount));
-    const slugs = draw(g, fc.uniqueArray(arbSlug, { minLength: stepCount, maxLength: stepCount }));
-    const ids: string[] = [];
-    const steps: Step[] = [];
-    for (let k = 0; k < stepCount; k++) {
-      const dishIndex = k < dishCount ? k : draw(g, fc.integer({ min: 0, max: dishCount - 1 }));
-      const dish = dishIds[dishIndex] ?? '';
-      const id = `${dish}.${slugs[k] ?? ''}`;
-      const earlier =
-        k === 0
-          ? []
-          : draw(
-              g,
-              fc.uniqueArray(fc.integer({ min: 0, max: k - 1 }), { maxLength: Math.min(k, 4) }),
-            );
-      const detail = draw(g, arbDetail);
-      const step: Step = {
-        id,
-        dish,
-        title: draw(g, arbTitle),
-        ...(detail === undefined ? {} : { detail }),
-        minutes: draw(g, arbMinutes),
-        appliance: draw(g, fc.constantFrom(...appliances)),
-        handsOn: draw(g, fc.boolean()),
-        after: draw(g, arbPermutation(earlier.map((i) => ids[i] ?? ''))),
-        holdMin: draw(g, arbHold),
-      };
-      ids.push(id);
-      steps.push(step);
-    }
-    return {
-      title: draw(g, arbNonBlank(120)),
-      dishes: draw(g, arbPermutation(dishes)),
-      steps: draw(g, arbPermutation(steps)),
-    };
-  });
+  return arbDishCount
+    .chain((dishCount) =>
+      arbStepCount(dishCount).chain((stepCount) =>
+        fc
+          .tuple(
+            fc.uniqueArray(arbDishId, { minLength: dishCount, maxLength: dishCount }),
+            fc.array(arbNonBlank(80), { minLength: dishCount, maxLength: dishCount }),
+            fc.uniqueArray(arbSlug, { minLength: stepCount, maxLength: stepCount }),
+            fc.tuple(
+              ...Array.from({ length: stepCount }, (_, k) =>
+                arbStepDraft(k, dishCount, appliances),
+              ),
+            ),
+            arbNonBlank(120),
+          )
+          .map(([dishIds, names, slugs, drafts, title]): Plan => {
+            const dishes: Dish[] = dishIds.map((id, i) => ({ id, name: names[i] ?? '' }));
+            const ids: string[] = [];
+            const steps: Step[] = drafts.map((draft, k): Step => {
+              const dish = dishIds[k < dishCount ? k : draft.dishPick] ?? '';
+              const id = `${dish}.${slugs[k] ?? ''}`;
+              ids.push(id);
+              return {
+                id,
+                dish,
+                title: draft.title,
+                ...(draft.detail === undefined ? {} : { detail: draft.detail }),
+                minutes: draft.minutes,
+                appliance: draft.appliance,
+                handsOn: draft.handsOn,
+                after: draft.earlier.map((i) => ids[i] ?? ''),
+                holdMin: draft.holdMin,
+              };
+            });
+            return { title, dishes, steps };
+          }),
+      ),
+    )
+    .chain((plan) => arbShuffledPlan(plan));
 }
 
 function arbDefaultSizes(minSteps: number, appliances: readonly Appliance[]): fc.Arbitrary<Plan> {
@@ -275,14 +299,21 @@ export function arbPlanAndKitchen(
 
 /** The same plan with `steps`, `dishes` and every `after` list in another order. */
 export function arbShuffledPlan(plan: Plan): fc.Arbitrary<Plan> {
-  return fc.gen().map((g): Plan => {
-    const steps = plan.steps.map((s) => ({ ...s, after: draw(g, arbPermutation(s.after)) }));
-    return {
-      title: plan.title,
-      dishes: draw(g, arbPermutation(plan.dishes.map((d) => ({ ...d })))),
-      steps: draw(g, arbPermutation(steps)),
-    };
-  });
+  const indices = (n: number): number[] => Array.from({ length: n }, (_, i) => i);
+  return fc
+    .tuple(
+      arbPermutation(indices(plan.dishes.length)),
+      arbPermutation(indices(plan.steps.length)),
+      fc.tuple(...plan.steps.map((s) => arbPermutation(s.after))),
+    )
+    .map(([dishOrder, stepOrder, afters]): Plan => {
+      const steps = plan.steps.map((s, i) => ({ ...s, after: afters[i] ?? [] }));
+      return {
+        title: plan.title,
+        dishes: dishOrder.map((i) => ({ ...(plan.dishes[i] as Dish) })), // i is in range
+        steps: stepOrder.map((i) => steps[i] as Step), // i is in range
+      };
+    });
 }
 
 // ---------------------------------------------------------------------------------------
@@ -308,41 +339,50 @@ export function arbPlanLikeValue(): fc.Arbitrary<unknown> {
     ['a.b'],
   ];
   const minutesValues: readonly unknown[] = [0, -1, 481, 2.5, '5', null, true];
-  return arbPlan().chain((plan) =>
-    fc.gen().map((g): unknown => {
+  return fc
+    .tuple(
+      arbPlan(),
+      fc.integer({ min: 0, max: 6 }),
+      fc.nat(),
+      fc.nat(),
+      fc.jsonValue(),
+      fc.constantFrom(...unknownKeys),
+      fc.constantFrom(...oddValues),
+      fc.constantFrom(...minutesValues),
+      fc.constantFrom('dishes', 'steps'),
+    )
+    .map(([plan, kind, targetPick, keyPick, json, unknownKey, odd, badMinutes, list]): unknown => {
       const root = structuredClone(plan) as unknown as Json & { dishes: Json[]; steps: Json[] };
-      const kind = draw(g, fc.integer({ min: 0, max: 6 }));
       if (kind === 6) return root; // unchanged: a valid plan
 
       const targets: Json[] = [root, ...root.dishes, ...root.steps];
-      const target = targets[draw(g, fc.nat({ max: targets.length - 1 }))] ?? root;
+      const target = targets[targetPick % targets.length] ?? root;
       const keys = Object.keys(target);
-      const key = keys[draw(g, fc.nat({ max: keys.length - 1 }))] ?? 'title';
+      const key = keys[keyPick % keys.length] ?? 'title';
       switch (kind) {
         case 0:
-          target[key] = draw(g, fc.jsonValue());
+          target[key] = json;
           break;
         case 1:
           delete target[key];
           break;
         case 2:
-          target[draw(g, fc.constantFrom(...unknownKeys))] = draw(g, fc.jsonValue());
+          target[unknownKey] = json;
           break;
         case 3:
-          target[key] = draw(g, fc.constantFrom(...oddValues));
+          target[key] = odd;
           break;
         case 4: {
-          const step = root.steps[draw(g, fc.nat({ max: root.steps.length - 1 }))];
-          if (step !== undefined) step.minutes = draw(g, fc.constantFrom(...minutesValues));
+          const step = root.steps[targetPick % root.steps.length];
+          if (step !== undefined) step.minutes = badMinutes;
           break;
         }
         default:
-          root[draw(g, fc.constantFrom('dishes', 'steps'))] = [];
+          root[list] = [];
           break;
       }
       return root;
-    }),
-  );
+    });
 }
 
 const TEXT_FRAGMENTS: readonly string[] = [
@@ -379,12 +419,14 @@ export function arbRecipeText(): fc.Arbitrary<string> {
 }
 
 // ---------------------------------------------------------------------------------------
-// Broken plans: exactly one rule broken
+// Broken plans: exactly one rule broken. Built with `chain`/`map` only, so a failing
+// property shrinks to a counterexample (T2.7). Every `map` clones the base plan before
+// changing it, because shrinking calls it again on the same value.
 
 const DEFAULT_BASE = arbDefaultSizes(1, ALL_APPLIANCES);
 
-const pick = <T>(g: Draw, items: readonly T[]): T =>
-  items[draw(g, fc.nat({ max: items.length - 1 }))] as T; // the callers never pass an empty list
+/** `items[pick % length]`; the callers never pass an empty list. */
+const nth = <T>(items: readonly T[], pick: number): T => items[pick % items.length] as T;
 
 /** Ids of all steps that `id` waits on, directly or through other steps. */
 function ancestorsOf(plan: Plan, id: string): Set<string> {
@@ -400,272 +442,302 @@ function ancestorsOf(plan: Plan, id: string): Set<string> {
   return seen;
 }
 
-function freshDishId(g: Draw, plan: Plan): string {
-  return draw(
-    g,
-    arbDishId.filter((id) => !plan.dishes.some((d) => d.id === id)),
-  );
+const arbFreshDishId = (plan: Plan): fc.Arbitrary<string> =>
+  arbDishId.filter((id) => !plan.dishes.some((d) => d.id === id));
+
+const arbFreshStepId = (plan: Plan): fc.Arbitrary<string> =>
+  fc
+    .tuple(arbDishId, arbSlug)
+    .map(([dish, slug]) => `${dish}.${slug}`)
+    .filter((id) => !plan.steps.some((s) => s.id === id));
+
+/** What a rule's construction gives besides the rule and the kitchen. */
+interface Broken {
+  input: unknown;
+  target: BrokenCase['target'];
 }
 
-function freshStepId(g: Draw, plan: Plan): string {
-  return draw(
-    g,
-    fc
-      .tuple(arbDishId, arbSlug)
-      .map(([dish, slug]) => `${dish}.${slug}`)
-      .filter((id) => !plan.steps.some((s) => s.id === id)),
-  );
-}
+/** A clone of a default-size base plan, with draws that depend on it. */
+const onBase = <T>(
+  dependent: (plan: Plan) => fc.Arbitrary<T>,
+  change: (plan: Plan, drawn: T) => Broken,
+  baseArb: fc.Arbitrary<Plan> = DEFAULT_BASE,
+): fc.Arbitrary<Broken> =>
+  baseArb.chain((base) => dependent(base).map((drawn) => change(structuredClone(base), drawn)));
 
-function build(rule: ErrorCode, g: Draw): BrokenCase {
-  const kitchen = draw(g, arbEquippedKitchen);
-  const done = (input: unknown, target: BrokenCase['target'] = {}): BrokenCase => ({
-    rule,
-    input,
-    kitchen,
-    target,
-  });
-  const base = (): Plan => structuredClone(draw(g, DEFAULT_BASE));
-  const stepIndex = (plan: Plan): number => draw(g, fc.nat({ max: plan.steps.length - 1 }));
+const arbBadMinutes: fc.Arbitrary<unknown> = fc.oneof(
+  fc.constant<unknown>(0),
+  fc.integer({ min: -480, max: -1 }),
+  fc.integer({ min: 481, max: 100000 }),
+  fc.double({ min: 1.01, max: 479.99, noNaN: true }).filter((x) => !Number.isInteger(x)),
+  fc.constantFrom('5', '75'),
+  fc.constant(null),
+  fc.constant(true),
+  fc.constant(undefined),
+);
 
-  switch (rule) {
-    case 'empty_plan': {
-      const plan = base();
-      const which = pick(g, ['steps', 'dishes', 'both'] as const);
-      return done({
-        ...plan,
-        ...(which !== 'dishes' ? { steps: [] } : {}),
-        ...(which !== 'steps' ? { dishes: [] } : {}),
-      });
-    }
-    case 'too_many_dishes': {
-      const plan = draw(
-        g,
-        arbShaped(
-          fc.integer({ min: 13, max: 20 }),
-          (d) => fc.integer({ min: d, max: 80 }),
-          ALL_APPLIANCES,
-        ),
-      );
-      return done(plan);
-    }
-    case 'too_many_steps': {
-      const plan = draw(
-        g,
-        arbShaped(
-          fc.integer({ min: 1, max: 12 }),
-          () => fc.integer({ min: 81, max: 120 }),
-          ALL_APPLIANCES,
-        ),
-      );
-      return done(plan);
-    }
-    case 'minutes_out_of_range': {
-      const plan = base();
-      const index = stepIndex(plan);
-      const step = plan.steps[index] as Step & Json; // index is in range
-      const bad = draw(
-        g,
-        fc.oneof(
-          fc.constant<unknown>(0),
-          fc.integer({ min: -480, max: -1 }),
-          fc.integer({ min: 481, max: 100000 }),
-          fc.double({ min: 1.01, max: 479.99, noNaN: true }).filter((x) => !Number.isInteger(x)),
-          fc.constantFrom('5', '75'),
-          fc.constant(null),
-          fc.constant(true),
-          fc.constant(undefined),
-        ),
-      );
-      if (bad === undefined) delete (step as Json).minutes;
-      else (step as Json).minutes = bad;
-      return done(plan, { stepId: step.id });
-    }
-    case 'invalid_field': {
-      const plan = base();
-      const input = plan as unknown as Json & { dishes: Json[]; steps: Json[] };
-      const index = stepIndex(plan);
-      const step = input.steps[index] as Json;
-      const stepId = plan.steps[index]?.id ?? '';
-      const dishIndex = draw(g, fc.nat({ max: plan.dishes.length - 1 }));
-      const dish = input.dishes[dishIndex] as Json;
-      const dishId = plan.dishes[dishIndex]?.id ?? '';
-      const variant = pick(g, [
-        'appliance',
-        'handsOn',
-        'step_id',
-        'step_dish',
-        'after_entry',
-        'blank_title',
-        'long_title',
-        'empty_detail',
-        'hold',
-        'no_hold',
-        'long_dish_name',
-        'dish_id',
-        'no_title',
-        'unknown_key',
-        'root',
-      ] as const);
-      switch (variant) {
-        case 'appliance':
-          step.appliance = pick(g, ['stove', 'Oven', '', 'BURNER', null, 3]);
-          return done(input, { stepId });
-        case 'handsOn':
-          step.handsOn = pick(g, ['yes', 1, 0, null, 'true']);
-          return done(input, { stepId });
-        case 'step_id':
-          step.id = pick(g, [
-            'Bad.id',
-            'nodot',
-            'a.b.c',
-            '',
-            'a b.c',
-            `${'x'.repeat(41)}.${'y'.repeat(40)}`,
-          ]);
-          return done(input);
-        case 'step_dish':
-          step.dish = pick(g, ['Bad Dish', '', 'UPPER', 'a'.repeat(41)]);
-          return done(input, { stepId });
-        case 'after_entry':
-          step.after = [...(plan.steps[index]?.after ?? []), pick(g, ['Not.valid', 'nodot', ''])];
-          return done(input, { stepId });
-        case 'blank_title':
-          step.title = pick(g, ['', '   ', '\t\n', '\u00a0']);
-          return done(input, { stepId });
-        case 'long_title':
-          step.title = 'a'.repeat(121);
-          return done(input, { stepId });
-        case 'empty_detail':
-          step.detail = pick(g, ['', '  ']);
-          return done(input, { stepId });
-        case 'hold':
-          step.holdMin = pick(g, [-1, 481, 1.5, '5', true]);
-          return done(input, { stepId });
-        case 'no_hold':
-          delete step.holdMin;
-          return done(input, { stepId });
-        case 'long_dish_name':
-          dish.name = 'a'.repeat(81);
-          return done(input, { dishId });
-        case 'dish_id':
-          dish.id = pick(g, ['Bad Id', '', '-a', 'a--b']);
-          return done(input);
-        case 'no_title':
-          delete input.title;
-          return done(input);
-        case 'unknown_key': {
-          const where = pick(g, ['root', 'step', 'dish'] as const);
-          const key = pick(g, ['details', 'hold_min', 'notes', 'extra']);
-          if (where === 'step') {
-            step[key] = 1;
-            return done(input, { stepId });
-          }
-          if (where === 'dish') {
-            dish[key] = 1;
-            return done(input, { dishId });
-          }
-          input[key] = 1;
-          return done(input);
-        }
-        case 'root':
-          return done(pick(g, [null, 42, 'plan', [], true, 3.5, [1, 2]]));
+const INVALID_VARIANTS = [
+  'appliance',
+  'handsOn',
+  'step_id',
+  'step_dish',
+  'after_entry',
+  'blank_title',
+  'long_title',
+  'empty_detail',
+  'hold',
+  'no_hold',
+  'long_dish_name',
+  'dish_id',
+  'no_title',
+  'unknown_key',
+  'root',
+] as const;
+
+function invalidField(
+  plan: Plan,
+  [stepPick, dishPick, variant, valuePick]: [
+    number,
+    number,
+    (typeof INVALID_VARIANTS)[number],
+    number,
+  ],
+): Broken {
+  const input = plan as unknown as Json & { dishes: Json[]; steps: Json[] };
+  const index = stepPick % plan.steps.length;
+  const step = input.steps[index] as Json; // index is in range
+  const stepId = plan.steps[index]?.id ?? '';
+  const dishIndex = dishPick % plan.dishes.length;
+  const dish = input.dishes[dishIndex] as Json; // dishIndex is in range
+  const dishId = plan.dishes[dishIndex]?.id ?? '';
+  const value = <T>(items: readonly T[]): T => nth(items, valuePick);
+  switch (variant) {
+    case 'appliance':
+      step.appliance = value(['stove', 'Oven', '', 'BURNER', null, 3]);
+      return { input, target: { stepId } };
+    case 'handsOn':
+      step.handsOn = value(['yes', 1, 0, null, 'true']);
+      return { input, target: { stepId } };
+    case 'step_id':
+      step.id = value([
+        'Bad.id',
+        'nodot',
+        'a.b.c',
+        '',
+        'a b.c',
+        `${'x'.repeat(41)}.${'y'.repeat(40)}`,
+      ]);
+      return { input, target: {} };
+    case 'step_dish':
+      step.dish = value(['Bad Dish', '', 'UPPER', 'a'.repeat(41)]);
+      return { input, target: { stepId } };
+    case 'after_entry':
+      step.after = [...(plan.steps[index]?.after ?? []), value(['Not.valid', 'nodot', ''])];
+      return { input, target: { stepId } };
+    case 'blank_title':
+      step.title = value(['', '   ', '\t\n', '\u00a0']);
+      return { input, target: { stepId } };
+    case 'long_title':
+      step.title = 'a'.repeat(121);
+      return { input, target: { stepId } };
+    case 'empty_detail':
+      step.detail = value(['', '  ']);
+      return { input, target: { stepId } };
+    case 'hold':
+      step.holdMin = value([-1, 481, 1.5, '5', true]);
+      return { input, target: { stepId } };
+    case 'no_hold':
+      delete step.holdMin;
+      return { input, target: { stepId } };
+    case 'long_dish_name':
+      dish.name = 'a'.repeat(81);
+      return { input, target: { dishId } };
+    case 'dish_id':
+      dish.id = value(['Bad Id', '', '-a', 'a--b']);
+      return { input, target: {} };
+    case 'no_title':
+      delete input.title;
+      return { input, target: {} };
+    case 'unknown_key': {
+      const key = value(['details', 'hold_min', 'notes', 'extra']);
+      const where = nth(['root', 'step', 'dish'] as const, Math.floor(valuePick / 4));
+      if (where === 'step') {
+        step[key] = 1;
+        return { input, target: { stepId } };
       }
-      break;
-    }
-    case 'unknown_dependency': {
-      const plan = base();
-      const step = plan.steps[stepIndex(plan)] as Step;
-      step.after.push(freshStepId(g, plan));
-      return done(plan, { stepId: step.id });
-    }
-    case 'self_dependency': {
-      const plan = base();
-      const step = plan.steps[stepIndex(plan)] as Step;
-      step.after.push(step.id);
-      return done(plan, { stepId: step.id });
-    }
-    case 'cycle': {
-      const plan = structuredClone(draw(g, arbDefaultSizes(2, ALL_APPLIANCES)));
-      const x = stepIndex(plan);
-      const y = draw(g, fc.nat({ max: plan.steps.length - 2 }));
-      const first = plan.steps[x] as Step;
-      const second = plan.steps[y >= x ? y + 1 : y] as Step; // a different step
-      const addAfter = (s: Step, id: string): void => {
-        if (!s.after.includes(id)) s.after.push(id);
-      };
-      addAfter(first, second.id);
-      // If `second` already waits on `first`, that one edge closes the cycle; otherwise add the other way too.
-      if (!ancestorsOf(plan, second.id).has(first.id)) addAfter(second, first.id);
-      return done(plan);
-    }
-    case 'duplicate_step_id': {
-      const plan = base();
-      const original = plan.steps[stepIndex(plan)] as Step;
-      const copy: Step = { ...original, after: [...original.after] };
-      if (draw(g, fc.boolean())) copy.title = draw(g, arbNonBlank(120));
-      if (draw(g, fc.boolean())) copy.minutes = draw(g, arbMinutes);
-      plan.steps.splice(draw(g, fc.nat({ max: plan.steps.length })), 0, copy);
-      return done(plan, { stepId: original.id });
-    }
-    case 'duplicate_dish_id': {
-      const plan = base();
-      const original = plan.dishes[draw(g, fc.nat({ max: plan.dishes.length - 1 }))] as Dish;
-      plan.dishes.splice(draw(g, fc.nat({ max: plan.dishes.length })), 0, {
-        id: original.id,
-        name: draw(g, arbNonBlank(80)),
-      });
-      return done(plan, { dishId: original.id });
-    }
-    case 'unknown_dish': {
-      const plan = base();
-      const missing = freshDishId(g, plan);
-      const crowded = plan.steps.filter(
-        (s) => plan.steps.filter((t) => t.dish === s.dish).length >= 2,
-      );
-      if (crowded.length > 0) {
-        const step = pick(g, crowded);
-        step.dish = missing; // its old dish keeps at least one other step
-        return done(plan, { stepId: step.id });
+      if (where === 'dish') {
+        dish[key] = 1;
+        return { input, target: { dishId } };
       }
-      const id = `${missing}.${draw(g, arbSlug)}`;
-      plan.steps.push({
-        id,
-        dish: missing,
-        title: draw(g, arbNonBlank(120)),
-        minutes: draw(g, arbMinutes),
-        appliance: 'none',
-        handsOn: true,
-        after: [],
-        holdMin: null,
-      });
-      return done(plan, { stepId: id });
+      input[key] = 1;
+      return { input, target: {} };
     }
-    case 'dish_without_steps': {
-      const plan = base();
-      const id = freshDishId(g, plan);
-      plan.dishes.splice(draw(g, fc.nat({ max: plan.dishes.length })), 0, {
-        id,
-        name: draw(g, arbNonBlank(80)),
-      });
-      return done(plan, { dishId: id });
-    }
-    case 'missing_appliance': {
-      const { plan, kitchen: complete } = draw(
-        g,
-        arbPlanAndKitchen().filter(({ plan: p }) => p.steps.some((s) => s.appliance !== 'none')),
-      );
-      const needing = plan.steps.filter((s) => s.appliance !== 'none');
-      const step = pick(g, needing);
-      const lacking: Kitchen =
-        step.appliance === 'burner' ? { ...complete, burners: 0 } : { ...complete, ovens: 0 };
-      return { rule, input: plan, kitchen: lacking, target: { stepId: step.id } };
-    }
+    case 'root':
+      return { input: value([null, 42, 'plan', [], true, 3.5, [1, 2]]), target: {} };
   }
-  throw new Error(`arbBrokenPlan: no construction for ${rule}`);
+}
+
+function brokenFor(rule: Exclude<ErrorCode, 'missing_appliance'>): fc.Arbitrary<Broken> {
+  const stepPick = fc.nat();
+  switch (rule) {
+    case 'empty_plan':
+      return onBase(
+        () => fc.constantFrom('steps', 'dishes', 'both'),
+        (plan, which) => ({
+          input: {
+            ...plan,
+            ...(which !== 'dishes' ? { steps: [] } : {}),
+            ...(which !== 'steps' ? { dishes: [] } : {}),
+          },
+          target: {},
+        }),
+      );
+    case 'too_many_dishes':
+      return arbShaped(
+        fc.integer({ min: 13, max: 20 }),
+        (d) => fc.integer({ min: d, max: 80 }),
+        ALL_APPLIANCES,
+      ).map((input) => ({ input, target: {} }));
+    case 'too_many_steps':
+      return arbShaped(
+        fc.integer({ min: 1, max: 12 }),
+        () => fc.integer({ min: 81, max: 120 }),
+        ALL_APPLIANCES,
+      ).map((input) => ({ input, target: {} }));
+    case 'minutes_out_of_range':
+      return onBase(
+        () => fc.tuple(stepPick, arbBadMinutes),
+        (plan, [pick, bad]) => {
+          const step = nth(plan.steps, pick) as Step & Json;
+          if (bad === undefined) delete (step as Json).minutes;
+          else (step as Json).minutes = bad;
+          return { input: plan, target: { stepId: step.id } };
+        },
+      );
+    case 'invalid_field':
+      return onBase(
+        () => fc.tuple(stepPick, fc.nat(), fc.constantFrom(...INVALID_VARIANTS), fc.nat()),
+        invalidField,
+      );
+    case 'unknown_dependency':
+      return onBase(
+        (base) => fc.tuple(stepPick, arbFreshStepId(base)),
+        (plan, [pick, ref]) => {
+          const step = nth(plan.steps, pick);
+          step.after.push(ref);
+          return { input: plan, target: { stepId: step.id } };
+        },
+      );
+    case 'self_dependency':
+      return onBase(
+        () => stepPick,
+        (plan, pick) => {
+          const step = nth(plan.steps, pick);
+          step.after.push(step.id);
+          return { input: plan, target: { stepId: step.id } };
+        },
+      );
+    case 'cycle':
+      return onBase(
+        (base) =>
+          fc.tuple(fc.nat({ max: base.steps.length - 1 }), fc.nat({ max: base.steps.length - 2 })),
+        (plan, [x, y]) => {
+          const first = plan.steps[x] as Step; // x is in range
+          const second = plan.steps[y >= x ? y + 1 : y] as Step; // a different step
+          const addAfter = (s: Step, id: string): void => {
+            if (!s.after.includes(id)) s.after.push(id);
+          };
+          addAfter(first, second.id);
+          // If `second` already waits on `first`, that one edge closes the cycle; otherwise
+          // add the other way too.
+          if (!ancestorsOf(plan, second.id).has(first.id)) addAfter(second, first.id);
+          return { input: plan, target: {} };
+        },
+        arbDefaultSizes(2, ALL_APPLIANCES),
+      );
+    case 'duplicate_step_id':
+      return onBase(
+        (base) =>
+          fc.tuple(
+            stepPick,
+            fc.option(arbNonBlank(120), { nil: undefined }),
+            fc.option(arbMinutes, { nil: undefined }),
+            fc.nat({ max: base.steps.length }),
+          ),
+        (plan, [pick, title, minutes, at]) => {
+          const original = nth(plan.steps, pick);
+          const copy: Step = { ...original, after: [...original.after] };
+          if (title !== undefined) copy.title = title;
+          if (minutes !== undefined) copy.minutes = minutes;
+          plan.steps.splice(at, 0, copy);
+          return { input: plan, target: { stepId: original.id } };
+        },
+      );
+    case 'duplicate_dish_id':
+      return onBase(
+        (base) => fc.tuple(fc.nat(), arbNonBlank(80), fc.nat({ max: base.dishes.length })),
+        (plan, [pick, name, at]) => {
+          const original = nth(plan.dishes, pick);
+          plan.dishes.splice(at, 0, { id: original.id, name });
+          return { input: plan, target: { dishId: original.id } };
+        },
+      );
+    case 'unknown_dish':
+      return onBase(
+        (base) => fc.tuple(arbFreshDishId(base), stepPick, arbSlug, arbNonBlank(120), arbMinutes),
+        (plan, [missing, pick, slug, title, minutes]) => {
+          const crowded = plan.steps.filter(
+            (s) => plan.steps.filter((t) => t.dish === s.dish).length >= 2,
+          );
+          if (crowded.length > 0) {
+            const step = nth(crowded, pick);
+            step.dish = missing; // its old dish keeps at least one other step
+            return { input: plan, target: { stepId: step.id } };
+          }
+          const id = `${missing}.${slug}`;
+          plan.steps.push({
+            id,
+            dish: missing,
+            title,
+            minutes,
+            appliance: 'none',
+            handsOn: true,
+            after: [],
+            holdMin: null,
+          });
+          return { input: plan, target: { stepId: id } };
+        },
+      );
+    case 'dish_without_steps':
+      return onBase(
+        (base) =>
+          fc.tuple(arbFreshDishId(base), arbNonBlank(80), fc.nat({ max: base.dishes.length })),
+        (plan, [id, name, at]) => {
+          plan.dishes.splice(at, 0, { id, name });
+          return { input: plan, target: { dishId: id } };
+        },
+      );
+  }
 }
 
 /** Cases that break exactly one rule; see the table in the recipe-graph design. */
 export function arbBrokenPlan(rule: ErrorCode): fc.Arbitrary<BrokenCase> {
-  return fc.gen().map((g) => build(rule, g));
+  if (rule === 'missing_appliance') {
+    return arbPlanAndKitchen()
+      .filter(({ plan }) => plan.steps.some((s) => s.appliance !== 'none'))
+      .chain(({ plan, kitchen: complete }) =>
+        fc.nat().map((pick): BrokenCase => {
+          const step = nth(
+            plan.steps.filter((s) => s.appliance !== 'none'),
+            pick,
+          );
+          const kitchen: Kitchen =
+            step.appliance === 'burner' ? { ...complete, burners: 0 } : { ...complete, ovens: 0 };
+          return { rule, input: structuredClone(plan), kitchen, target: { stepId: step.id } };
+        }),
+      );
+  }
+  return fc
+    .tuple(arbEquippedKitchen, brokenFor(rule))
+    .map(([kitchen, { input, target }]): BrokenCase => ({ rule, input, kitchen, target }));
 }

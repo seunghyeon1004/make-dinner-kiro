@@ -50,3 +50,35 @@
 2026-11-11T04:55:56Z after-write ran=typecheck,test:props typecheck=0 props=0
 2026-11-11T04:56:53Z on-stop test=0 (Test Files 13 passed (13);Tests 483 passed (483)) test:props=0 (Test Files 2 passed (2);Tests 12 passed (12)) lint=0
 2026-11-11T04:57:28Z tasks-lint files=2 bad_files=0
+2026-11-11T04:57:30Z on-spawn changed_files=2 unticked_shown=20
+2026-11-11T05:06:29Z tasks-lint files=2 bad_files=0
+2026-11-11T05:06:32Z after-write ran=typecheck,test:props typecheck=0 props=0
+2026-11-11T05:07:23Z after-write ran=typecheck,test:props typecheck=0 props=0
+2026-11-11T05:07:25Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T05:09:01Z tasks-lint files=3 bad_files=0
+2026-11-11T05:09:09Z tasks-lint files=1 bad_files=0
+2026-11-11T05:09:12Z after-write ran=typecheck,test:props typecheck=2 props=1
+2026-11-11T05:09:14Z after-write ran=typecheck typecheck=2 props=skipped
+2026-11-11T05:09:36Z after-write ran=typecheck,test:props typecheck=0 props=1
+2026-11-11T05:09:38Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T05:10:17Z after-write ran=typecheck,test:props typecheck=0 props=0
+2026-11-11T05:10:20Z after-write ran=typecheck,test:props typecheck=0 props=0
+2026-11-11T05:10:55Z after-write ran=typecheck,test:props typecheck=0 props=0
+2026-11-11T05:10:57Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T05:11:02Z after-write ran=typecheck,test:props typecheck=0 props=0
+2026-11-11T05:11:05Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T05:11:07Z after-write ran=typecheck,test:props typecheck=0 props=1
+2026-11-11T05:11:10Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T05:11:28Z after-write ran=typecheck,test:props typecheck=0 props=0
+2026-11-11T05:11:31Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T05:12:04Z after-write ran=typecheck,test:props typecheck=2 props=0
+2026-11-11T05:12:07Z after-write ran=typecheck,test:props typecheck=2 props=0
+2026-11-11T05:12:17Z after-write ran=typecheck,test:props typecheck=0 props=0
+2026-11-11T05:12:20Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T05:12:31Z tasks-lint files=3 bad_files=0
+2026-11-11T05:12:36Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T05:13:05Z tasks-lint files=4 bad_files=0
+2026-11-11T05:13:08Z tasks-lint files=1 bad_files=0
+2026-11-11T05:13:16Z tasks-lint files=4 bad_files=0
+2026-11-11T05:13:18Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T05:13:43Z on-stop test=0 (Test Files 15 passed (15);Tests 584 passed (584)) test:props=0 (Test Files 4 passed (4);Tests 32 passed (32)) lint=0

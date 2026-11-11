@@ -256,3 +256,365 @@ for t in a.x b.x c.x d.x e.x f.x; do echo "== $t"; env -i PATH="$PATH" make -n -
     exit 2
     ( for i in {1..200}; do; env -i PATH="$PATH" make -n -f T2 dinner > /dev/null)  0.01s user 0.04s system 2% cpu 2.270 total
     exit 0
+[tool:execute FAILED] $ mkdir -p /tmp/df-exp && cd /tmp/df-exp && cat > enc.mjs <<'EOF'
+const BIDI = new Set([0x061c,0x200e,0x200f,0x202a,0x202b,0x202c,0x202d,0x202e,0x2066,0x2067,0x2068,0x2069,0xfeff]);
+const isCc = (c) => c <= 0x1f || (c >= 0x7f && c <= 0x9f);
+export function encodeText(s) {
+  let out = '"';
+  for (const ch of s) {
+    const c = ch.codePointAt(0);
+    if (ch === '"') out += '\\"';
+    else if (ch === '\\') out += '\\\\';
+    else if (ch === '\b') out += '\\b'; else if (ch === '\f') out += '\\f';
+    else if (ch === '\n') out += '\\n'; else if (ch === '\r') out += '\\r'; else if (ch === '\t') out += '\\t';
+    else if (isCc(c) || c === 0x2028 || c === 0x2029 || BIDI.has(c) || (c >= 0xd800 && c <= 0xdfff)) out += '\\u' + c.toString(16).padStart(4, '0');
+    else out += ch;
+  }
+  return out + '"';
+}
+export function echoText(s) {
+  let out = '';
+  for (const ch of s) {
+    const c = ch.codePointAt(0);
+    if (isCc(c) || c === 0x2028 || c === 0x2029) out += ' ';
+    else if (BIDI.has(c) || (c >= 0xd800 && c <= 0xdfff)) out += '\ufffd';
+    else out += ch;
+  }
+  return out;
+}
+export function recipeArg(s) {
+  const d = [...echoText(s)];
+  let out = '';
+  for (let i = 0; i < d.length; i++) {
+    const ch = d[i];
+    if (ch === "'") out += "'\\''";
+    else if (ch === '$') out += (d[i+1] === '(' || d[i+1] === '{') ? "$$''" : '$$';
+    else out += ch;
+  }
+  return out;
+}
+EOF
+cat > worst.mjs <<'EOF'
+import { encodeText, recipeArg } from './enc.mjs';
+const title = " It's $(MAKE) ${HOME} $$ `touch canary` ; touch canary #1 \\ 50% a:=b\tc\nd\u202Ee\uD800 \\";
+const detail = "Line one\nLine two \"quoted\" \\c";
+console.log(JSON.stringify(title), [...title].length);
+const lines = [
+ '# plan ' + encodeText('Worst "case" \\ #'),
+ '# dish dinner ' + encodeText('Dinner itself'),
+ '# dish export ' + encodeText('Export  '),
+ '',
+ '.PHONY: dinner export --.-- export.x',
+ 'dinner: export.x',
+ '',
+ '# No target for dish dinner: "dinner" makes the whole plan.',
+ 'export: export.x',
+ '',
+ '# step dish=dinner minutes=1 appliance=none handsOn=true hold=keeps title=' + encodeText("-n"),
+ '--.--:',
+ "\t@echo '" + recipeArg('-n') + "' # --.--",
+ '',
+ '# step dish=export minutes=5 appliance=burner handsOn=false hold=0 title=' + encodeText(title) + ' detail=' + encodeText(detail),
+ 'export.x: --.--',
+ "\t@echo '" + recipeArg(title) + "' # export.x",
+];
+process.stdout.write(lines.join('\n') + '\n');
+EOF
+node worst.mjs > out.txt; head -1 out.txt; tail -n +2 out.txt > W; cat -et W; echo ---; env -i PATH="$PATH" make -n -f W dinner | cat -et; echo "exit ${pipestatus[1]}"; rm -f canary; env -i PATH="$PATH" make -f W dinner | cat -et; ls canary 2>&1
+    " It's $(MAKE) ${HOME} $$ `touch canary` ; touch canary #1 \\ 50% a:=b\tc\nde\ud800 \\" 77
+    # plan "Worst \"case\" \\ #"$
+    # dish dinner "Dinner itself"$
+    # dish export "Export  "$
+    $
+    .PHONY: dinner export --.-- export.x$
+    dinner: export.x$
+    $
+    # No target for dish dinner: "dinner" makes the whole plan.$
+    export: export.x$
+    $
+    # step dish=dinner minutes=1 appliance=none handsOn=true hold=keeps title="-n"$
+    --.--:$
+    ^I@echo '-n' # --.--$
+    $
+    # step dish=export minutes=5 appliance=burner handsOn=false hold=0 title=" It's $(MAKE) ${HOME} $$ `touch canary` ; touch canary #1 \\ 50% a:=b\tc\nd\u202ee\ud800 \\" detail="Line one\nLine two \"quoted\" \\c"$
+    export.x: --.--$
+    ^I@echo ' It'\''s $$''(MAKE) $$''{HOME} $$$$ `touch canary` ; touch canary #1 \ 50% a:=b c d�e� \' # export.x$
+    ---
+    echo '-n' # --.--$
+    echo ' It'\''s $''(MAKE) $''{HOME} $$ `touch canary` ; touch canary #1 \ 50% a:=b c d�e� \' # export.x$
+    exit 0
+    -n$
+     It's $(MAKE) ${HOME} $$ `touch canary` ; touch canary #1 \ 50% a:=b c d�e� \$
+    ls: canary: No such file or directory
+    exit 1
+[tool:search] Grep Search
+[tool:execute] $ cat docs/kiro-evidence/prompts/07-spec-dinnerfile.md | head -20; echo; cat tsconfig.test.json tsconfig.core.json 2>/dev/null; grep -n "no-restricted\|Date\|process" eslint.config.js | head -30; cat .kiro/agents/sous-chef.json | head -40; cat scripts/hooks/tasks-lint.sh | head -60
+    … (115 earlier lines not shown)
+    problems=0
+    for file in "${files[@]}"; do
+      out="$(awk -v file="$file" '
+        function report(n, why) { printf "%s:%d: %s\n    %s\n", file, n, why, text[n]; bad++ }
+        /^[ \t]*- \[[ xX]\]/ {
+          n = NR
+          line = $0
+          indent = match(line, /[^ \t]/) - 1
+          mark = (substr(line, indent + 4, 1) == " ") ? "open" : "done"
+          rest = substr(line, indent + 7)
+          sub(/^[ \t]+/, "", rest)
+          text[n] = line
+          order[++count] = n
+          ind[n] = indent
+          st[n] = mark
+          if (match(rest, /^T[0-9]+(\.[0-9]+)*([ \t:.]|$)/)) {
+            id = substr(rest, 1, RLENGTH)
+            sub(/[ \t:.]+$/, "", id)
+            tid[n] = id
+            byid[id] = n
+          } else {
+            report(n, "task line has no id (expected T<number>[.<number>...] after the checkbox)")
+          }
+        }
+        END {
+          # Parent by indentation: nearest earlier checkbox with a smaller indent.
+          for (i = 1; i <= count; i++) {
+            n = order[i]
+            for (j = i - 1; j >= 1; j--) {
+              if (ind[order[j]] < ind[n]) { parent[n] = order[j]; break }
+    exit 0
+[tool:search] Grep Search
+[tool:read] Read File scripts/hooks/after-write.sh
+[tool:execute FAILED] $ cd /tmp/df-exp && cat > exp.mjs <<'EOF'
+import { encodeText, recipeArg } from './enc.mjs';
+const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+export function toDf(plan, o = {}) {
+  const dishes = [...plan.dishes].sort((a, b) => cmp(a.id, b.id));
+  const steps = [...plan.steps].sort((a, b) => cmp(a.id, b.id)).map(s => ({ ...s, after: [...new Set(s.after)].sort(cmp) }));
+  const ids = new Set(steps.map(s => s.id));
+  const hasSucc = new Set(), hasSuccInDish = new Set();
+  const dishOf = new Map(steps.map(s => [s.id, s.dish]));
+  for (const s of steps) for (const p of s.after) { if (ids.has(p)) { hasSucc.add(p); if (dishOf.get(p) === s.dish) hasSuccInDish.add(p); } }
+  const terminal = steps.filter(s => !hasSucc.has(s.id)).map(s => s.id);
+  const dishIds = [...new Set(dishes.map(d => d.id))];
+  const L = [
+    '# Dinnerfile written by Make Dinner. GNU Make reads it:',
+    '#   make -n -f Dinnerfile dinner    prints every step in an order that works',
+    '#   make -n -f Dinnerfile <dish>    prints the steps one dish needs',
+    '# The "# plan", "# dish", "# step", "# kitchen" and "# serve" lines hold the plan.',
+    '',
+    '# plan ' + encodeText(plan.title),
+  ];
+  if (o.kitchen) L.push(`# kitchen burners=${o.kitchen.burners} ovens=${o.kitchen.ovens} cooks=${o.kitchen.cooks}`);
+  if (o.serve) L.push('# serve ' + o.serve);
+  for (const d of dishes) L.push(`# dish ${d.id} ${encodeText(d.name)}`);
+  L.push('');
+  const agg = dishIds.filter(d => d !== 'dinner');
+  L.push(['.PHONY:', 'dinner', ...agg, ...steps.map(s => s.id)].join(' '));
+  L.push(['dinner:', ...terminal].join(' '));
+  L.push('');
+  for (const d of dishIds) {
+    const last = steps.filter(s => s.dish === d && !hasSuccInDish.has(s.id)).map(s => s.id);
+    if (d === 'dinner') L.push('# No target for dish dinner: "dinner" makes the whole plan.');
+    else L.push([d + ':', ...last].join(' '));
+  }
+  for (const s of steps) {
+    L.push('');
+    let meta = `# step dish=${s.dish} minutes=${s.minutes} appliance=${s.appliance} handsOn=${s.handsOn} hold=${s.holdMin === null ? 'keeps' : s.holdMin} title=${encodeText(s.title)}`;
+    if (s.detail !== undefined) meta += ' detail=' + encodeText(s.detail);
+    L.push(meta, [s.id + ':', ...s.after].join(' '), `\t@echo '${recipeArg(s.title)}' # ${s.id}`);
+  }
+  return L.join('\n') + '\n';
+}
+EOF
+cat > run.mjs <<'EOF'
+import { toDf } from './exp.mjs';
+import { writeFileSync } from 'node:fs';
+const S = (id, dish, title, minutes, appliance, handsOn, after, holdMin, detail) => ({ id, dish, title, ...(detail ? { detail } : {}), minutes, appliance, handsOn, after, holdMin });
+const roast = { title: 'Sunday roast', dishes: [{ id: 'chicken', name: 'Roast chicken' }, { id: 'gravy', name: 'Gravy' }, { id: 'greens', name: 'Spring greens' }], steps: [
+ S('greens.toss','greens','Toss the greens with butter',1,'none',true,['greens.boil'],5),
+ S('gravy.strain','gravy','Strain the gravy into a jug',2,'none',true,['gravy.simmer'],15),
+ S('chicken.carve','chicken','Carve the chicken',5,'none',true,['chicken.rest'],5),
+ S('greens.boil','greens','Cook the greens in salted water',4,'burner',false,['greens.shred'],0),
+ S('gravy.simmer','gravy','Add stock and let the gravy thicken',10,'burner',false,['gravy.roux'],5),
+ S('chicken.rest','chicken','Rest the chicken under foil',20,'none',false,['chicken.roast'],30),
+ S('gravy.roux','gravy','Make a roux in the roasting tin',2,'burner',true,['chicken.roast'],5,'Use the juices left in the tin once the chicken is out.'),
+ S('chicken.roast','chicken','Roast the chicken',75,'oven',false,['chicken.prep'],5),
+ S('greens.shred','greens','Shred the greens',5,'none',true,[],null),
+ S('chicken.prep','chicken','Season and truss the chicken',10,'none',true,[],null)]};
+writeFileSync('Roast', toDf(roast));
+writeFileSync('RoastK', toDf(roast, { kitchen: { burners: 4, ovens: 1, cooks: 1 }, serve: '19:00' }));
+const worst = { title: 'Worst "case" \\ #', dishes: [{ id: 'export', name: 'Export  ' }, { id: 'dinner', name: 'Dinner itself' }, { id: 'define', name: 'Définir' }], steps: [
+ S('define.y','define','Line\r\nbreak\u0000 and \u2028end',480,'oven',false,['export.x'],480),
+ S('export.x','export'," It's $(MAKE) ${HOME} $$ `touch canary` $(shell touch canary) ; touch canary #1 \\ 50% a:=b\tc\nd\u202Ee\uD800 \\",5,'burner',false,['--.--'],0,'Line one\nLine two "quoted" \\c'),
+ S('--.--','dinner','-n',1,'none',true,[],null)]};
+writeFileSync('Worst', toDf(worst));
+console.log(JSON.stringify(worst.steps[1].title), [...worst.steps[1].title].length);
+EOF
+node run.mjs && cat -et Roast && echo ---- && env -i PATH="$PATH" make -n -f Roast dinner && echo ---- gravy && env -i PATH="$PATH" make -n -f Roast gravy && echo ---- default && env -i PATH="$PATH" make -n -f Roast | head -2; diff Roast RoastK
+    … (50 earlier lines not shown)
+    # step dish=greens minutes=5 appliance=none handsOn=true hold=keeps title="Shred the greens"$
+    greens.shred:$
+    ^I@echo 'Shred the greens' # greens.shred$
+    $
+    # step dish=greens minutes=1 appliance=none handsOn=true hold=5 title="Toss the greens with butter"$
+    greens.toss: greens.boil$
+    ^I@echo 'Toss the greens with butter' # greens.toss$
+    ----
+    echo 'Season and truss the chicken' # chicken.prep
+    echo 'Roast the chicken' # chicken.roast
+    echo 'Rest the chicken under foil' # chicken.rest
+    echo 'Carve the chicken' # chicken.carve
+    echo 'Make a roux in the roasting tin' # gravy.roux
+    echo 'Add stock and let the gravy thicken' # gravy.simmer
+    echo 'Strain the gravy into a jug' # gravy.strain
+    echo 'Shred the greens' # greens.shred
+    echo 'Cook the greens in salted water' # greens.boil
+    echo 'Toss the greens with butter' # greens.toss
+    ---- gravy
+    echo 'Season and truss the chicken' # chicken.prep
+    echo 'Roast the chicken' # chicken.roast
+    echo 'Make a roux in the roasting tin' # gravy.roux
+    echo 'Add stock and let the gravy thicken' # gravy.simmer
+    echo 'Strain the gravy into a jug' # gravy.strain
+    ---- default
+    echo 'Season and truss the chicken' # chicken.prep
+    echo 'Roast the chicken' # chicken.roast
+    6a7,8
+    > # kitchen burners=4 ovens=1 cooks=1
+    > # serve 19:00
+    exit 1
+[tool:execute] $ cd /tmp/df-exp && setopt nonomatch && sed -n '6,$p' Worst | cat -v; echo ----; env -i PATH="$PATH" make -n -f Worst dinner | cat -v; echo "exit ${pipestatus[1]}"; rm -f canary; env -i PATH="$PATH" make -f Worst dinner >/dev/null; echo "real exit $?"; ls canary 2>&1; env -i PATH="$PATH" make -n -f Worst export; env -i PATH="$PATH" make -n -f Worst define 2>&1
+    … (5 earlier lines not shown)
+    .PHONY: dinner define export --.-- define.y export.x
+    dinner: define.y
+    
+    define: define.y
+    # No target for dish dinner: "dinner" makes the whole plan.
+    export: export.x
+    
+    # step dish=dinner minutes=1 appliance=none handsOn=true hold=keeps title="-n"
+    --.--:
+    	@echo '-n' # --.--
+    
+    # step dish=define minutes=480 appliance=oven handsOn=false hold=480 title="Line\r\nbreak\u0000 and \u2028end"
+    define.y: export.x
+    	@echo 'Line  break  and  end' # define.y
+    
+    # step dish=export minutes=5 appliance=burner handsOn=false hold=0 title=" It's $(MAKE) ${HOME} $$ `touch canary` $(shell touch canary) ; touch canary #1 \\ 50% a:=b\tc\nd\u202ee\ud800 \\" detail="Line one\nLine two \"quoted\" \\c"
+    export.x: --.--
+    	@echo ' It'\''s $$''(MAKE) $$''{HOME} $$$$ `touch canary` $$''(shell touch canary) ; touch canary #1 \ 50% a:=b c d�e� \' # export.x
+    ----
+    echo '-n' # --.--
+    echo ' It'\''s $''(MAKE) $''{HOME} $$ `touch canary` $''(shell touch canary) ; touch canary #1 \ 50% a:=b c d�e� \' # export.x
+    echo 'Line  break  and  end' # define.y
+    exit 0
+    real exit 0
+    ls: canary: No such file or directory
+    echo '-n' # --.--
+    echo ' It'\''s $''(MAKE) $''{HOME} $$ `touch canary` $''(shell touch canary) ; touch canary #1 \ 50% a:=b c d�e� \' # export.x
+    echo '-n' # --.--
+    echo ' It'\''s $''(MAKE) $''{HOME} $$ `touch canary` $''(shell touch canary) ; touch canary #1 \ 50% a:=b c d�e� \' # export.x
+    echo 'Line  break  and  end' # define.y
+    exit 0
+[tool:edit] Write File .kiro/specs/dinnerfile/requirements.md
+
+Requirements are drafted. Before the design, I'll align a few names in requirements (generator and oracle lists) once the design fixes them. Writing the design now.
+
+[tool:edit] Write File .kiro/specs/dinnerfile/design.md
+[tool:edit] Replace in File .kiro/specs/dinnerfile/design.md
+[tool:edit] Replace in File .kiro/specs/dinnerfile/design.md
+[tool:edit] Replace in File .kiro/specs/dinnerfile/requirements.md
+[tool:edit] Replace in File .kiro/specs/dinnerfile/requirements.md
+[tool:execute] $ cat .prettierignore; npx prettier --check .kiro/specs/dinnerfile/ .kiro/specs/recipe-graph/ 2>&1 | tail -5
+    .kiro/
+    docs/kiro-evidence/
+    recordings/
+    public/assets/
+    dist/
+    package-lock.json
+    samples/
+    Checking formatting...
+    All matched files use Prettier code style!
+    exit 0
+[tool:execute] $ grep -c $'^\t@echo' .kiro/specs/dinnerfile/design.md; grep -n $'\t' .kiro/specs/dinnerfile/design.md | head -3 | cut -c1-60
+    13
+    351:	@echo '-n' # --.--
+    355:	@echo 'Line  break  and  end' # define.y
+    359:	@echo ' It'\''s $$''(MAKE) $$''{HOME} $$$$ `touch canar
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && awk '/^```make$/{n++; f=1; next} /^```$/{f=0} f{print > ("/tmp/df-exp/block" n ".txt")}' .kiro/specs/dinnerfile/design.md && tail -n +6 /tmp/df-exp/Worst | diff - /tmp/df-exp/block1.txt && echo worst-ok; tail -n +6 /tmp/df-exp/Roast | diff - /tmp/df-exp/block2.txt && echo roast-ok
+    worst-ok
+    roast-ok
+    exit 0
+
+Both examples in the design match the files GNU Make was run on. Now the tasks.
+
+[tool:edit] Write File .kiro/specs/dinnerfile/tasks.md
+[tool:execute] $ bash scripts/hooks/tasks-lint.sh .kiro/specs/dinnerfile/tasks.md; echo "exit $?"; grep -c '^- \[ \]' .kiro/specs/dinnerfile/tasks.md; git status --short
+    [tasks-lint] ok: 1 file(s)
+    exit 0
+    17
+     M .kiro/specs/recipe-graph/tasks.md
+     M docs/kiro-evidence/credits.log
+     M docs/kiro-evidence/hook-fires.log
+     M docs/kiro-evidence/impl-recipe-graph-session.txt
+     M docs/kiro-evidence/spec-dinnerfile-session.txt
+     M docs/kiro-evidence/spec-recipe-reader-session.txt
+     M src/core/index.ts
+     M src/core/sanity.ts
+     M test/core/sanity.test.ts
+     M test/core/schema.pbt.ts
+     M test/meta/arbitraries.test.ts
+     M test/support/arbitraries.ts
+    ?? .kiro/specs/dinnerfile/
+    ?? .kiro/specs/recipe-reader/
+    ?? docs/kiro-evidence/prompts/06d-impl-recipe-graph-c.md
+    ?? docs/kiro-evidence/prompts/09-spec-rebuild.md
+    ?? docs/kiro-evidence/prompts/10-spec-plan-ui.md
+    ?? docs/kiro-evidence/prompts/11-spec-cooking-mode.md
+    ?? docs/kiro-evidence/prompts/12-spec-kitchen-mcp.md
+    ?? src/core/normalise.ts
+    ?? test/core/index.test.ts
+    ?? test/core/normalise.pbt.ts
+    ?? test/core/normalise.test.ts
+    ?? test/core/sanity.pbt.ts
+    exit 0
+[tool:execute] $ rm -r /tmp/df-exp && echo removed
+    removed
+    exit 0
+
+I've written the `dinnerfile` spec in `.kiro/specs/dinnerfile/`: `requirements.md` (R1 to R10, N1 to N5), `design.md` and `tasks.md` (17 sub-tasks). No repo code was written. Three choices in it go beyond what `product.md` and `testing.md` say (conflicts C1 to C3 in the design), so please answer those before the tasks start.
+
+I ran scratch Makefiles in `/tmp` against this Mac's GNU Make 3.81 (since removed). Points in the design marked "(measured)" come from those runs:
+
+- **`make -n` can run commands.** Make 3.81 runs a recipe line under `-n` if its text contains `$(MAKE)`, and the obvious escape `$$(MAKE)` still contains it. The echo text therefore writes `$` as `$$`, and adds `''` after it when `(` or `{` follows. That `''` is an empty quoted string, so the shell still prints `$(`.
+- **A space before the colon changes meaning.** `export : x` is read as an `export` directive and `ifeq : x` as a broken conditional. With the colon attached, dishes named after any of 17 directive words work as plain targets.
+- **A comment ending in `\` swallows the next line.** Import reports any line ending in `\` as an error.
+- **The worst case holds.** A title with `$(MAKE)`, `$(shell …)`, backticks, `'`, a tab, a newline, U+202E, a lone surrogate and a trailing `\` ran under `make -n` and plain `make`. Exit code was 0 and no canary file was created. The two complete Dinnerfiles in the design (worst case and sunday-roast) are identical to the files Make ran on.
+- **Cost of spawning `make`.** About 11 ms per run.
+
+**Checks run:** `tasks-lint.sh` on the new `tasks.md` passed, and `npx prettier --check` on the spec folders passed (`.kiro/` is in `.prettierignore` anyway). No tests were run, since there is no code.
+
+**Conflicts (C1 to C3 need your answer before T1.6, T2.1 and T3.1):**
+- **C1, run count:** `testing.md` says 200 runs per property. Your scope asked for a small count, so D2 and P-DF7 use `fcMakeParams()`: 50 runs, overridable with `FC_MAKE_RUNS`. They also do I/O, which `testing.md` doesn't allow in properties. The alternative is 200 runs with a 30 s timeout.
+- **C2, metadata format:** `product.md` lists five keys for the `# step` line. I added `title=` and `detail=`, because import may only read comments. Plan titles and dish names are written as JSON strings (`# dish chicken "Roast chicken"`) so trailing spaces and newlines survive.
+- **C3, echo line:** `product.md` says `@echo '<title>'`. The spec writes `@echo '<quoted title>' # <step-id>`. Titles needn't be unique, and without the id D2 could only test plans whose titles all differ.
+- **C4, Docker:** `node:22-slim` has no `make`, so D2 fails there by design. CI needs GNU Make on `PATH`.
+
+**Other decisions (marked "(decided here)"):**
+- **Return types:** `fromDinnerfile` returns `{ plan, options }` rather than a bare `Plan`, so the kitchen and serving time come back with the plan. `toDinnerfile` returns `Result<string, Issue[]>`, because a plan that fails the schema can have step ids that can't be Make targets.
+- **Kitchen and serving time:** `# kitchen burners= ovens= cooks=` and `# serve HH:MM` go right after `# plan`. They are comments only, and removing them gives the plain export exactly. A new `ServeTimeSchema` (`00:00` to `23:59`) goes in `schema.ts`.
+- **Dish targets:** each dish target lists the dish's last steps (steps no same-dish step waits on). A dish called `dinner` gets a fixed comment instead of a rule. `dinner` is the first real rule, so plain `make -f Dinnerfile` builds the whole plan.
+- **What import checks:** only syntax (number form, words, id patterns, strings). Ranges and sanity rules are left to `validatePlan` and `parseKitchen`, which the caller runs. A typo still gets a line number.
+- **Numbers:** no sign, no leading zero, at most 6 digits. Metadata keywords are case-sensitive.
+- **Tolerance limits:** `.PHONY` content and recipe lines are never read. A dish or `dinner` rule that is present must match exactly; leaving it out is fine. After a broken line, the mismatch checks are skipped so one mistake gives one error.
+- **Generators:** they are extended, not narrowed. Free text now draws from a list of hostile tokens, and dish ids include `dinner` and directive words. Every existing property will see these inputs, which may expose bugs in recipe-graph code.
+- **Export oracle:** an independent `oracleDinnerfile` with a random style gives P-DF10 (export equals the oracle on every generated plan) and P-DF4 (any tolerated way of writing the file imports the same).
+
+**Open questions:**
+1. After import, `validatePlan` issues carry step ids but not line numbers. Should a later spec map them back to lines?
+2. Plain `make dinner` (without `-n`) prints titles starting `-n`, or containing `\c`, differently depending on the shell's `echo`. I left that as best effort. Should the line use `printf '%s\n'` instead? That would be a further change from `product.md`.
+3. Should import cap the error count for huge pasted texts? It currently reports every error.
+
+Other sessions have uncommitted changes in the working tree (recipe-graph code and test support, the recipe-reader spec, evidence files). I touched none of them. Task T1.2 edits `test/support/arbitraries.ts`, which one of those sessions is also changing.
+
+--- run success (end_turn); credits reported by this session: 50.90 ---

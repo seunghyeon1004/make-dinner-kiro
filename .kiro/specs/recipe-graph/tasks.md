@@ -88,7 +88,7 @@ A task is ticked only after its command passed in the same session. Commands run
   Files: `test/support/arbitraries.ts`.
   Covers: R10.1–R10.3.
   Command: `npx vitest run --project examples test/meta/arbitraries.test.ts && npm run typecheck`
-- [ ] T2.7 (added by hand after session 3 reported it) Failing properties must report a
+- [x] T2.7 (added by hand after session 3 reported it) Failing properties must report a
   counterexample. Today the `draw` helper passes a fresh closure to `fc.gen()` on every draw,
   so fast-check's shrinking runs out of memory and the worker crashes instead of printing the
   failing plan. Write a test in `test/meta/arbitraries.test.ts` that runs a deliberately false
@@ -177,14 +177,14 @@ A task is ticked only after its command passed in the same session. Commands run
 
 ## T6. Plan and kitchen rules
 
-- [ ] T6.1 Example tests for `checkPlan` errors: one firing and one non-firing example per
+- [x] T6.1 Example tests for `checkPlan` errors: one firing and one non-firing example per
   code (`unknown_dependency`, `self_dependency`, `cycle`, `duplicate_step_id`,
   `duplicate_dish_id`, `unknown_dish`, `dish_without_steps`), asserting exact issues; the
   three fixtures give `[]`; issue order follows `sortIssues` on a plan with several errors.
   Files: `test/core/sanity.test.ts`.
   Covers: R4.1–R4.6, R7.3.
   Command: `npx vitest run --project examples test/core/sanity.test.ts`
-- [ ] T6.2 Example tests for warnings: `appliance_mismatch` ("Roasting tin" on a `none`
+- [x] T6.2 Example tests for warnings: `appliance_mismatch` ("Roasting tin" on a `none`
   step fires with `word: 'roast'`, "stir-fry" fires, `"saute\u0301"` fires after NFC,
   detail-only match fires, the title match wins over the detail, "ovenproof", "boiler" and
   "roaster" do not fire, a `burner` step with "boil" does not fire); `long_hands_on` at 45
@@ -193,7 +193,7 @@ A task is ticked only after its command passed in the same session. Commands run
   Files: `test/core/sanity.test.ts`.
   Covers: R5.1–R5.4.
   Command: `npx vitest run --project examples test/core/sanity.test.ts`
-- [ ] T6.3 Example tests for `checkKitchen` and `validatePlan`: `SUNDAY_ROAST` with
+- [x] T6.3 Example tests for `checkKitchen` and `validatePlan`: `SUNDAY_ROAST` with
   `burners: 0` gives exactly the three `missing_appliance` errors of the design;
   `TIGHT_OVEN` with `ovens: 0` the two; `HOME_KITCHEN` gives `[]`; a duplicated burner
   step gives one issue; `validatePlan` returns `{ plan: null, issues }` for `{}` and
@@ -201,25 +201,25 @@ A task is ticked only after its command passed in the same session. Commands run
   Files: `test/core/sanity.test.ts`.
   Covers: R2.9, R6.1.
   Command: `npx vitest run --project examples test/core/sanity.test.ts`
-- [ ] T6.4 Property S1 total.
+- [x] T6.4 Property S1 total.
   Files: `test/core/sanity.pbt.ts`.
   Covers: R2.1, R2.8, R2.9, R7.1.
   Command: `npx vitest run --project props test/core/sanity.pbt.ts`
-- [ ] T6.5 Property S2 sound, one `it` per error code with the title
+- [x] T6.5 Property S2 sound, one `it` per error code with the title
   `S2 sound: <code> ...`, plus one for valid plans and kitchens.
   Files: `test/core/sanity.pbt.ts`.
   Covers: R2.3–R2.7, R4.1–R4.7, R6.1, R6.2, R10.3.
   Command: `npx vitest run --project props test/core/sanity.pbt.ts`
-- [ ] T6.6 Property P-RG2 order-free, and the `checkPlan(canonicalPlan(p))` clause of
+- [x] T6.6 Property P-RG2 order-free, and the `checkPlan(canonicalPlan(p))` clause of
   P-RG1.
   Files: `test/core/sanity.pbt.ts`, `test/core/schema.pbt.ts`.
   Covers: R3.9, R7.3, R7.4, R8.4.
   Command: `npx vitest run --project props test/core/sanity.pbt.ts test/core/schema.pbt.ts`
-- [ ] T6.7 Property P-RG9 warnings.
+- [x] T6.7 Property P-RG9 warnings.
   Files: `test/core/sanity.pbt.ts`.
   Covers: R5.1–R5.3.
   Command: `npx vitest run --project props test/core/sanity.pbt.ts`
-- [ ] T6.8 Implement `checkPlan`, `checkKitchen` and `validatePlan` until T6.1 to T6.7
+- [x] T6.8 Implement `checkPlan`, `checkKitchen` and `validatePlan` until T6.1 to T6.7
   pass.
   Files: `src/core/sanity.ts`.
   Covers: R2.9, R4.1–R4.7, R5.1–R5.4, R6.1, R6.2, R7.1–R7.4.
@@ -227,31 +227,31 @@ A task is ticked only after its command passed in the same session. Commands run
 
 ## T7. Recipe text normalisation
 
-- [ ] T7.1 Example tests: one per rule of R9.1 (NFC, CRLF, lone CR, trailing spaces and
+- [x] T7.1 Example tests: one per rule of R9.1 (NFC, CRLF, lone CR, trailing spaces and
   tabs, three blank lines become one, a line of only spaces counts as blank, leading and
   trailing trim, indentation kept), each with the expected string written out; each
   `samples/*.md` normalises without throwing and is idempotent.
   Files: `test/core/normalise.test.ts`, `src/core/normalise.ts` (stub).
   Covers: R9.1, R9.2.
   Command: `npx vitest run --project examples test/core/normalise.test.ts`
-- [ ] T7.2 Property P-RG7 normalise.
+- [x] T7.2 Property P-RG7 normalise.
   Files: `test/core/normalise.pbt.ts`.
   Covers: R9.1, R9.2.
   Command: `npx vitest run --project props test/core/normalise.pbt.ts`
-- [ ] T7.3 Implement `normaliseRecipeText` until T7.1 and T7.2 pass.
+- [x] T7.3 Implement `normaliseRecipeText` until T7.1 and T7.2 pass.
   Files: `src/core/normalise.ts`.
   Covers: R9.1, R9.2.
   Command: `npx vitest run --project examples test/core/normalise.test.ts && npx vitest run --project props test/core/normalise.pbt.ts`
 
 ## T8. Public surface and the whole suite
 
-- [ ] T8.1 Example test that every name listed in the design's `src/core/index.ts`
+- [x] T8.1 Example test that every name listed in the design's `src/core/index.ts`
   section is exported from `src/core/index.js` (values with `typeof`, types with
   `expectTypeOf`); then add the exports.
   Files: `test/core/index.test.ts`, `src/core/index.ts`.
   Covers: N4.
   Command: `npx vitest run --project examples test/core/index.test.ts`
-- [ ] T8.2 Run the wider suite and fix what it finds (never by weakening a check).
+- [x] T8.2 Run the wider suite and fix what it finds (never by weakening a check).
   Files: none expected.
   Covers: N1–N3, N5.
   Command: `npm test && npm run test:props && npm run typecheck && npm run lint && npx prettier --check .`

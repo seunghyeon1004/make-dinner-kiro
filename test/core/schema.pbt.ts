@@ -1,6 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { parsePlan } from '../../src/core/sanity.js';
+import { checkPlan, parsePlan } from '../../src/core/sanity.js';
 import { canonicalPlan, PlanSchema, type ErrorCode, type Plan } from '../../src/core/schema.js';
 import { arbBrokenPlan, arbPlan, arbShuffledPlan } from '../support/arbitraries.js';
 import { fcParams } from '../support/fc-params.js';
@@ -72,6 +72,15 @@ describe('P-RG1 canonical', () => {
           expect(canonicalPlan(shuffled)).toStrictEqual(canonicalPlan(plan));
         },
       ),
+      fcParams(),
+    );
+  });
+
+  it('P-RG1 canonical: checkPlan(canonicalPlan(p)) equals checkPlan(p)', () => {
+    fc.assert(
+      fc.property(fc.oneof(arbPlan(), arbPlan({ large: true }), arbGraphRulePlan), (plan) => {
+        expect(checkPlan(canonicalPlan(plan))).toStrictEqual(checkPlan(plan));
+      }),
       fcParams(),
     );
   });

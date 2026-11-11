@@ -11,6 +11,8 @@ import {
   arbRecipeText,
   arbShuffledPlan,
 } from '../support/arbitraries.js';
+import type { BrokenCase } from '../support/arbitraries.js';
+import { fcParams } from '../support/fc-params.js';
 import {
   oracleStronglyConnected,
   oracleTopologicalOrder,
@@ -422,4 +424,31 @@ describe('arbRecipeText produces the awkward characters of R9.1', () => {
     expect(texts.some((t) => t === t.normalize('NFC'))).toBe(true);
     expect(texts.some((t) => t !== t.normalize('NFC'))).toBe(true);
   });
+});
+
+describe('R10.1 a failing property reports a shrunk counterexample (T2.7)', () => {
+  // Session 3 found that a false property over arbPlan() ran out of memory while shrinking
+  // and crashed the worker instead of printing the failing plan.
+  it('fc.check over arbPlan() fails with a valid plan of exactly 3 steps, the smallest that breaks it', () => {
+    const result = fc.check(
+      fc.property(arbPlan(), (plan) => plan.steps.length < 3),
+      { ...fcParams(), seed: SEED },
+    );
+    expect(result.failed).toBe(true);
+    const [counterexample] = (result.counterexample ?? []) as Plan[];
+    expect(counterexample?.steps.length).toBe(3);
+    expect(PlanSchema.safeParse(counterexample).success).toBe(true);
+  });
+  it.each(ERROR_CODES)(
+    'fc.check over arbBrokenPlan(%s) fails with a shrunk case of that rule',
+    (rule) => {
+      const result = fc.check(
+        fc.property(arbBrokenPlan(rule), () => false),
+        { ...fcParams(), seed: SEED },
+      );
+      expect(result.failed).toBe(true);
+      const [counterexample] = (result.counterexample ?? []) as BrokenCase[];
+      expect(counterexample?.rule).toBe(rule);
+    },
+  );
 });

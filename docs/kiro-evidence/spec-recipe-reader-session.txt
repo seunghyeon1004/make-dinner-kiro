@@ -503,3 +503,152 @@ cp /tmp/wire.ts ./.wire-probe.ts && npx tsx ./.wire-probe.ts; rm -f ./.wire-prob
      }
     }
     exit 0
+[tool:execute] $ cd node_modules/@anthropic-ai/sdk && cat index.d.ts | head -20; grep -n "JSONOutputFormat\b" resources/messages/index.d.ts | head -2; grep -n "export interface JSONOutputFormat" -A8 resources/messages/messages.d.ts
+    export { Anthropic as default } from "./client.js";
+    export { type Uploadable, toFile } from "./core/uploads.js";
+    export { APIPromise } from "./core/api-promise.js";
+    export { BaseAnthropic, Anthropic, type ClientOptions } from "./client.js";
+    export { type OpenTelemetryOptions, type OpenTelemetryRequestOptions, type OpenTelemetryTracesOptions, type ResolvedOpenTelemetryOptions, } from "./client.js";
+    export { PagePromise } from "./core/pagination.js";
+    export { AnthropicError, APIError, APIConnectionError, APIConnectionTimeoutError, APIUserAbortError, RetryableError, NotFoundError, ConflictError, RateLimitError, BadRequestError, OverloadedError, AuthenticationError, RequestTimeoutError, InternalServerError, NotImplementedError, GatewayTimeoutError, ContentTooLargeError, PermissionDeniedError, PreconditionFailedError, ServiceUnavailableError, UnprocessableEntityError, ClientClosedRequestError, RequestHeaderFieldsTooLargeError, } from "./core/error.js";
+    export { type APIRequest } from "./client.js";
+    export { type Middleware, type MiddlewareContext, type MiddlewareNext } from "./core/middleware.js";
+    export { betaRefusalFallbackMiddleware, BetaFallbackState, type BetaRefusalFallbackError, type BetaRefusalFallbackOptions, } from "./lib/middleware.js";
+    export type { AutoParseableOutputFormat, ParsedMessage, ParsedContentBlock, ParseableMessageCreateParams, ExtractParsedContentFromParams, } from "./lib/parser.js";
+    //# sourceMappingURL=index.d.ts.map1:export { BROWSER_MEMBER_NAME_VALUES, COMPUTER_MEMBER_NAME_VALUES, AvailableToolsLimitExceededError, CompactionBlockAmbiguousError, CompactionBlockMisplacedError, CompactionContentMismatchError, CompactionIncompleteTurnError, CompactionNothingToSummarizeError, CompactionSignatureInvalidError, CompactionTooManyToolReferencesError, CompactionToolChangesMismatchError, ThreadAlreadyContinuedError, ThreadContinueInFlightError, ThreadFingerprintMismatchError, ThreadUnsupportedRequestError, ToolNameConflictError, ToolReferenceUnresolvedError, ThreadNotFoundError, CompactionUnavailableError, Messages, type AssistantMessageParam, type AvailableToolsLimitExceededErrorDetails, type Base64ImageSource, type Base64PDFSource, type BashCodeExecutionOutputBlock, type BashCodeExecutionOutputBlockParam, type BashCodeExecutionResultBlock, type BashCodeExecutionResultBlockParam, type BashCodeExecutionToolResultBlock, type BashCodeExecutionToolResultBlockParam, type BashCodeExecutionToolResultError, type BashCodeExecutionToolResultErrorCode, type BashCodeExecutionToolResultErrorParam, type BrowserClickTarget, type BrowserCloseTabConfig, type BrowserCloseTabInput, type BrowserCloseTabToolUseBlock, type BrowserCoordinateTarget, type BrowserDoubleClickConfig, type BrowserDoubleClickInput, type BrowserDoubleClickToolUseBlock, type BrowserFileUploadConfig, type BrowserFileUploadInput, type BrowserFileUploadToolUseBlock, type BrowserFindConfig, type BrowserFindInput, type BrowserFindToolUseBlock, type BrowserFormInputConfig, type BrowserFormInputInput, type BrowserFormInputToolUseBlock, type BrowserFormInputValue, type BrowserGetPageTextConfig, type BrowserGetPageTextInput, type BrowserGetPageTextToolUseBlock, type BrowserHoldKeyConfig, type BrowserHoldKeyInput, type BrowserHoldKeyToolUseBlock, type BrowserHoverConfig, type BrowserHoverInput, type BrowserHoverToolUseBlock, type BrowserJavascriptExecConfig, type BrowserJavascriptExecInput, type BrowserJavascriptExecToolUseBlock, type BrowserKeyConfig, type BrowserKeyInput, type BrowserKeyToolUseBlock, type BrowserLeftClickConfig, type BrowserLeftClickDragConfig, type BrowserLeftClickDragInput, type BrowserLeftClickDragToolUseBlock, type BrowserLeftClickInput, type BrowserLeftClickToolUseBlock, type BrowserLeftMouseDownConfig, type BrowserLeftMouseDownInput, type BrowserLeftMouseDownToolUseBlock, type BrowserLeftMouseUpConfig, type BrowserLeftMouseUpInput, type BrowserLeftMouseUpToolUseBlock, type BrowserListTabsConfig, type BrowserListTabsInput, type BrowserListTabsToolUseBlock, type BrowserMemberInput, type BrowserMemberName, type BrowserMiddleClickConfig, type BrowserMiddleClickInput, type BrowserMiddleClickToolUseBlock, type BrowserMouseMoveConfig, type BrowserMouseMoveInput, type BrowserMouseMoveToolUseBlock, type BrowserNavigateConfig, type BrowserNavigateInput, type BrowserNavigateToolUseBlock, type BrowserNewTabConfig, type BrowserNewTabInput, type BrowserNewTabToolUseBlock, type BrowserReadConsoleConfig, type BrowserReadConsoleInput, type BrowserReadConsoleToolUseBlock, type BrowserReadNetworkConfig, type BrowserReadNetworkInput, type BrowserReadNetworkToolUseBlock, type BrowserReadPageConfig, type BrowserReadPageFilter, type BrowserReadPageInput, type BrowserReadPageToolUseBlock, type BrowserRefTarget, type BrowserRightClickConfig, type BrowserRightClickInput, type BrowserRightClickToolUseBlock, type BrowserScreenshotConfig, type BrowserScreenshotInput, type BrowserScreenshotToolUseBlock, type BrowserScrollConfig, type BrowserScrollDirection, type BrowserScrollInput, type BrowserScrollToConfig, type BrowserScrollToInput, type BrowserScrollToToolUseBlock, type BrowserScrollToolUseBlock, type BrowserStateBlockParam, type BrowserStateChange, type BrowserStateChangeDownloadCompleted, type BrowserStateChangeDownloadFailed, type BrowserStateChangeDownloadStarted, type BrowserStateChangeTabOpened, type BrowserStateTabEntry, type BrowserSwitchTabConfig, type BrowserSwitchTabInput, type BrowserSwitchTabToolUseBlock, type BrowserToolUseBlock, type BrowserToolset20260801, type BrowserToolsetConfigs, type BrowserTripleClickConfig, type BrowserTripleClickInput, type BrowserTripleClickToolUseBlock, type BrowserTypeConfig, type BrowserTypeInput, type BrowserTypeToolUseBlock, type BrowserWaitConfig, type BrowserWaitInput, type BrowserWaitToolUseBlock, type BrowserZoomConfig, type BrowserZoomInput, type BrowserZoomToolUseBlock, type CacheControlEphemeral, type CacheCreation, type CacheMissMessagesChanged, type CacheMissModelChanged, type CacheMissPreviousMessageNotFound, type CacheMissReason, type CacheMissSystemChanged, type CacheMissToolsChanged, type CacheMissUnavailable, type CitationCharLocation, type CitationCharLocationParam, type CitationContentBlockLocation, type CitationContentBlockLocationParam, type CitationPageLocation, type CitationPageLocationParam, type CitationSearchResultLocationParam, type CitationWebSearchResultLocationParam, type CitationsConfig, type CitationsConfigParam, type CitationsDelta, type CitationsSearchResultLocation, type CitationsWebSearchResultLocation, type ClientToolUnion, type CodeExecutionOutputBlock, type CodeExecutionOutputBlockParam, type CodeExecutionResultBlock, type CodeExecutionResultBlockParam, type CodeExecutionTool20250522, type CodeExecutionTool20250825, type CodeExecutionTool20260120, type CodeExecutionTool20260521, type CodeExecutionToolResultBlock, type CodeExecutionToolResultBlockContent, type CodeExecutionToolResultBlockParam, type CodeExecutionToolResultBlockParamContent, type CodeExecutionToolResultError, type CodeExecutionToolResultErrorCode, type CodeExecutionToolResultErrorParam, type CompactionBlockAmbiguousErrorDetails, type CompactionBlockMisplacedErrorDetails, type CompactionContentMismatchErrorDetails, type CompactionIncompleteTurnErrorDetails, type CompactionNothingToSummarizeErrorDetails, type CompactionSignatureInvalidErrorDetails, type CompactionTooManyToolReferencesErrorDetails, type CompactionToolChangesMismatchErrorDetails, type CompactionUnavailableErrorDetails, type ComputerCursorPositionConfig, type ComputerCursorPositionInput, type ComputerCursorPositionToolUseBlock, type ComputerDoubleClickConfig, type ComputerDoubleClickInput, type ComputerDoubleClickToolUseBlock, type ComputerHoldKeyConfig, type ComputerHoldKeyInput, type ComputerHoldKeyToolUseBlock, type ComputerKeyConfig, type ComputerKeyInput, type ComputerKeyToolUseBlock, type ComputerLeftClickConfig, type ComputerLeftClickDragConfig, type ComputerLeftClickDragInput, type ComputerLeftClickDragToolUseBlock, type ComputerLeftClickInput, type ComputerLeftClickToolUseBlock, type ComputerLeftMouseDownConfig, type ComputerLeftMouseDownInput, type ComputerLeftMouseDownToolUseBlock, type ComputerLeftMouseUpConfig, type ComputerLeftMouseUpInput, type ComputerLeftMouseUpToolUseBlock, type ComputerMemberInput, type ComputerMemberName, type ComputerMiddleClickConfig, type ComputerMiddleClickInput, type ComputerMiddleClickToolUseBlock, type ComputerMouseMoveConfig, type ComputerMouseMoveInput, type ComputerMouseMoveToolUseBlock, type ComputerRightClickConfig, type ComputerRightClickInput, type ComputerRightClickToolUseBlock, type ComputerScreenshotConfig, type ComputerScreenshotInput, type ComputerScreenshotToolUseBlock, type ComputerScrollConfig, type ComputerScrollDirection, type ComputerScrollInput, type ComputerScrollToolUseBlock, type ComputerToolUseBlock, type ComputerToolset20260801, type ComputerToolsetConfigs, type ComputerTripleClickConfig, type ComputerTripleClickInput, type ComputerTripleClickToolUseBlock, type ComputerTypeConfig, type ComputerTypeInput, type ComputerTypeToolUseBlock, type ComputerWaitConfig, type ComputerWaitInput, type ComputerWaitToolUseBlock, type ComputerZoomConfig, type ComputerZoomInput, type ComputerZoomToolUseBlock, type Container, type ContainerParams, type ContainerSkill, type ContainerUploadBlock, type ContainerUploadBlockParam, type ContentBlock, type ContentBlockParam, type ContentBlockStartEvent, type ContentBlockStopEvent, type ContentBlockSource, type ContentBlockSourceContent, type Diagnostics, type DiagnosticsParam, type DirectCaller, type DocumentBlock, type DocumentBlockParam, type EncryptedCodeExecutionResultBlock, type EncryptedCodeExecutionResultBlockParam, type FileDocumentSource, type FileImageSource, type ImageBlockParam, type ImageTransformationsParam, type InputJSONDelta, type JSONOutputFormat, type MemoryTool20250818, type Message, type MessageContentParam, type MessageCountTokensTool, type MessageCreateParamsContainer, type MessageDeltaEvent, type MessageDeltaUsage, type MessageParam, type MessageTokensCount, type Metadata, type Model, type OutputConfig, type OutputTokensDetails, type PlainTextSource, type RawContentBlockDelta, type RawContentBlockDeltaEvent, type RawContentBlockStartEvent, type RawContentBlockStopEvent, type RawMessageDeltaEvent, type RawMessageStartEvent, type RawMessageStopEvent, type RawMessageStreamEvent, type RedactedThinkingBlock, type RedactedThinkingBlockParam, type RefusalStopDetails, type SearchResultBlockParam, type ServerToolCaller, type ServerToolCaller20260120, type ServerToolUsage, type ServerToolUseBlock, type ServerToolUseBlockParam, type SignatureDelta, type SkillParams, type StopReason, type SystemMessageParam, type TextBlock, type TextBlockParam, type TextCitation, type TextCitationParam, type TextDelta, type TextEditorCodeExecutionCreateResultBlock, type TextEditorCodeExecutionCreateResultBlockParam, type TextEditorCodeExecutionStrReplaceResultBlock, type TextEditorCodeExecutionStrReplaceResultBlockParam, type TextEditorCodeExecutionToolResultBlock, type TextEditorCodeExecutionToolResultBlockParam, type TextEditorCodeExecutionToolResultError, type TextEditorCodeExecutionToolResultErrorCode, type TextEditorCodeExecutionToolResultErrorParam, type TextEditorCodeExecutionViewResultBlock, type TextEditorCodeExecutionViewResultBlockParam, type ThinkingBlock, type ThinkingBlockParam, type ThinkingConfigAdaptive, type ThinkingConfigBetweenTools, type ThinkingConfigDisabled, type ThinkingConfigEnabled, type ThinkingConfigParam, type ThinkingDelta, type ThreadAlreadyContinuedErrorDetails, type ThreadContinueInFlightErrorDetails, type ThreadFingerprintMismatchErrorDetails, type ThreadNotFoundErrorDetails, type ThreadUnsupportedFeatureName, type ThreadUnsupportedRequestErrorDetails, type Tool, type ToolBash20250124, type ToolChoice, type ToolChoiceAny, type ToolChoiceAuto, type ToolChoiceNone, type ToolChoiceTool, type ToolNameConflictErrorDetails, type ToolReferenceBlock, type ToolReferenceBlockParam, type ToolReferenceUnresolvedErrorDetails, type ToolResultBlockParam, type ToolSearchToolBm25_20251119, type ToolSearchToolRegex20251119, type ToolSearchToolResultBlock, type ToolSearchToolResultBlockParam, type ToolSearchToolResultError, type ToolSearchToolResultErrorCode, type ToolSearchToolResultErrorParam, type ToolSearchToolSearchResultBlock, type ToolSearchToolSearchResultBlockParam, type ToolTextEditor20250124, type ToolTextEditor20250429, type ToolTextEditor20250728, type ToolUnion, type ToolUseBlock, type ToolUseBlockParam, type ToolUseCaller, type ToolsetToolUseBlock, type URLImageSource, type URLPDFSource, type Usage, type UserLocation, type UserMessageParam, type WebFetchBlock, type WebFetchBlockParam, type WebFetchTool20250910, type WebFetchTool20260209, type WebFetchTool20260309, type WebFetchTool20260318, type WebFetchToolResultBlock, type WebFetchToolResultBlockParam, type WebFetchToolResultErrorBlock, type WebFetchToolResultErrorBlockParam, type WebFetchToolResultErrorCode, type WebFetchURLSourceAll, type WebFetchURLSourceExcept, type WebFetchURLSourceNone, type WebFetchURLSourceOnly, type WebFetchURLSourceToolReference, type WebFetchURLSources, type WebSearchResultBlock, type WebSearchResultBlockParam, type WebSearchTool20250305, type WebSearchTool20260209, type WebSearchTool20260318, type WebSearchToolRequestError, type WebSearchToolResultBlock, type WebSearchToolResultBlockContent, type WebSearchToolResultBlockParam, type WebSearchToolResultBlockParamContent, type WebSearchToolResultError, type WebSearchToolResultErrorCode, type ResponseToolUseBlockUnion, type ResponseBrowserToolUseBlock, type ResponseBrowserCloseTabToolUseBlock, type ResponseBrowserDoubleClickToolUseBlock, type ResponseBrowserFileUploadToolUseBlock, type ResponseBrowserFindToolUseBlock, type ResponseBrowserFormInputToolUseBlock, type ResponseBrowserGetPageTextToolUseBlock, type ResponseBrowserHoldKeyToolUseBlock, type ResponseBrowserHoverToolUseBlock, type ResponseBrowserJavascriptExecToolUseBlock, type ResponseBrowserKeyToolUseBlock, type ResponseBrowserLeftClickDragToolUseBlock, type ResponseBrowserLeftClickToolUseBlock, type ResponseBrowserLeftMouseDownToolUseBlock, type ResponseBrowserLeftMouseUpToolUseBlock, type ResponseBrowserListTabsToolUseBlock, type ResponseBrowserMiddleClickToolUseBlock, type ResponseBrowserMouseMoveToolUseBlock, type ResponseBrowserNavigateToolUseBlock, type ResponseBrowserNewTabToolUseBlock, type ResponseBrowserReadConsoleToolUseBlock, type ResponseBrowserReadNetworkToolUseBlock, type ResponseBrowserReadPageToolUseBlock, type ResponseBrowserRightClickToolUseBlock, type ResponseBrowserScreenshotToolUseBlock, type ResponseBrowserScrollToToolUseBlock, type ResponseBrowserScrollToolUseBlock, type ResponseBrowserSwitchTabToolUseBlock, type ResponseBrowserTripleClickToolUseBlock, type ResponseBrowserTypeToolUseBlock, type ResponseBrowserWaitToolUseBlock, type ResponseBrowserZoomToolUseBlock, type ResponseComputerToolUseBlock, type ResponseComputerCursorPositionToolUseBlock, type ResponseComputerDoubleClickToolUseBlock, type ResponseComputerHoldKeyToolUseBlock, type ResponseComputerKeyToolUseBlock, type ResponseComputerLeftClickDragToolUseBlock, type ResponseComputerLeftClickToolUseBlock, type ResponseComputerLeftMouseDownToolUseBlock, type ResponseComputerLeftMouseUpToolUseBlock, type ResponseComputerMiddleClickToolUseBlock, type ResponseComputerMouseMoveToolUseBlock, type ResponseComputerRightClickToolUseBlock, type ResponseComputerScreenshotToolUseBlock, type ResponseComputerScrollToolUseBlock, type ResponseComputerTripleClickToolUseBlock, type ResponseComputerTypeToolUseBlock, type ResponseComputerWaitToolUseBlock, type ResponseComputerZoomToolUseBlock, type MessageStreamEvent, type MessageStartEvent, type MessageStopEvent, type ContentBlockDeltaEvent, type MessageCreateParams, type MessageCreateParamsBase, type MessageCreateParamsNonStreaming, type MessageCreateParamsStreaming, type MessageCountTokensParams, } from "./messages.js";
+    3691:export interface JSONOutputFormat {
+    3692-    /**
+    3693-     * The JSON schema of the format
+    3694-     */
+    3695-    schema: {
+    3696-        [key: string]: unknown;
+    3697-    };
+    3698-    type: 'json_schema';
+    3699-}
+    exit 0
+[tool:other] Update Session Information
+[tool:edit] Write File .kiro/specs/recipe-reader/requirements.md
+[tool:edit] Write File .kiro/specs/recipe-reader/design.md
+[tool:execute] $ awk '/system-prompt:start/{f=1;next}/system-prompt:end/{f=0}f' .kiro/specs/recipe-reader/design.md | sed '1d;$d' | wc -w -c
+        1606    8685
+    exit 0
+[tool:edit] Replace in File .kiro/specs/recipe-reader/design.md
+[tool:edit] Replace in File .kiro/specs/recipe-reader/design.md
+[tool:edit] Replace in File .kiro/specs/recipe-reader/design.md
+[tool:edit] Replace in File .kiro/specs/recipe-reader/requirements.md
+[tool:edit] Write File .kiro/specs/recipe-reader/tasks.md
+[tool:execute] $ cat .kiro/hooks/tasks-lint-on-save.json; sed -n 1,60p scripts/hooks/tasks-lint.sh
+    … (45 earlier lines not shown)
+    problems=0
+    for file in "${files[@]}"; do
+      out="$(awk -v file="$file" '
+        function report(n, why) { printf "%s:%d: %s\n    %s\n", file, n, why, text[n]; bad++ }
+        /^[ \t]*- \[[ xX]\]/ {
+          n = NR
+          line = $0
+          indent = match(line, /[^ \t]/) - 1
+          mark = (substr(line, indent + 4, 1) == " ") ? "open" : "done"
+          rest = substr(line, indent + 7)
+          sub(/^[ \t]+/, "", rest)
+          text[n] = line
+          order[++count] = n
+          ind[n] = indent
+          st[n] = mark
+          if (match(rest, /^T[0-9]+(\.[0-9]+)*([ \t:.]|$)/)) {
+            id = substr(rest, 1, RLENGTH)
+            sub(/[ \t:.]+$/, "", id)
+            tid[n] = id
+            byid[id] = n
+          } else {
+            report(n, "task line has no id (expected T<number>[.<number>...] after the checkbox)")
+          }
+        }
+        END {
+          # Parent by indentation: nearest earlier checkbox with a smaller indent.
+          for (i = 1; i <= count; i++) {
+            n = order[i]
+            for (j = i - 1; j >= 1; j--) {
+              if (ind[order[j]] < ind[n]) { parent[n] = order[j]; break }
+    exit 0
+[tool:execute] $ bash scripts/hooks/tasks-lint.sh .kiro/specs/recipe-reader/tasks.md; echo "exit=$?"; grep -c "^- \[ \]" .kiro/specs/recipe-reader/tasks.md; git status --short
+    [tasks-lint] ok: 1 file(s)
+    exit=0
+    27
+     M .kiro/specs/recipe-graph/tasks.md
+     M docs/kiro-evidence/hook-fires.log
+     M docs/kiro-evidence/impl-recipe-graph-session.txt
+     M docs/kiro-evidence/spec-dinnerfile-session.txt
+     M docs/kiro-evidence/spec-recipe-reader-session.txt
+     M src/core/sanity.ts
+     M test/core/sanity.test.ts
+     M test/meta/arbitraries.test.ts
+     M test/support/arbitraries.ts
+    ?? .kiro/specs/dinnerfile/
+    ?? .kiro/specs/recipe-reader/
+    ?? docs/kiro-evidence/prompts/06d-impl-recipe-graph-c.md
+    ?? docs/kiro-evidence/prompts/09-spec-rebuild.md
+    ?? docs/kiro-evidence/prompts/10-spec-plan-ui.md
+    ?? docs/kiro-evidence/prompts/11-spec-cooking-mode.md
+    ?? docs/kiro-evidence/prompts/12-spec-kitchen-mcp.md
+    exit 0
+[tool:execute] $ git diff docs/kiro-evidence/hook-fires.log | tail -8
+    +2026-11-11T05:06:29Z tasks-lint files=2 bad_files=0
+    +2026-11-11T05:06:32Z after-write ran=typecheck,test:props typecheck=0 props=0
+    +2026-11-11T05:07:23Z after-write ran=typecheck,test:props typecheck=0 props=0
+    +2026-11-11T05:07:25Z after-write ran=typecheck typecheck=0 props=skipped
+    +2026-11-11T05:09:01Z tasks-lint files=3 bad_files=0
+    +2026-11-11T05:09:09Z tasks-lint files=1 bad_files=0
+    +2026-11-11T05:09:12Z after-write ran=typecheck,test:props typecheck=2 props=1
+    +2026-11-11T05:09:14Z after-write ran=typecheck typecheck=2 props=skipped
+    exit 0
+[tool:edit] Replace in File .kiro/specs/recipe-reader/requirements.md
+[tool:other] Update Session Information
+
+I've written the `recipe-reader` spec in `.kiro/specs/recipe-reader/`: `requirements.md`, `design.md` and `tasks.md`. I wrote no code. The installed SDK made me depart from your brief on one point: the design calls `messages.create`, not `messages.parse` (see the first decision below).
+
+**Files**
+- `requirements.md`: 15 requirement groups (R1 to R15, EARS, with ids) and non-functional N1 to N5.
+- `design.md`: real paths and exact signatures, the full `samples/index.json`, the check order as a table, the error-message table, the full system prompt between two markers, the SDK error mapping, the hand-made fixtures, and properties P-RR1 to P-RR5.
+- `tasks.md`: 27 test-first sub-tasks in 7 groups. T6.3 (`npm run record`) is a task for you, not for an agent.
+
+**Checks run:** `bash scripts/hooks/tasks-lint.sh .kiro/specs/recipe-reader/tasks.md` printed "ok: 1 file(s)". Running it by hand also appended one line to `docs/kiro-evidence/hook-fires.log`; I left that line in place. Nothing else was run, since there is no code yet.
+
+**What I checked in the installed SDK (`@anthropic-ai/sdk` 1.8.0)**
+- `zodOutputFormat` exists. I ran it on `PlanSchema` and looked at the schema it produces. It moves `minimum`, `maximum`, `maxLength`, `pattern` and `maxItems` into description text. It keeps the appliance `enum`, the `anyOf` for a null `holdMin`, `minItems: 1` and `additionalProperties: false`. The result has 1 optional field and 1 union, well under the API's limits of 24 and 16. So the SDK's output is already the relaxed wire schema, and `validatePlan` enforces the strict `PlanSchema` afterwards.
+- `messages.parse` runs zod inside the SDK's promise. A refusal or a `max_tokens` cut-off therefore arrives as a plain parse error whose message quotes the model's text, before `stop_reason` can be checked.
+
+**Decisions** (each marked "(decided here)" in the files)
+- **`messages.create` instead of `messages.parse`.** It sends `{ type, schema }` taken from `zodOutputFormat(PlanSchema)`. This lets the client check `stop_reason` before reading any content, and keeps model text out of error messages.
+- **Model request settings.**
+  - No `thinking` field: Opus 5.5 rejects attempts to disable it.
+  - `effort: "low"`, because this is extraction into a fixed schema and the cook is waiting on a phone.
+  - Caching is set on the constant system prompt.
+- **The prompt is pinned to the design.** A test compares `SYSTEM_PROMPT` with the block between the markers in `design.md`.
+- **Recipe block in the user message.** Any `<recipes>` or `</recipes>` tag inside the pasted text is replaced with `[recipes]` or `[/recipes]`, so the text cannot close the block early.
+- **Startup.** The server also refuses to start when a recording fails the schema, has sanity errors, or doesn't fit its sample's suggested kitchen.
+- **Rate limit (sliding window).**
+  - `check` never changes state; consumption happens in the same synchronous step as the checks.
+  - Memory: at most 10,000 client keys × `PARSE_RATE_PER_IP` timestamps, so I capped that variable at 100.
+  - When all 10,000 keys are still active, a new client gets `rate_limited` rather than another client being forgotten.
+- **Client IP.** IPv6 addresses are grouped by /64. With `TRUST_PROXY` on, the key is the rightmost `X-Forwarded-For` entry.
+- **Daily cap.** Each model call counts once, including the SDK's one retry. A clock that steps back across midnight never resets the count.
+- **Limit codes and statuses.** 64 KiB body limit (413). An empty text gets `bad_request`. A plan with sanity errors is still a 200, and `invalid_plan` is unused.
+- **Recordings and fixtures.** `raw` is the JSON value parsed from the model's text block. Tests before T6.4 use the hand-made fixtures `tiny-roast` and `tiny-salad` in `test/fixtures/not-a-recording/`.
+
+**Where the spec departs from steering**
+- `structure.md` lists four samples; the spec has five, adding `korean-table`.
+- `tech.md`'s environment table has no `PARSE_TIMEOUT_MS`.
+- `tech.md` puts the 12,000-character limit before normalisation; the spec applies it after, as you asked.
+- You said the real client is constructed only in `index.ts`; `scripts/record.ts` also has to construct one, and the spec allows both.
+
+I didn't edit the steering files; they need your update.
+
+**Open questions**
+1. **Ovens.** The suggested kitchens use `ovens: 2` where a recipe puts two dishes in at the same temperature, because the scheduler gives each oven step a whole oven. Is that the modelling you want?
+2. **Server won't start until you record.** From T5.2 until you run `npm run record` and commit the recordings (T6.3), `npm start`, the e2e run and a deploy stop with the startup message.
+3. **Render proxies.** If Render puts more than one proxy of its own in front of the app, the rightmost `X-Forwarded-For` entry is a Render address and all clients share one rate-limit bucket. That is stricter, never looser; it's worth checking on a live deploy.
+4. **Text that isn't a recipe.** The schema requires at least one dish and one step, so for non-recipe text the model may invent steps. Do you want a defined answer for that case?
+5. **Shared response types.** The response shapes and the 12,000 limit could move to `src/core` so the web code can use them.
+6. **Effort level.** If the recordings miss cross-dish prerequisites, raising effort is the first thing to try.
+
+--- run success (end_turn); credits reported by this session: 49.23 ---
