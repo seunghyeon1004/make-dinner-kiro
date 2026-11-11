@@ -128,6 +128,10 @@ found" section or a session transcript.
   files (generator shrinking, G9, R7), two small spec corrections.
 - `npm run record`: the five recordings in `recordings/` are real `claude-opus-5-5` output,
   recorded once with the real key and never edited.
+- One code change after the credits were spent: `criticalPath` now prefers the chain that
+  reaches back to the start of the dinner (`src/core/critical-path.ts`, with a test that fails
+  on the old rule). The first rule, which I had specified, marked the potatoes and stopped an
+  hour short.
 - Re-running every check after every session, and looking at every screen in headless
   Chromium at phone and desktop widths.
 

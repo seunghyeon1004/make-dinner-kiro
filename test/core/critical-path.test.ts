@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { criticalPath } from '../../src/core/critical-path.js';
 import { schedule } from '../../src/core/schedule.js';
@@ -125,5 +126,24 @@ describe('criticalPath (plan-ui design, "The critical path")', () => {
       warnings: [],
     };
     expect(criticalPath(twoOvens)).toEqual(['x.q', 'x.r']);
+  });
+});
+
+describe('criticalPath reaches back to the start (added by hand)', () => {
+  // The recorded Sunday roast in its suggested kitchen: two steps end at serving time, the
+  // 50-minute potatoes and the 5-minute carving. The potatoes' chain stops at 65 minutes
+  // before serving (nothing ends when their oven starts heating); the carving's chain runs
+  // rest, roast, then the oven heating, back to minute -115, the start of the whole dinner.
+  it('prefers the chain that reaches the earliest start over the longer last step', () => {
+    const recording = JSON.parse(
+      readFileSync(new URL('../../recordings/sunday-roast.json', import.meta.url), 'utf8'),
+    ) as { raw: Plan };
+    const roast = mustSchedule(recording.raw, { burners: 4, ovens: 2, cooks: 1 });
+    const path = criticalPath(roast);
+    const start = (id: string): number => roast.steps.find((s) => s.id === id)?.startMin ?? NaN;
+    expect(path.at(-1)).toBe('chicken.carve');
+    expect(path).toContain('chicken.roast');
+    expect(path).not.toContain('roast-potatoes.roast');
+    expect(start(path[0] ?? '')).toBe(-roast.spanMin);
   });
 });
