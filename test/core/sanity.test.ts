@@ -8,8 +8,9 @@ import {
   sortIssues,
   validatePlan,
 } from '../../src/core/sanity.js';
+import { PlanSchema } from '../../src/core/schema.js';
 import type { Dish, Issue, Plan, Step } from '../../src/core/schema.js';
-import { HOME_KITCHEN, MEZZE, SUNDAY_ROAST, TIGHT_OVEN } from '../support/fixtures.js';
+import { HOME_KITCHEN, MEZZE, SUNDAY_ROAST, TIGHT_OVEN, WORST_CASE } from '../support/fixtures.js';
 
 const STEP = {
   id: 'a.x',
@@ -724,5 +725,22 @@ describe('checkKitchen and validatePlan (R6.1, R2.9)', () => {
     const result = validatePlan(plan([step('a.x', { after: ['a.x'] })]));
     expect(result.plan?.steps.map((s) => s.id)).toEqual(['a.x']);
     expect(result.issues.map((i) => i.code)).toEqual(['self_dependency']);
+  });
+});
+
+describe('R10.3 (dinnerfile) WORST_CASE is a valid plan with no issue at all', () => {
+  it('passes PlanSchema', () => {
+    expect(PlanSchema.safeParse(WORST_CASE).success).toBe(true);
+  });
+  it('validatePlan returns the plan and no issue, error or warning', () => {
+    const checked = validatePlan(WORST_CASE);
+    expect(checked.issues).toEqual([]);
+    expect(checked.plan).toEqual(WORST_CASE);
+  });
+  it('has the hostile parts the design lists: the export.x title is 99 code points', () => {
+    const step = WORST_CASE.steps.find((s) => s.id === 'export.x');
+    expect([...(step?.title ?? '')].length).toBe(99);
+    expect(WORST_CASE.dishes.map((d) => d.id)).toEqual(['export', 'dinner', 'define']);
+    expect(WORST_CASE.steps.map((s) => s.id)).toEqual(['define.y', 'export.x', '--.--']);
   });
 });

@@ -15,6 +15,7 @@ import { fcParams } from '../support/fc-params.js';
 import { resourcesOf } from '../../src/core/timeline.js';
 import {
   oracleForwardRepair,
+  oracleLatestPosition,
   oracleLongestChain,
   oraclePendingOverfull,
   oraclePinnedIntervals,
@@ -209,6 +210,33 @@ it(
       );
       expect(r.diff.servingShiftMin).toBe(r.schedule.servingMin);
     });
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'R7 re-aligned: when serving moved later, no pending step whose result does not keep has a valid later position',
+  () => {
+    let checked = 0;
+    forEveryRun(
+      (c, r) => {
+        if (r.diff.servingShiftMin <= 0) return;
+        const pinned = oraclePinnedIntervals(c.s.plan, c.progress, c.now);
+        const starts = startsOf(r.schedule.steps);
+        const context = { servingMin: r.schedule.servingMin, pinned };
+        for (const step of c.s.plan.steps) {
+          if (c.progress[step.id] !== undefined || step.holdMin === null) continue;
+          checked++;
+          expect([
+            step.id,
+            oracleLatestPosition(c.s.plan, c.s.kitchen, starts, step.id, context),
+          ]).toEqual([step.id, starts[step.id]]);
+        }
+      },
+      [...IN_ORDER, ...REALITY],
+    );
+    // The generators must reach the case the guarantee speaks about, or the property is empty.
+    expect(checked).toBeGreaterThan(0);
   },
   TIMEOUT_MS,
 );

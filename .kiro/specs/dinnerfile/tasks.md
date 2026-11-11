@@ -49,7 +49,7 @@ with its seed in a comment before anything else changes (`testing.md`).
   Files: `test/support/fixtures.ts`, `test/core/sanity.test.ts`.
   Covers: R10.3.
   Command: `npx vitest run --project examples test/core/sanity.test.ts`
-- [ ] T1.4 Example tests for the oracles, against the hand-written fixtures only:
+- [x] T1.4 Example tests for the oracles, against the hand-written fixtures only:
   `oracleDinnerfile(SUNDAY_ROAST, {})` equals `SUNDAY_ROAST_DINNERFILE` and
   `oracleDinnerfile(WORST_CASE, {})` equals `WORST_CASE_DINNERFILE`; `oracleEncodeText` and
   `oracleEchoText` on the worst-case title give the design's strings; `oracleMakeLines`
@@ -60,7 +60,7 @@ with its seed in a comment before anything else changes (`testing.md`).
   Files: `test/meta/oracles.test.ts`, `test/support/oracles.ts`.
   Covers: R10.2.
   Command: `npx vitest run --project examples test/meta/oracles.test.ts`
-- [ ] T1.5 Add `arbDinnerfileStyle`, `arbDinnerfileLikeText` and `arbBreakingEdit`. Meta tests
+- [x] T1.5 Add `arbDinnerfileStyle`, `arbDinnerfileLikeText` and `arbBreakingEdit`. Meta tests
   from `fc.sample` with a fixed seed: the style samples cover every style field;
   `oracleDinnerfile` with `CANONICAL_STYLE` equals `oracleDinnerfile` with no style; every
   breaking case's line is `null` or within its text, points at the edited line, and every row
@@ -68,7 +68,7 @@ with its seed in a comment before anything else changes (`testing.md`).
   Files: `test/support/arbitraries.ts`, `test/meta/arbitraries.test.ts`.
   Covers: R10.1.
   Command: `npx vitest run --project examples test/meta/arbitraries.test.ts`
-- [ ] T1.6 Add `gnuMakeVersion`, `makeDir`, `runMake` and `fcMakeParams`. Meta tests:
+- [x] T1.6 Add `gnuMakeVersion`, `makeDir`, `runMake` and `fcMakeParams`. Meta tests:
   `gnuMakeVersion()` starts with `GNU Make`; `gnuMakeVersion('')` throws the design's
   message; `runMake` on a two-rule text prints the expected line with status 0 and empty
   stderr; `fcMakeParams()` gives 50, and `FC_MAKE_RUNS=7` gives 7; the directory is removed
@@ -79,7 +79,7 @@ with its seed in a comment before anything else changes (`testing.md`).
 
 ## T2. Export
 
-- [ ] T2.1 Example tests for `toDinnerfile` from the design's outline: `SUNDAY_ROAST`
+- [x] T2.1 Example tests for `toDinnerfile` from the design's outline: `SUNDAY_ROAST`
   character for character against `SUNDAY_ROAST_DINNERFILE`; the kitchen and serve lines at
   lines 7 and 8; `WORST_CASE` against `WORST_CASE_DINNERFILE`; a hand-shuffled plan; a dish
   with no steps; a dish `dinner`; a plan with a cycle; the exact issues for a step id `a b`,
@@ -87,7 +87,7 @@ with its seed in a comment before anything else changes (`testing.md`).
   Files: `test/core/dinnerfile.test.ts`.
   Covers: R1.1–R1.9, R2.1, R3.1–R3.3, R4.1–R4.3, R5.2.
   Command: `npx vitest run --project examples test/core/dinnerfile.test.ts`
-- [ ] T2.2 Example tests that run GNU Make on `toDinnerfile` output (not on the fixtures
+- [x] T2.2 Example tests that run GNU Make on `toDinnerfile` output (not on the fixtures
   directly): `make -n dinner` on `SUNDAY_ROAST` prints exactly `SUNDAY_ROAST_MAKE_DINNER`;
   `make -n gravy` exactly `SUNDAY_ROAST_MAKE_GRAVY`; `make -n` with no goal the same as
   `dinner`; `make -n dinner` on `WORST_CASE` exactly `WORST_CASE_MAKE_DINNER`; `make dinner`
@@ -96,17 +96,17 @@ with its seed in a comment before anything else changes (`testing.md`).
   Files: `test/core/dinnerfile-make.test.ts`.
   Covers: R1.5, R3.5, R3.6, R4.2, R9.1, R9.2.
   Command: `npx vitest run --project examples test/core/dinnerfile-make.test.ts`
-- [ ] T2.3 Properties P-DF2 Make lines, P-DF6 echo, P-DF9 order-free and P-DF10 layout, with
+- [x] T2.3 Properties P-DF2 Make lines, P-DF6 echo, P-DF9 order-free and P-DF10 layout, with
   `fcParams()`.
   Files: `test/core/dinnerfile.pbt.ts`.
   Covers: R1.1–R1.9, R2.1–R2.3, R3.1–R3.4, R4.1–R4.3, R5.2, R5.3.
   Command: `npx vitest run --project props test/core/dinnerfile.pbt.ts`
-- [ ] T2.4 Properties D2 make agrees and P-DF7 dish target, with `fcMakeParams()` and one
+- [x] T2.4 Properties D2 make agrees and P-DF7 dish target, with `fcMakeParams()` and one
   `makeDir()` per file.
   Files: `test/core/dinnerfile-make.pbt.ts`.
   Covers: R3.5, R9.1, R9.2, N3.
   Command: `npx vitest run --project props test/core/dinnerfile-make.pbt.ts`
-- [ ] T2.5 Implement `toDinnerfile` (validation, layout, `enc`, `echoArg`, last steps) until
+- [x] T2.5 Implement `toDinnerfile` (validation, layout, `enc`, `echoArg`, last steps) until
   T2.1 to T2.4 pass.
   Files: `src/core/dinnerfile.ts`.
   Covers: R1–R5, N1, N3.
@@ -114,7 +114,7 @@ with its seed in a comment before anything else changes (`testing.md`).
 
 ## T3. Import
 
-- [ ] T3.1 Example tests for accepted files: `SUNDAY_ROAST_DINNERFILE` gives
+- [x] T3.1 Example tests for accepted files: `SUNDAY_ROAST_DINNERFILE` gives
   `ok({ plan: canonicalPlan(SUNDAY_ROAST), options: {} })`; each tolerant variant of the
   design's outline, written by hand, gives the same; `# kitchen` and `# serve` give the
   options; `WORST_CASE_DINNERFILE` gives `canonicalPlan(WORST_CASE)` with the lone surrogate,
@@ -122,7 +122,7 @@ with its seed in a comment before anything else changes (`testing.md`).
   Files: `test/core/dinnerfile.test.ts`.
   Covers: R2.4, R5.4, R6.1–R6.7.
   Command: `npx vitest run --project examples test/core/dinnerfile.test.ts`
-- [ ] T3.2 Example tests for errors: for each code of the error table one firing example
+- [x] T3.2 Example tests for errors: for each code of the error table one firing example
   asserting the exact error list (every field, message included) and the non-firing
   neighbours of the design's outline; several errors in line order; no `target_without_step`
   after a bad `# step` value; no mismatch error when a line is broken (R7.13); `''` gives
@@ -130,12 +130,12 @@ with its seed in a comment before anything else changes (`testing.md`).
   Files: `test/core/dinnerfile.test.ts`.
   Covers: R7.1–R7.13.
   Command: `npx vitest run --project examples test/core/dinnerfile.test.ts`
-- [ ] T3.3 Properties D1 round trip, P-DF1 total, P-DF3 options, P-DF4 tolerant, P-DF5
+- [x] T3.3 Properties D1 round trip, P-DF1 total, P-DF3 options, P-DF4 tolerant, P-DF5
   breaking and P-DF8 faults survive, with `fcParams()`.
   Files: `test/core/dinnerfile.pbt.ts`.
   Covers: R1.2, R5.1–R5.4, R6.1–R6.7, R7.1–R7.13, R8.1–R8.3, N2.
   Command: `npx vitest run --project props test/core/dinnerfile.pbt.ts`
-- [ ] T3.4 Implement `fromDinnerfile` (line reader, field scanner, attachment, duplicates,
+- [x] T3.4 Implement `fromDinnerfile` (line reader, field scanner, attachment, duplicates,
   build, mismatch checks, error messages and order) until T3.1 to T3.3 pass, without
   recursion or nested-quantifier regular expressions.
   Files: `src/core/dinnerfile.ts`.
@@ -144,14 +144,14 @@ with its seed in a comment before anything else changes (`testing.md`).
 
 ## T4. Public surface and the whole suite
 
-- [ ] T4.1 Example test that every name in the design's `src/core/index.ts` section is
+- [x] T4.1 Example test that every name in the design's `src/core/index.ts` section is
   exported from `src/core/index.js` (values with `typeof`, types with `expectTypeOf`); then
   add the exports, and add `dinnerfile: ['D']` to `CLAIMS`. Left unticked while scheduler
   T3.1 is unticked.
   Files: `test/core/index.test.ts`, `src/core/index.ts`, `test/meta/guarantee-claims.ts`.
   Covers: N4, D1 and D2 coverage in `test/meta/guarantees.test.ts`.
   Command: `npx vitest run --project examples test/core/index.test.ts test/meta/guarantees.test.ts`
-- [ ] T4.2 Run the wider suite and fix what it finds (never by weakening a check); check that
+- [x] T4.2 Run the wider suite and fix what it finds (never by weakening a check); check that
   no identifier, message or comment in the file says "task" or "job".
   Files: none expected.
   Covers: N1–N5.

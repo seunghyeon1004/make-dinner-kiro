@@ -1,5 +1,8 @@
 import fc from 'fast-check';
 import { schedule } from '../../src/core/schedule.js';
+import { oracleDinnerfile, oracleDishLastSteps } from './oracles.js';
+import type { DinnerfileStyle } from './oracles.js';
+import type { DinnerfileErrorCode, DinnerfileOptions } from '../../src/core/dinnerfile.js';
 import { AXIS_MIN } from '../../src/core/schema.js';
 import type {
   Appliance,
@@ -44,15 +47,94 @@ const ALNUM: readonly string[] = [...'abcdefghijklmnopqrstuvwxyz0123456789'];
 const arbSegment = (maxLength: number): fc.Arbitrary<string> =>
   fc.array(fc.constantFrom(...ALNUM), { minLength: 1, maxLength }).map((chars) => chars.join(''));
 
-/** A dish id: 1 to 3 segments joined by `-`, at most 20 characters. */
-const arbDishId: fc.Arbitrary<string> = fc
-  .array(arbSegment(6), { minLength: 1, maxLength: 3 })
-  .map((segments) => segments.join('-'));
+/** Dish ids that are Make directive words or file names Make knows (dinnerfile spec). */
+const DIRECTIVE_DISH_IDS: readonly string[] = [
+  'dinner',
+  'define',
+  'export',
+  'include',
+  'ifeq',
+  'else',
+  'endif',
+  'override',
+  'vpath',
+  'makefile',
+];
 
-/** The part of a step id after the dot: 1 to 3 segments joined by `-`, at most 14 characters. */
-const arbSlug: fc.Arbitrary<string> = fc
-  .array(arbSegment(4), { minLength: 1, maxLength: 3 })
-  .map((segments) => segments.join('-'));
+/** A dish id: 1 to 3 segments joined by `-`, at most 20 characters; sometimes a Make word. */
+const arbDishId: fc.Arbitrary<string> = fc.oneof(
+  {
+    weight: 5,
+    arbitrary: fc
+      .array(arbSegment(6), { minLength: 1, maxLength: 3 })
+      .map((segments) => segments.join('-')),
+  },
+  { weight: 1, arbitrary: fc.constantFrom(...DIRECTIVE_DISH_IDS) },
+);
+
+/**
+ * The part of a step id after the dot: 1 to 3 segments joined by `-`, at most 14 characters;
+ * sometimes one that starts or ends with `-`, or has nothing else (dinnerfile spec).
+ */
+const arbSlug: fc.Arbitrary<string> = fc.oneof(
+  {
+    weight: 5,
+    arbitrary: fc
+      .array(arbSegment(4), { minLength: 1, maxLength: 3 })
+      .map((segments) => segments.join('-')),
+  },
+  { weight: 1, arbitrary: fc.constantFrom('-x', 'x-', '--', '-0-') },
+);
+
+/** The hostile alphabet of the dinnerfile design: what titles and details may hold. */
+const HOSTILE_TOKENS: readonly string[] = [
+  "'",
+  '"',
+  '$',
+  '$$',
+  '$(MAKE)',
+  '${MAKE}',
+  '$(shell touch canary)',
+  '`touch canary`',
+  "'\\''",
+  '; touch canary',
+  '#',
+  '# step dish=x',
+  '\\',
+  '\\c',
+  '\n',
+  '\r',
+  '\r\n',
+  '\t',
+  '\t@touch canary',
+  ':',
+  '=',
+  ':=',
+  '%',
+  '|',
+  '*',
+  '-n',
+  '-e',
+  ' ',
+  '  ',
+  '\u0000',
+  '\u001b[31m',
+  '\u007f',
+  '\u0085',
+  '\u00a0',
+  '\u2028',
+  '\u2029',
+  '\u202e',
+  '\u2066',
+  '\ufeff',
+  '\u00e9',
+  'e\u0301',
+  '\u{1F525}',
+  '\ud800',
+  '\udfff',
+  '\u6f22\u5b57',
+  'word',
+];
 
 const UNICODE_TEXT: readonly string[] = [
   'Saut\u00e9 the onions',
@@ -74,6 +156,7 @@ const arbNonBlank = (max: number): fc.Arbitrary<string> =>
       weight: 1,
       arbitrary: fc.constantFrom(...UNICODE_TEXT).filter((s) => [...s].length <= max),
     },
+    { weight: 2, arbitrary: arbHostileText(max) },
   );
 
 // Words for titles and details: every form the appliance_mismatch warning looks for, near
@@ -1067,4 +1150,449 @@ export function followPlan(s: AnySchedule, base: Progress, now: number): Progres
 /** A cook who follows the schedule exactly up to some `now` (the premise of R4). */
 export function arbOnPlan(s: Schedule): fc.Arbitrary<Run> {
   return arbNow(s).map((now): Run => ({ progress: followPlan(s, {}, now), now }));
+}
+
+// ---------------------------------------------------------------------------------------
+// Dinnerfile generators (dinnerfile spec).
+
+/**
+ * 1 to 12 hostile tokens joined, cut to at most `max` code points, with a non-white-space
+ * character. The tokens are the design's alphabet: shell and Make metacharacters, line breaks,
+ * control, bidirectional and lone-surrogate code points, accents and emoji.
+ */
+export function arbHostileText(max: number): fc.Arbitrary<string> {
+  return fc
+    .array(fc.constantFrom(...HOSTILE_TOKENS), { minLength: 1, maxLength: 12 })
+    .map((tokens) => [...tokens.join('')].slice(0, max).join(''))
+    .filter((text) => /\S/.test(text));
+}
+
+/** A serving time `HH:MM`, hour 0..23 and minute 0..59, zero-padded. */
+export function arbServeTime(): fc.Arbitrary<string> {
+  return fc
+    .tuple(fc.integer({ min: 0, max: 23 }), fc.integer({ min: 0, max: 59 }))
+    .map(([h, m]) => `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+}
+
+/** Options with a valid kitchen and serving time; each key present or absent, never `undefined`. */
+export function arbDinnerfileOptions(): fc.Arbitrary<DinnerfileOptions> {
+  return fc.record({ kitchen: arbKitchen(), serve: arbServeTime() }, { requiredKeys: [] });
+}
+
+const arbBadKitchen: fc.Arbitrary<unknown> = fc.oneof(
+  fc.record({ burners: fc.constant(-1), ovens: fc.constant(1), cooks: fc.constant(1) }),
+  fc.record({ burners: fc.constant(2), ovens: fc.constant(9), cooks: fc.constant(1) }),
+  fc.record({ burners: fc.constant(9), ovens: fc.constant(1), cooks: fc.constant(2) }),
+  fc.record({ burners: fc.constant(2), ovens: fc.constant(1), cooks: fc.constant(1.5) }),
+  fc.record({ burners: fc.constant(2), ovens: fc.constant(1), cooks: fc.constant(0) }),
+  fc.record({ burners: fc.constant('2'), ovens: fc.constant(1), cooks: fc.constant(1) }),
+  fc.constantFrom('4 burners', '', 'kitchen'),
+);
+
+const arbBadServe: fc.Arbitrary<unknown> = fc.oneof(
+  fc.constantFrom('24:00', '7:00', '19:60', '19:00\n.PHONY: x', ''),
+  fc.string().filter((value) => !/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/.test(value)),
+);
+
+/**
+ * Like `arbDinnerfileOptions`, but each present value is, half the time, one that fails its
+ * schema (typed by a cast here and nowhere else).
+ */
+export function arbAnyDinnerfileOptions(): fc.Arbitrary<DinnerfileOptions> {
+  return fc
+    .record(
+      {
+        kitchen: fc.oneof(arbKitchen() as fc.Arbitrary<unknown>, arbBadKitchen),
+        serve: fc.oneof(arbServeTime() as fc.Arbitrary<unknown>, arbBadServe),
+      },
+      { requiredKeys: [] },
+    )
+    .map((options) => options as unknown as DinnerfileOptions);
+}
+
+const COMMENT_POOL: readonly string[] = [
+  '#',
+  '# note',
+  '#   Plan "x"',
+  '# steps below',
+  '# plan2',
+  '#stepping',
+];
+const STEP_KEYS: readonly string[] = [
+  'dish',
+  'minutes',
+  'appliance',
+  'handsOn',
+  'hold',
+  'title',
+  'detail',
+];
+const KITCHEN_KEYS: readonly string[] = ['burners', 'ovens', 'cooks'];
+
+/**
+ * A way of writing the same plan that the import must read the same (R6.6): line endings, BOM,
+ * header, `.PHONY` forms, missing dish and dinner rules, other recipe lines, white space,
+ * blank lines, unknown comments, key and block orders, escapes, a repeated prerequisite. The
+ * rates of blank lines and comments grow with the size of the plan, up to every sixth line.
+ */
+export function arbDinnerfileStyle(plan: Plan): fc.Arbitrary<DinnerfileStyle> {
+  const maxEvery = Math.min(6, 2 + plan.steps.length);
+  const order = fc.constantFrom<DinnerfileStyle['stepOrder'][]>('canonical', 'reversed', 'rotated');
+  return fc.record({
+    eol: fc.constantFrom<DinnerfileStyle['eol'][]>('lf', 'crlf'),
+    bom: fc.boolean(),
+    header: fc.boolean(),
+    phony: fc.constantFrom<DinnerfileStyle['phony'][]>('one', 'none', 'per-rule'),
+    dinnerRule: fc.boolean(),
+    dishRules: fc.boolean(),
+    recipes: fc.constantFrom<DinnerfileStyle['recipes'][]>('echo', 'none', 'true', 'fail'),
+    lineEndSpace: fc.constantFrom('', ' ', '\t', '  \t'),
+    blankEvery: fc.integer({ min: 0, max: maxEvery }),
+    comments: fc.shuffledSubarray([...COMMENT_POOL]),
+    commentEvery: fc.integer({ min: 0, max: maxEvery }),
+    indent: fc.constantFrom('', ' ', '   '),
+    ruleNote: fc.boolean(),
+    stepKeys: arbPermutation(STEP_KEYS),
+    kitchenKeys: arbPermutation(KITCHEN_KEYS),
+    separator: fc.constantFrom(' ', '  ', '\t', ' \t ', '\t\t'),
+    spaceAfterColon: fc.boolean(),
+    stepOrder: order,
+    dishOrder: order,
+    optionOrder: fc.constantFrom<DinnerfileStyle['optionOrder'][]>('canonical', 'reversed'),
+    metadataAtBottom: fc.boolean(),
+    escapes: fc.boolean(),
+    repeatPrerequisite: fc.boolean(),
+  });
+}
+
+/** Valid and broken metadata, rule and recipe lines, to be joined into Dinnerfile-like text. */
+const LIKE_LINES: readonly string[] = [
+  '# plan "Sunday roast"',
+  '# plan Sunday',
+  '# plan "unterminated',
+  '# dish a "A"',
+  '# dish A "A"',
+  '# dish a',
+  '# dish a "A" extra',
+  '# step dish=a minutes=5 appliance=none handsOn=true hold=keeps title="Do it"',
+  '# step dish=a minutes=1.5 appliance=none handsOn=true hold=keeps title="Do it"',
+  '# step dish=a minutes=abc appliance=oven handsOn=yes hold=keep title="Do it"',
+  '# step dish=a minutes=5 minutes=6 title="Do it" extra=1',
+  '# step dish=a title="unterminated',
+  '# step dish=a title="bad \\q escape"',
+  '# step title="\\ud800" detail="\\u00e9"',
+  '#step dish=a',
+  '#stepping',
+  '# Step dish=a',
+  '# kitchen burners=4 ovens=1 cooks=1',
+  '# kitchen burners=-1 ovens=1',
+  '# serve 19:00',
+  '# serve 25:00',
+  '# serve',
+  '# a comment',
+  ' # indented comment',
+  '#',
+  'a.x:',
+  'a.x: b.y',
+  'a.x: b.y c.z # note',
+  'a.x:b.y',
+  'a.x : b.y',
+  'a.x b.y:',
+  'a.x:: b.y',
+  'a: a.x',
+  'dinner: a.x',
+  '.PHONY: dinner a a.x',
+  '.PHONY:',
+  'A.X: B.Y',
+  '-.-:',
+  'export: export.x',
+  '$(X): y',
+  '%.o: %.c',
+  'a.x: $(Y)',
+  'a.x: b.y \\',
+  'X = 1',
+  'include other',
+  'ifeq (a,b)',
+  "\t@echo 'hi' # a.x",
+  '\t# step dish=x minutes=1',
+  '\t@touch canary',
+  '   ',
+  '',
+  ':',
+  ': x',
+];
+
+const arbLikeLines: fc.Arbitrary<string> = fc
+  .tuple(
+    fc.array(fc.constantFrom(...LIKE_LINES), { minLength: 0, maxLength: 40 }),
+    fc.constantFrom('\n', '\r\n', '\r'),
+  )
+  .map(([lines, eol]) => lines.join(eol));
+
+interface Mutation {
+  kind: 'insert' | 'delete' | 'swap';
+  where: 'start' | 'end' | 'anywhere';
+  a: number;
+  b: number;
+  ch: string;
+}
+
+const arbMutation: fc.Arbitrary<Mutation> = fc.record({
+  kind: fc.constantFrom<Mutation['kind'][]>('insert', 'delete', 'swap'),
+  where: fc.constantFrom<Mutation['where'][]>('start', 'end', 'anywhere', 'anywhere'),
+  a: fc.nat(),
+  b: fc.nat(),
+  ch: fc.string({ unit: 'binary', minLength: 1, maxLength: 1 }),
+});
+
+function mutate(text: string, m: Mutation): string {
+  if (m.kind === 'swap') {
+    const lines = text.split('\n');
+    if (lines.length < 2) return text;
+    const i = m.a % lines.length;
+    const j = m.b % lines.length;
+    const copy = [...lines];
+    copy[i] = lines[j] ?? '';
+    copy[j] = lines[i] ?? '';
+    return copy.join('\n');
+  }
+  const at = m.where === 'start' ? 0 : m.where === 'end' ? text.length : m.a % (text.length + 1);
+  if (m.kind === 'insert') return text.slice(0, at) + m.ch + text.slice(at);
+  const from = m.where === 'end' ? Math.max(0, text.length - 1) : Math.min(at, text.length);
+  return text.slice(0, from) + text.slice(from + 1);
+}
+
+const arbMutatedExport: fc.Arbitrary<string> = arbPlan()
+  .chain((plan) =>
+    fc.tuple(
+      fc.constant(plan),
+      arbDinnerfileOptions(),
+      fc.array(arbMutation, { minLength: 1, maxLength: 3 }),
+    ),
+  )
+  .map(([plan, options, mutations]) => mutations.reduce(mutate, oracleDinnerfile(plan, options)));
+
+/**
+ * Text for the totality property of import: arbitrary binary strings, lines from a vocabulary
+ * of valid and broken Dinnerfile lines joined by LF, CRLF or CR, and an export with one to
+ * three random insertions, deletions or line swaps.
+ */
+export function arbDinnerfileLikeText(): fc.Arbitrary<string> {
+  return fc.oneof(
+    { weight: 2, arbitrary: fc.string({ unit: 'binary' }) },
+    { weight: 3, arbitrary: arbLikeLines },
+    { weight: 3, arbitrary: arbMutatedExport },
+  );
+}
+
+export interface BreakingCase {
+  /** The canonical export with exactly one meaning-changing edit. */
+  text: string;
+  /** The one error import must report, and where (computed on the edited text). */
+  code: DinnerfileErrorCode;
+  line: number | null;
+  /** The row of the design's edit table, for the coverage check. */
+  edit: string;
+}
+
+interface EditResult {
+  lines: string[];
+  /** 0-based index in `lines` of the line the error is on, or null. */
+  at: number | null;
+  code: DinnerfileErrorCode;
+  edit: string;
+}
+
+const BAD_MINUTES: readonly string[] = ['1.5', '-3', '007', '', 'abc', '1e3', '1234567'];
+const UNSUPPORTED_LINES: readonly string[] = ['X = 1', 'include other', 'a.x : b.y', 'a.x b.y:'];
+
+/**
+ * The canonical export of `plan` with exactly one meaning-changing edit from the design's
+ * table, and the one error import must report. Edits that need a shape the plan lacks (a dish
+ * with a non-last step, a non-terminal step, a step with a free id to add) are not drawn.
+ * Note: `duplicate-rule` copies the step's `# step` line along with the rule (a rule alone
+ * would also be a `target_without_step`, and the property says exactly one error).
+ */
+export function arbBreakingEdit(plan: Plan): fc.Arbitrary<BreakingCase> {
+  const base = oracleDinnerfile(plan, {}).split('\n');
+  const ids = plan.steps.map((st) => st.id);
+  const ruleIdxOf = (id: string): number => base.findIndex((l) => l.startsWith(`${id}:`));
+  const afterOf = (id: string): readonly string[] =>
+    plan.steps.find((st) => st.id === id)?.after ?? [];
+  const freeIds = (id: string): string[] =>
+    ids.filter((other) => other !== id && !afterOf(id).includes(other));
+  const lastSteps = oracleDishLastSteps(plan);
+  const nonLastOf = (dishId: string): string[] =>
+    plan.steps
+      .filter((st) => st.dish === dishId && !(lastSteps[dishId] ?? []).includes(st.id))
+      .map((st) => st.id);
+  const dishesWithNonLast = Object.keys(lastSteps).filter(
+    (d) => d !== 'dinner' && nonLastOf(d).length > 0,
+  );
+  const used = new Set(plan.steps.flatMap((st) => st.after));
+  const nonTerminal = ids.filter((id) => used.has(id));
+  const pick = <T>(items: readonly T[], n: number): T => items[n % items.length] as T;
+  // `as T` above is sound: every call site passes a non-empty list (the edit is drawn only then).
+
+  const edits: [string, (n: number, m: number) => EditResult][] = [
+    [
+      'remove-step-line',
+      (n) => {
+        const r = ruleIdxOf(pick(ids, n));
+        const lines = base.filter((_, i) => i !== r - 1);
+        return { lines, at: r - 1, code: 'target_without_step', edit: 'remove-step-line' };
+      },
+    ],
+    [
+      'remove-rule-line',
+      (n) => {
+        const r = ruleIdxOf(pick(ids, n));
+        const lines = base.filter((_, i) => i !== r);
+        return { lines, at: r - 1, code: 'step_without_target', edit: 'remove-rule-line' };
+      },
+    ],
+    [
+      'unknown-key',
+      (n) => {
+        const r = ruleIdxOf(pick(ids, n)) - 1;
+        const lines = base.map((l, i) => (i === r ? `${l} extra=1` : l));
+        return { lines, at: r, code: 'unknown_key', edit: 'unknown-key' };
+      },
+    ],
+    [
+      'bad-minutes',
+      (n, m) => {
+        const r = ruleIdxOf(pick(ids, n)) - 1;
+        const bad = pick(BAD_MINUTES, m);
+        const lines = base.map((l, i) =>
+          i === r ? l.replace(/ minutes=\d+/, ` minutes=${bad}`) : l,
+        );
+        return { lines, at: r, code: 'bad_value', edit: 'bad-minutes' };
+      },
+    ],
+    [
+      'bad-handsOn',
+      (n) => {
+        const r = ruleIdxOf(pick(ids, n)) - 1;
+        const lines = base.map((l, i) =>
+          i === r ? l.replace(/ handsOn=(?:true|false)/, ' handsOn=yes') : l,
+        );
+        return { lines, at: r, code: 'bad_value', edit: 'bad-handsOn' };
+      },
+    ],
+    [
+      'bad-hold',
+      (n) => {
+        const r = ruleIdxOf(pick(ids, n)) - 1;
+        const lines = base.map((l, i) =>
+          i === r ? l.replace(/ hold=(?:\d+|keeps)/, ' hold=keep') : l,
+        );
+        return { lines, at: r, code: 'bad_value', edit: 'bad-hold' };
+      },
+    ],
+    [
+      'remove-minutes',
+      (n) => {
+        const r = ruleIdxOf(pick(ids, n)) - 1;
+        const lines = base.map((l, i) => (i === r ? l.replace(/ minutes=\d+/, '') : l));
+        return { lines, at: r, code: 'missing_key', edit: 'remove-minutes' };
+      },
+    ],
+    [
+      'repeat-plan',
+      () => {
+        const planIdx = base.findIndex((l) => l.startsWith('# plan '));
+        let lastDish = -1;
+        base.forEach((l, i) => {
+          if (l.startsWith('# dish ')) lastDish = i;
+        });
+        const lines = [...base];
+        lines.splice(lastDish + 1, 0, base[planIdx] ?? '');
+        return { lines, at: lastDish + 1, code: 'duplicate_metadata', edit: 'repeat-plan' };
+      },
+    ],
+    [
+      'remove-plan',
+      () => {
+        const lines = base.filter((l) => !l.startsWith('# plan '));
+        return { lines, at: null, code: 'missing_plan', edit: 'remove-plan' };
+      },
+    ],
+    [
+      'line-continuation',
+      (n) => {
+        const r = n % (base.length - 1); // not the empty piece after the final LF
+        const lines = base.map((l, i) => (i === r ? `${l} \\` : l));
+        return { lines, at: r, code: 'line_continuation', edit: 'line-continuation' };
+      },
+    ],
+    [
+      'unsupported-line',
+      (n, m) => {
+        const r = ruleIdxOf(pick(ids, n)) - 1;
+        const lines = [...base];
+        lines.splice(r, 0, pick(UNSUPPORTED_LINES, m));
+        return { lines, at: r, code: 'unsupported_line', edit: 'unsupported-line' };
+      },
+    ],
+    [
+      'recipe-before-rule',
+      () => {
+        const phony = base.findIndex((l) => l.startsWith('.PHONY:'));
+        const lines = [...base];
+        lines.splice(phony, 0, '\t@true');
+        return { lines, at: phony, code: 'recipe_before_rule', edit: 'recipe-before-rule' };
+      },
+    ],
+  ];
+  const withExtra = ids.filter((id) => freeIds(id).length > 0);
+  if (withExtra.length > 0) {
+    edits.push([
+      'duplicate-rule',
+      (n, m) => {
+        const id = pick(withExtra, n);
+        const r = ruleIdxOf(id);
+        const copy = [
+          '',
+          base[r - 1] ?? '',
+          `${base[r] ?? ''} ${pick(freeIds(id), m)}`,
+          base[r + 1] ?? '',
+        ];
+        const lines = [...base.slice(0, -1), ...copy, ''];
+        return {
+          lines,
+          at: lines.length - 3,
+          code: 'duplicate_target',
+          edit: 'duplicate-rule',
+        };
+      },
+    ]);
+  }
+  if (dishesWithNonLast.length > 0) {
+    edits.push([
+      'dish-rule-extra',
+      (n, m) => {
+        const dishId = pick(dishesWithNonLast, n);
+        const r = base.findIndex((l) => l.startsWith(`${dishId}:`));
+        const lines = base.map((l, i) => (i === r ? `${l} ${pick(nonLastOf(dishId), m)}` : l));
+        return { lines, at: r, code: 'dish_target_mismatch', edit: 'dish-rule-extra' };
+      },
+    ]);
+  }
+  if (nonTerminal.length > 0) {
+    edits.push([
+      'dinner-rule-extra',
+      (n) => {
+        const r = base.findIndex((l) => l.startsWith('dinner:'));
+        const lines = base.map((l, i) => (i === r ? `${l} ${pick(nonTerminal, n)}` : l));
+        return { lines, at: r, code: 'dinner_mismatch', edit: 'dinner-rule-extra' };
+      },
+    ]);
+  }
+  return fc
+    .tuple(fc.constantFrom(...edits), fc.nat(), fc.nat())
+    .map(([[, make], n, m]): BreakingCase => {
+      const { lines, at, code, edit } = make(n, m);
+      return { text: lines.join('\n'), code, line: at === null ? null : at + 1, edit };
+    });
 }

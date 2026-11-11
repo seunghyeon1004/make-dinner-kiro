@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as core from '../../src/core/index.js';
+import * as dinnerfile from '../../src/core/dinnerfile.js';
 import * as graph from '../../src/core/graph.js';
 import * as normalise from '../../src/core/normalise.js';
 import * as result from '../../src/core/result.js';
@@ -54,6 +55,11 @@ const VALUES = {
   StepMoveSchema: [schema.StepMoveSchema, 'object'],
   RebuildDiffSchema: [schema.RebuildDiffSchema, 'object'],
   RebuiltSchema: [schema.RebuiltSchema, 'object'],
+  // The dinnerfile spec (N4): export, import and the serving time schema.
+  toDinnerfile: [dinnerfile.toDinnerfile, 'function'],
+  fromDinnerfile: [dinnerfile.fromDinnerfile, 'function'],
+  SERVE_TIME_PATTERN: [schema.SERVE_TIME_PATTERN, 'object'],
+  ServeTimeSchema: [schema.ServeTimeSchema, 'object'],
 } as const;
 
 describe('N4 the public surface of src/core/index.ts', () => {
@@ -96,6 +102,12 @@ describe('N4 the public surface of src/core/index.ts', () => {
     expectTypeOf<core.RebuildDiff>().toEqualTypeOf<schema.RebuildDiff>();
     expectTypeOf<core.Rebuilt>().toEqualTypeOf<schema.Rebuilt>();
     expectTypeOf<core.RebuildError>().toEqualTypeOf<rebuilder.RebuildError>();
+    expectTypeOf<core.ServeTime>().toEqualTypeOf<schema.ServeTime>();
+    expectTypeOf<core.DinnerfileOptions>().toEqualTypeOf<dinnerfile.DinnerfileOptions>();
+    expectTypeOf<core.DinnerfileImport>().toEqualTypeOf<dinnerfile.DinnerfileImport>();
+    expectTypeOf<core.DinnerfileError>().toEqualTypeOf<dinnerfile.DinnerfileError>();
+    expectTypeOf<core.DinnerfileErrorCode>().toEqualTypeOf<dinnerfile.DinnerfileErrorCode>();
+    expectTypeOf<core.MetadataKeyword>().toEqualTypeOf<dinnerfile.MetadataKeyword>();
     expectTypeOf<core.Result<number, string>>().toEqualTypeOf<result.Result<number, string>>();
   });
 

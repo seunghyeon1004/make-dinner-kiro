@@ -18,6 +18,8 @@ import {
   ProgressEntrySchema,
   ProgressSchema,
   REBUILD_LIMITS,
+  SERVE_TIME_PATTERN,
+  ServeTimeSchema,
   RebuildDiffSchema,
   RebuiltScheduleSchema,
   RebuiltSchema,
@@ -1625,5 +1627,37 @@ describe('RQ11.1 progress fixtures', () => {
       if (id === 'chicken.carve') continue;
       expect(E5_PROGRESS[id]).toEqual({ state: 'done', startMin: start, endMin: end });
     }
+  });
+});
+
+describe('R5.1 ServeTimeSchema: a 24-hour time HH:MM from 00:00 to 23:59', () => {
+  it.each(['00:00', '09:05', '19:00', '23:59', '12:30', '20:59'])('accepts %s', (value) => {
+    expect(ServeTimeSchema.safeParse(value).success).toBe(true);
+  });
+  it.each([
+    ['24:00', 'hour 24'],
+    ['7:00', 'one-digit hour'],
+    ['19:60', 'minute 60'],
+    ['19:00 ', 'trailing space'],
+    [' 19:00', 'leading space'],
+    ['19:00\n', 'trailing line feed'],
+    ['1900', 'no colon'],
+    ['', 'empty'],
+    ['19:5', 'one-digit minute'],
+    ['29:00', 'hour 29'],
+    ['19:00:00', 'seconds'],
+  ])('rejects %j (%s)', (value) => {
+    expect(ServeTimeSchema.safeParse(value).success).toBe(false);
+  });
+  it('rejects values that are not strings', () => {
+    expect(ServeTimeSchema.safeParse(1900).success).toBe(false);
+    expect(ServeTimeSchema.safeParse(null).success).toBe(false);
+  });
+  it('SERVE_TIME_PATTERN is anchored: it matches 19:00 and not x19:00', () => {
+    expect(SERVE_TIME_PATTERN.test('19:00')).toBe(true);
+    expect(SERVE_TIME_PATTERN.test('x19:00')).toBe(false);
+  });
+  it('ServeTime is a string', () => {
+    expectTypeOf<z.infer<typeof ServeTimeSchema>>().toEqualTypeOf<string>();
   });
 });

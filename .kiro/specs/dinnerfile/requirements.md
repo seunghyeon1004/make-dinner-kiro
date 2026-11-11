@@ -200,7 +200,8 @@ and a fix I can make, so that I can correct the file in one pass.
 - R7.11 THE SYSTEM SHALL build messages only from line numbers, ids that match their pattern,
   metadata key names, numbers and fixed words, never from other text in the file (decided
   here, following R7.2 of the recipe-graph spec).
-- R7.12 THE SYSTEM SHALL report every error it finds, not only the first, without exact
+- R7.12 THE SYSTEM SHALL report the errors it finds, not only the first, up to 50, followed by
+  one `too_many_errors` line saying how many more there are (cap added in review), without exact
   duplicates, sorted by line (`null` first), then code, then `stepId`.
 - R7.13 WHEN any error of R7.1 to R7.8 is found, THE SYSTEM SHALL skip the checks of R7.9, so
   that one broken line does not also show up as a mismatch elsewhere (decided here).

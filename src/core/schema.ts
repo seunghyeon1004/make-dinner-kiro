@@ -61,11 +61,16 @@ export const KitchenSchema = z.strictObject({
   cooks: z.int().min(LIMITS.cooksMin).max(LIMITS.cooksMax),
 });
 
+/** A 24-hour clock time from 00:00 to 23:59 (decided here). */
+export const SERVE_TIME_PATTERN = /^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/;
+export const ServeTimeSchema = z.string().regex(SERVE_TIME_PATTERN);
+
 export type Appliance = z.infer<typeof ApplianceSchema>;
 export type Step = z.infer<typeof StepSchema>;
 export type Dish = z.infer<typeof DishSchema>;
 export type Plan = z.infer<typeof PlanSchema>;
 export type Kitchen = z.infer<typeof KitchenSchema>;
+export type ServeTime = z.infer<typeof ServeTimeSchema>;
 
 const message = z.string().min(1);
 

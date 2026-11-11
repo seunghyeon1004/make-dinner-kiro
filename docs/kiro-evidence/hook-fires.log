@@ -138,3 +138,12 @@
 2026-11-11T06:14:26Z after-write ran=typecheck,test:props typecheck=0 props=0
 2026-11-11T06:14:29Z after-write ran=typecheck typecheck=0 props=skipped
 2026-11-11T06:26:04Z on-stop test=0 (Test Files 20 passed (20);Tests 957 passed (957)) test:props=0 (Test Files 7 passed (7);Tests 66 passed (66)) lint=0
+2026-11-11T06:33:20Z on-spawn changed_files=2 unticked_shown=20
+2026-11-11T06:35:09Z after-write ran=typecheck,test:props typecheck=2 props=1
+2026-11-11T06:35:12Z after-write ran=typecheck typecheck=2 props=skipped
+2026-11-11T06:35:34Z after-write ran=typecheck,test:props typecheck=0 props=0
+2026-11-11T06:35:36Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T06:35:49Z tasks-lint files=7 bad_files=0
+2026-11-11T06:36:07Z after-write ran=typecheck,test:props typecheck=0 props=0
+2026-11-11T06:36:10Z tasks-lint files=7 bad_files=0
+2026-11-11T07:02:08Z on-stop test=0 (Test Files 23 passed (23);Tests 1327 passed (1327)) test:props=0 (Test Files 9 passed (9);Tests 79 passed (79)) lint=0

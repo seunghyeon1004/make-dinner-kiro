@@ -21,6 +21,8 @@ export {
   RebuiltStepSchema,
   ScheduledStepSchema,
   ScheduleSchema,
+  SERVE_TIME_PATTERN,
+  ServeTimeSchema,
   STEP_ID_PATTERN,
   StepIdSchema,
   StepLanesSchema,
@@ -45,6 +47,7 @@ export type {
   RebuiltStep,
   Schedule,
   ScheduledStep,
+  ServeTime,
   Step,
   StepLanes,
   StepMove,
@@ -78,3 +81,12 @@ export type { ScheduleError } from './schedule.js';
 
 export { rebuild } from './rebuild.js';
 export type { RebuildError } from './rebuild.js';
+
+export { fromDinnerfile, toDinnerfile } from './dinnerfile.js';
+export type {
+  DinnerfileError,
+  DinnerfileErrorCode,
+  DinnerfileImport,
+  DinnerfileOptions,
+  MetadataKeyword,
+} from './dinnerfile.js';

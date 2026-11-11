@@ -26,13 +26,27 @@ import {
   RB_C_NOW,
   RB_C_PROGRESS,
   SUNDAY_ROAST,
+  SUNDAY_ROAST_DINNERFILE,
+  SUNDAY_ROAST_MAKE_DINNER,
+  SUNDAY_ROAST_MAKE_GRAVY,
   TIGHT_OVEN,
   TWO_CHOPS,
+  WORST_CASE,
+  WORST_CASE_DINNERFILE,
+  WORST_CASE_MAKE_DINNER,
 } from '../support/fixtures.js';
 import {
+  CANONICAL_STYLE,
+  decodeEchoLine,
   isCycleIn,
   type Iv,
   oracleCapacityViolations,
+  oracleDinnerfile,
+  oracleDishLastSteps,
+  oracleEchoText,
+  oracleEncodeText,
+  oracleMakeLines,
+  oracleNeededSteps,
   oracleCompletenessViolations,
   oracleHoldExceeded,
   oracleLaneViolations,
@@ -1133,5 +1147,309 @@ describe('RQ7.2 an empty pinned interval occupies no minute, so it clashes with 
     expect(oracleRebuildLaneViolations(SUNDAY_ROAST, HOME_KITCHEN, ivOf(clash), [], clash)).toEqual(
       ['lane_clash:burner:1:gravy.simmer:greens.boil'],
     );
+  });
+});
+
+describe('R7 oracleLatestPosition with the serving minute and the pinned intervals, on RB-a', () => {
+  // RB-a: servingMin 15, roast running [-100,-10), prep and shred done; the seven pending steps
+  // are all hot (they have a hold). The oracle is told where serving is and which intervals are
+  // pinned; a step's deadline is the serving minute or the earliest start of a pending user.
+  const finalIv = ivOf(rebuiltStepsOf(RB_A_ROWS, H1_SCHEDULE));
+  const pinned = oraclePinnedIntervals(SUNDAY_ROAST, RB_A_PROGRESS, RB_A_NOW);
+  const startsFrom = (iv: Iv): Record<string, number> =>
+    Object.fromEntries(Object.entries(iv).map(([id, i]) => [id, i.startMin]));
+  const context = { servingMin: 15, pinned };
+  const pendingIds = [
+    'chicken.carve',
+    'chicken.rest',
+    'gravy.roux',
+    'gravy.simmer',
+    'gravy.strain',
+    'greens.boil',
+    'greens.toss',
+  ];
+
+  it('every pending step of the hand-worked RB-a sits at its latest valid position', () => {
+    const starts = startsFrom(finalIv);
+    expect(
+      pendingIds.map((id) => [
+        id,
+        oracleLatestPosition(SUNDAY_ROAST, HOME_KITCHEN, starts, id, context),
+      ]),
+    ).toEqual(pendingIds.map((id) => [id, starts[id]]));
+  });
+
+  it('gravy.strain at its forward-repair start 2 can still move to 8: the cook is busy with toss at 7 and with carve from 10, and it has no user before serving 15', () => {
+    const starts = { ...startsFrom(finalIv), 'gravy.strain': 2 };
+    expect(oracleLatestPosition(SUNDAY_ROAST, HOME_KITCHEN, starts, 'gravy.strain', context)).toBe(
+      8,
+    );
+  });
+
+  it('gravy.roux at its forward-repair start -10 can move to -4: gravy.simmer, its pending user, starts at -2 and nothing holds the cook or a burner in -4..-2', () => {
+    const starts = { ...startsFrom(finalIv), 'gravy.roux': -10 };
+    expect(oracleLatestPosition(SUNDAY_ROAST, HOME_KITCHEN, starts, 'gravy.roux', context)).toBe(
+      -4,
+    );
+  });
+
+  it('without a context the serving minute is 0, as for G9: the same strain cannot move', () => {
+    const starts = { ...startsFrom(finalIv), 'gravy.strain': 2 };
+    expect(oracleLatestPosition(SUNDAY_ROAST, HOME_KITCHEN, starts, 'gravy.strain')).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// Dinnerfile spec, T1.4: the dinnerfile oracles against the hand-written fixtures only.
+
+const WORST_EXPORT_TITLE = WORST_CASE.steps.find((x) => x.id === 'export.x')?.title ?? '';
+const WORST_DEFINE_TITLE = WORST_CASE.steps.find((x) => x.id === 'define.y')?.title ?? '';
+
+describe('R10.2 oracleDinnerfile writes the hand-worked exports', () => {
+  it('SUNDAY_ROAST with no options is SUNDAY_ROAST_DINNERFILE, character for character', () => {
+    expect(oracleDinnerfile(SUNDAY_ROAST, {})).toBe(SUNDAY_ROAST_DINNERFILE);
+  });
+  it('WORST_CASE with no options is WORST_CASE_DINNERFILE, character for character', () => {
+    expect(oracleDinnerfile(WORST_CASE, {})).toBe(WORST_CASE_DINNERFILE);
+  });
+  it('passing CANONICAL_STYLE is the same as passing no style', () => {
+    expect(oracleDinnerfile(SUNDAY_ROAST, {}, CANONICAL_STYLE)).toBe(
+      oracleDinnerfile(SUNDAY_ROAST, {}),
+    );
+  });
+  it('a kitchen and a serving time add exactly two lines after the plan line (lines 7 and 8)', () => {
+    const lines = oracleDinnerfile(SUNDAY_ROAST, {
+      kitchen: HOME_KITCHEN,
+      serve: '19:00',
+    }).split('\n');
+    const plain = SUNDAY_ROAST_DINNERFILE.split('\n');
+    expect(lines[5]).toBe('# plan "Sunday roast"');
+    expect(lines[6]).toBe('# kitchen burners=4 ovens=1 cooks=1');
+    expect(lines[7]).toBe('# serve 19:00');
+    expect([...lines.slice(0, 6), ...lines.slice(8)]).toEqual(plain);
+  });
+  it('a serving time alone is line 7', () => {
+    const lines = oracleDinnerfile(SUNDAY_ROAST, { serve: '09:05' }).split('\n');
+    expect(lines[6]).toBe('# serve 09:05');
+    expect(lines[7]).toBe('# dish chicken "Roast chicken"');
+  });
+});
+
+describe('R10.2 oracleEncodeText and oracleEchoText on the worst-case titles', () => {
+  it('the plan title encodes as "Worst \\"case\\" \\\\ #"', () => {
+    expect(oracleEncodeText(WORST_CASE.title)).toBe('"Worst \\"case\\" \\\\ #"');
+  });
+  it('the define.y title: CR LF, NUL and U+2028 become escapes', () => {
+    expect(oracleEncodeText(WORST_DEFINE_TITLE)).toBe('"Line\\r\\nbreak\\u0000 and \\u2028end"');
+  });
+  it('the export.x title: tab, newline, U+202E, a lone U+D800 and both backslashes', () => {
+    expect(oracleEncodeText(WORST_EXPORT_TITLE)).toBe(
+      '" It\'s $(MAKE) ${HOME} $$ `touch canary` $(shell touch canary) ; touch canary #1 \\\\ 50% a:=b\\tc\\nd\\u202ee\\ud800 \\\\"',
+    );
+  });
+  it.each([
+    ['\u0008\u000c', '"\\b\\f"'],
+    ['\u0001\u001f', '"\\u0001\\u001f"'],
+    ['\u007f\u0085\u009f', '"\\u007f\\u0085\\u009f"'],
+    ['\u061c\u200e\u200f', '"\\u061c\\u200e\\u200f"'],
+    ['\u202a\u202e\u2066\u2069', '"\\u202a\\u202e\\u2066\\u2069"'],
+    ['\ufeff\u2028\u2029', '"\\ufeff\\u2028\\u2029"'],
+    ['\ud800', '"\\ud800"'],
+    ['\udfff', '"\\udfff"'],
+    ['\u{1F525}', '"\u{1F525}"'],
+    ['\ud83d\udd25', '"\u{1F525}"'],
+    ['caf\u00e9 e\u0301', '"caf\u00e9 e\u0301"'],
+    ["'$#`:=% ", '"\'$#`:=% "'],
+    ['a/b', '"a/b"'],
+  ])('%j encodes as %s', (text, expected) => {
+    expect(oracleEncodeText(text)).toBe(expected);
+  });
+  it('the display form of the define.y title replaces CR, LF, NUL and U+2028 with spaces', () => {
+    expect(oracleEchoText(WORST_DEFINE_TITLE)).toBe('Line  break  and  end');
+  });
+  it('the display form of the export.x title keeps its quotes and dollars, tab and newline become spaces, U+202E and U+D800 become U+FFFD', () => {
+    expect(oracleEchoText(WORST_EXPORT_TITLE)).toBe(
+      " It's $(MAKE) ${HOME} $$ `touch canary` $(shell touch canary) ; touch canary #1 \\ 50% a:=b c d\ufffde\ufffd \\",
+    );
+  });
+  it.each([
+    ['a\u001b[31mb', 'a [31mb'],
+    ['a\u007fb\u0085c\u009fd', 'a b c d'],
+    ['a\u2029b', 'a b'],
+    ['\u061c\u200e\u200f\u202a\u202e\u2066\u2069\ufeff', '\ufffd'.repeat(8)],
+    ['\ud800\udfff', '\ud800\udfff'],
+    ['\u{1F525}', '\u{1F525}'],
+  ])('the display form of %j is %j', (title, expected) => {
+    // The pair \ud800\udfff is a valid pair (U+103FF), kept; every lone half becomes U+FFFD.
+    expect(oracleEchoText(title)).toBe(expected);
+  });
+});
+
+describe('R10.2 oracleMakeLines classifies the lines export may write, and nothing looser', () => {
+  it('gives no "other" for any line of the two hand-written exports', () => {
+    for (const text of [SUNDAY_ROAST_DINNERFILE, WORST_CASE_DINNERFILE]) {
+      const lines = text.split('\n');
+      const kinds = oracleMakeLines(text);
+      expect(kinds.length).toBe(lines.length);
+      expect(kinds.filter((k) => k === 'other')).toEqual([]);
+    }
+  });
+  it('knows each kind on a small text', () => {
+    const text = [
+      '# note',
+      '',
+      '.PHONY: dinner a.b',
+      'dinner: a.b',
+      'a.b:',
+      "\t@echo 'x' # a.b",
+      '',
+    ].join('\n');
+    expect(oracleMakeLines(text)).toEqual([
+      'comment',
+      'blank',
+      'rule',
+      'rule',
+      'rule',
+      'recipe',
+      'blank',
+    ]);
+  });
+  it.each([
+    ['export : x', 'white space before the colon'],
+    ['X = 1', 'a variable'],
+    ["\t@echo '$$(MAKE)' # a.b", 'a $$( not followed by an empty quote pair'],
+    ["\t@echo '$(MAKE)' # a.b", 'a single $'],
+    ['# a comment ending in a backslash \\', 'a comment ending in a backslash'],
+    ['# trailing space ', 'white space at the end'],
+    ['# bell \u0007', 'a control code point'],
+    ['a.b: c.d ', 'white space at the end of a rule'],
+    ['a.b:c.d', 'no space after the colon'],
+    ['A.B: c.d', 'an upper-case target'],
+    ['a.b: c.d  e.f', 'two spaces between names'],
+    ['include other', 'a directive'],
+    ["\t@echo 'x'", 'no step id'],
+    ["\t@echo 'it's' # a.b", 'an unquoted apostrophe'],
+    ['\t@true', 'a recipe that is not an echo'],
+    [' # indented comment', 'a space before the comment'],
+  ])('%j is other (%s)', (line) => {
+    expect(oracleMakeLines(line)).toEqual(['other']);
+  });
+  it('"\\n" splits lines and a CR is part of its line, so a CRLF text is all "other"', () => {
+    expect(oracleMakeLines('# a\r\n# b\r\n')).toEqual(['other', 'other', 'blank']);
+  });
+  it("accepts the quoting forms: '\\'' and $$'' before ( or {, and a lone $$", () => {
+    expect(oracleMakeLines("\t@echo 'a'\\''b $$''(c) $$''{d} $$$$ e' # a.b")).toEqual(['recipe']);
+  });
+});
+
+describe('R10.2 decodeEchoLine', () => {
+  const recipeLines = WORST_CASE_DINNERFILE.split('\n').filter((l) => l.startsWith('\t@echo'));
+
+  it('decodes the three worst-case recipe lines from the file', () => {
+    expect(recipeLines.map((l) => decodeEchoLine(l, 'file'))).toEqual([
+      { text: '-n', stepId: '--.--' },
+      { text: 'Line  break  and  end', stepId: 'define.y' },
+      { text: oracleEchoText(WORST_EXPORT_TITLE), stepId: 'export.x' },
+    ]);
+  });
+  it('decodes the three worst-case printed lines, in the order Make printed them', () => {
+    expect(WORST_CASE_MAKE_DINNER.map((l) => decodeEchoLine(l, 'printed'))).toEqual([
+      { text: '-n', stepId: '--.--' },
+      { text: oracleEchoText(WORST_EXPORT_TITLE), stepId: 'export.x' },
+      { text: 'Line  break  and  end', stepId: 'define.y' },
+    ]);
+  });
+  it('decodes the ten Sunday roast printed lines to their titles and step ids', () => {
+    expect(SUNDAY_ROAST_MAKE_DINNER.map((l) => decodeEchoLine(l, 'printed')?.stepId)).toEqual([
+      'chicken.prep',
+      'chicken.roast',
+      'chicken.rest',
+      'chicken.carve',
+      'gravy.roux',
+      'gravy.simmer',
+      'gravy.strain',
+      'greens.shred',
+      'greens.boil',
+      'greens.toss',
+    ]);
+    expect(decodeEchoLine(SUNDAY_ROAST_MAKE_DINNER[3] ?? '', 'printed')?.text).toBe(
+      'Carve the chicken',
+    );
+  });
+  it('$$ in the file is $ after Make, and the "file" stage undoes it: $$$$ is two dollars', () => {
+    expect(decodeEchoLine("\t@echo 'a $$$$ b' # x.y", 'file')).toEqual({
+      text: 'a $$ b',
+      stepId: 'x.y',
+    });
+    expect(decodeEchoLine("echo 'a $$ b' # x.y", 'printed')).toEqual({
+      text: 'a $$ b',
+      stepId: 'x.y',
+    });
+  });
+  it("'\\'' is a quote and '' joins two quoted parts", () => {
+    expect(decodeEchoLine("echo 'it'\\''s' # x.y", 'printed')?.text).toBe("it's");
+    expect(decodeEchoLine("echo 'a''b' # x.y", 'printed')?.text).toBe('ab');
+  });
+  it.each([
+    ['', 'empty'],
+    ['echo hello # x.y', 'unquoted'],
+    ["echo 'a' # X.Y", 'step id with capitals'],
+    ["echo 'a' # x.y extra", 'text after the step id'],
+    ["echo 'a'", 'no step id'],
+    ["echo 'a # x.y", 'unterminated quote'],
+    ["\techo 'a' # x.y", 'a tab in the printed stage'],
+    ["\t@echo 'a'b' # x.y", 'a bare quote in the middle'],
+  ])('returns null for %j (%s)', (line) => {
+    expect(decodeEchoLine(line, 'printed')).toBeNull();
+  });
+  it('returns null in the file stage when the line does not start with a tab and @', () => {
+    expect(decodeEchoLine("echo 'a' # x.y", 'file')).toBeNull();
+    expect(decodeEchoLine("\techo 'a' # x.y", 'file')).toBeNull();
+  });
+});
+
+describe('R10.2 oracleNeededSteps and oracleDishLastSteps', () => {
+  it('the gravy needs the roasting tin: five steps, sorted', () => {
+    expect(oracleNeededSteps(SUNDAY_ROAST, 'gravy')).toEqual([
+      'chicken.prep',
+      'chicken.roast',
+      'gravy.roux',
+      'gravy.simmer',
+      'gravy.strain',
+    ]);
+    expect(oracleNeededSteps(SUNDAY_ROAST, 'gravy')).toEqual(
+      SUNDAY_ROAST_MAKE_GRAVY.map((l) => decodeEchoLine(l, 'printed')?.stepId).sort(),
+    );
+  });
+  it('the chicken needs only its own four steps; the greens only theirs', () => {
+    expect(oracleNeededSteps(SUNDAY_ROAST, 'chicken')).toEqual([
+      'chicken.carve',
+      'chicken.prep',
+      'chicken.rest',
+      'chicken.roast',
+    ]);
+    expect(oracleNeededSteps(SUNDAY_ROAST, 'greens')).toEqual([
+      'greens.boil',
+      'greens.shred',
+      'greens.toss',
+    ]);
+  });
+  it('the worst case: the define dish needs all three steps (a chain)', () => {
+    expect(oracleNeededSteps(WORST_CASE, 'define')).toEqual(['--.--', 'define.y', 'export.x']);
+    expect(oracleNeededSteps(WORST_CASE, 'export')).toEqual(['--.--', 'export.x']);
+  });
+  it('last steps of the worst case: one per dish, including the dish called dinner', () => {
+    expect(oracleDishLastSteps(WORST_CASE)).toEqual({
+      define: ['define.y'],
+      dinner: ['--.--'],
+      export: ['export.x'],
+    });
+  });
+  it('last steps of SUNDAY_ROAST: chicken.roast is not one, chicken.rest waits on it', () => {
+    expect(oracleDishLastSteps(SUNDAY_ROAST)).toEqual({
+      chicken: ['chicken.carve'],
+      gravy: ['gravy.strain'],
+      greens: ['greens.toss'],
+    });
   });
 });

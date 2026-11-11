@@ -7,4 +7,5 @@ export const CLAIMS: Readonly<Record<string, readonly ('G' | 'R' | 'S' | 'D')[]>
   'recipe-graph': ['S'],
   scheduler: ['G'],
   rebuild: ['R'],
+  dinnerfile: ['D'],
 };

@@ -849,3 +849,202 @@ export const E8_PROGRESS: Progress = Object.fromEntries(
   Object.entries(E6_PROGRESS).filter(([id]) => id !== 'greens.toss'),
 );
 export const E8_NOW = 0;
+
+// ---------------------------------------------------------------------------------------
+// Dinnerfile spec (T1.3). Written by hand from `.kiro/specs/dinnerfile/design.md`, sections
+// "Worst case" and "Sunday roast"; nothing here is produced by src/. A tab is written `\t`.
+
+/**
+ * The worst case of the dinnerfile design: free text holding every character that could turn a
+ * title into Make or shell syntax, a dish called `dinner`, directive-word dish ids, a step id
+ * that starts with `-`, a lone surrogate and a title that is just `-n`. It passes `PlanSchema`
+ * and `checkPlan` gives it no issue. Steps and dishes are in non-canonical order on purpose.
+ */
+export const WORST_CASE: Plan = {
+  title: 'Worst "case" \\ #',
+  dishes: [
+    { id: 'export', name: 'Export  ' },
+    { id: 'dinner', name: 'Dinner itself' },
+    { id: 'define', name: 'D\u00e9finir' },
+  ],
+  steps: [
+    {
+      id: 'define.y',
+      dish: 'define',
+      title: 'Line\r\nbreak\u0000 and \u2028end',
+      minutes: 480,
+      appliance: 'oven',
+      handsOn: false,
+      after: ['export.x'],
+      holdMin: 480,
+    },
+    {
+      id: 'export.x',
+      dish: 'export',
+      title:
+        " It's $(MAKE) ${HOME} $$ `touch canary` $(shell touch canary) ; touch canary #1 \\ 50% a:=b\tc\nd\u202ee\ud800 \\",
+      detail: 'Line one\nLine two "quoted" \\c',
+      minutes: 5,
+      appliance: 'burner',
+      handsOn: false,
+      after: ['--.--'],
+      holdMin: 0,
+    },
+    {
+      id: '--.--',
+      dish: 'dinner',
+      title: '-n',
+      minutes: 1,
+      appliance: 'none',
+      handsOn: true,
+      after: [],
+      holdMin: null,
+    },
+  ],
+};
+
+export const DINNERFILE_HEADER: readonly string[] = [
+  '# Dinnerfile written by Make Dinner. GNU Make reads it:',
+  '#   make -n -f Dinnerfile dinner    prints every step in an order that works',
+  '#   make -n -f Dinnerfile <dish>    prints the steps one dish needs',
+  '# The "# plan", "# dish", "# step", "# kitchen" and "# serve" lines hold the plan.',
+];
+
+/**
+ * `toDinnerfile(SUNDAY_ROAST)`, the complete text. Worked out by hand in the dinnerfile
+ * design, "Sunday roast": canonical step order puts chicken.carve before chicken.prep and
+ * chicken.rest before chicken.roast; terminal steps are chicken.carve, gravy.strain and
+ * greens.toss, which are also the one last step of each dish.
+ */
+export const SUNDAY_ROAST_DINNERFILE: string =
+  [
+    ...DINNERFILE_HEADER,
+    '',
+    '# plan "Sunday roast"',
+    '# dish chicken "Roast chicken"',
+    '# dish gravy "Gravy"',
+    '# dish greens "Spring greens"',
+    '',
+    '.PHONY: dinner chicken gravy greens chicken.carve chicken.prep chicken.rest chicken.roast gravy.roux gravy.simmer gravy.strain greens.boil greens.shred greens.toss',
+    'dinner: chicken.carve gravy.strain greens.toss',
+    '',
+    'chicken: chicken.carve',
+    'gravy: gravy.strain',
+    'greens: greens.toss',
+    '',
+    '# step dish=chicken minutes=5 appliance=none handsOn=true hold=5 title="Carve the chicken"',
+    'chicken.carve: chicken.rest',
+    "\t@echo 'Carve the chicken' # chicken.carve",
+    '',
+    '# step dish=chicken minutes=10 appliance=none handsOn=true hold=keeps title="Season and truss the chicken"',
+    'chicken.prep:',
+    "\t@echo 'Season and truss the chicken' # chicken.prep",
+    '',
+    '# step dish=chicken minutes=20 appliance=none handsOn=false hold=30 title="Rest the chicken under foil"',
+    'chicken.rest: chicken.roast',
+    "\t@echo 'Rest the chicken under foil' # chicken.rest",
+    '',
+    '# step dish=chicken minutes=75 appliance=oven handsOn=false hold=5 title="Roast the chicken"',
+    'chicken.roast: chicken.prep',
+    "\t@echo 'Roast the chicken' # chicken.roast",
+    '',
+    '# step dish=gravy minutes=2 appliance=burner handsOn=true hold=5 title="Make a roux in the roasting tin" detail="Use the juices left in the tin once the chicken is out."',
+    'gravy.roux: chicken.roast',
+    "\t@echo 'Make a roux in the roasting tin' # gravy.roux",
+    '',
+    '# step dish=gravy minutes=10 appliance=burner handsOn=false hold=5 title="Add stock and let the gravy thicken"',
+    'gravy.simmer: gravy.roux',
+    "\t@echo 'Add stock and let the gravy thicken' # gravy.simmer",
+    '',
+    '# step dish=gravy minutes=2 appliance=none handsOn=true hold=15 title="Strain the gravy into a jug"',
+    'gravy.strain: gravy.simmer',
+    "\t@echo 'Strain the gravy into a jug' # gravy.strain",
+    '',
+    '# step dish=greens minutes=4 appliance=burner handsOn=false hold=0 title="Cook the greens in salted water"',
+    'greens.boil: greens.shred',
+    "\t@echo 'Cook the greens in salted water' # greens.boil",
+    '',
+    '# step dish=greens minutes=5 appliance=none handsOn=true hold=keeps title="Shred the greens"',
+    'greens.shred:',
+    "\t@echo 'Shred the greens' # greens.shred",
+    '',
+    '# step dish=greens minutes=1 appliance=none handsOn=true hold=5 title="Toss the greens with butter"',
+    'greens.toss: greens.boil',
+    "\t@echo 'Toss the greens with butter' # greens.toss",
+  ].join('\n') + '\n';
+
+/**
+ * `make -n -f Dinnerfile dinner` on `SUNDAY_ROAST_DINNERFILE`. Worked out by hand from the
+ * design: GNU Make visits prerequisites left to right, depth first, and (measured in the
+ * design session) prints each step once.
+ */
+export const SUNDAY_ROAST_MAKE_DINNER: readonly string[] = [
+  "echo 'Season and truss the chicken' # chicken.prep",
+  "echo 'Roast the chicken' # chicken.roast",
+  "echo 'Rest the chicken under foil' # chicken.rest",
+  "echo 'Carve the chicken' # chicken.carve",
+  "echo 'Make a roux in the roasting tin' # gravy.roux",
+  "echo 'Add stock and let the gravy thicken' # gravy.simmer",
+  "echo 'Strain the gravy into a jug' # gravy.strain",
+  "echo 'Shred the greens' # greens.shred",
+  "echo 'Cook the greens in salted water' # greens.boil",
+  "echo 'Toss the greens with butter' # greens.toss",
+];
+
+/**
+ * `make -n -f Dinnerfile gravy` on `SUNDAY_ROAST_DINNERFILE`: the gravy needs the roasting tin,
+ * so the chicken's first two steps come first (dinnerfile design, "Sunday roast").
+ */
+export const SUNDAY_ROAST_MAKE_GRAVY: readonly string[] = [
+  "echo 'Season and truss the chicken' # chicken.prep",
+  "echo 'Roast the chicken' # chicken.roast",
+  "echo 'Make a roux in the roasting tin' # gravy.roux",
+  "echo 'Add stock and let the gravy thicken' # gravy.simmer",
+  "echo 'Strain the gravy into a jug' # gravy.strain",
+];
+
+/**
+ * `toDinnerfile(WORST_CASE)`, the complete text, from the design's "Worst case". Canonical step
+ * order is `--.--`, `define.y`, `export.x` (`-` sorts before `d`); the dish `dinner` gets the
+ * fixed comment line and no rule; the only terminal step is `define.y`. The echo argument of
+ * `export.x` is its title's display form (tab and newline as spaces, U+202E and the lone
+ * U+D800 as U+FFFD) with every `'` as `'\''` and every `$` as `$$` plus `''` before `(` or `{`.
+ */
+export const WORST_CASE_DINNERFILE: string =
+  [
+    ...DINNERFILE_HEADER,
+    '',
+    '# plan "Worst \\"case\\" \\\\ #"',
+    '# dish define "D\u00e9finir"',
+    '# dish dinner "Dinner itself"',
+    '# dish export "Export  "',
+    '',
+    '.PHONY: dinner define export --.-- define.y export.x',
+    'dinner: define.y',
+    '',
+    'define: define.y',
+    '# No target for dish dinner: "dinner" makes the whole plan.',
+    'export: export.x',
+    '',
+    '# step dish=dinner minutes=1 appliance=none handsOn=true hold=keeps title="-n"',
+    '--.--:',
+    "\t@echo '-n' # --.--",
+    '',
+    '# step dish=define minutes=480 appliance=oven handsOn=false hold=480 title="Line\\r\\nbreak\\u0000 and \\u2028end"',
+    'define.y: export.x',
+    "\t@echo 'Line  break  and  end' # define.y",
+    '',
+    '# step dish=export minutes=5 appliance=burner handsOn=false hold=0 title=" It\'s $(MAKE) ${HOME} $$ `touch canary` $(shell touch canary) ; touch canary #1 \\\\ 50% a:=b\\tc\\nd\\u202ee\\ud800 \\\\" detail="Line one\\nLine two \\"quoted\\" \\\\c"',
+    'export.x: --.--',
+    "\t@echo ' It'\\''s $$''(MAKE) $$''{HOME} $$$$ `touch canary` $$''(shell touch canary) ; touch canary #1 \\ 50% a:=b c d\ufffde\ufffd \\' # export.x",
+  ].join('\n') + '\n';
+
+/**
+ * `make -n -f Dinnerfile dinner` on `WORST_CASE_DINNERFILE` (measured in the design session,
+ * GNU Make 3.81): Make expands each `$$` to `$` and prints the recipe line without the `@`.
+ */
+export const WORST_CASE_MAKE_DINNER: readonly string[] = [
+  "echo '-n' # --.--",
+  "echo ' It'\\''s $''(MAKE) $''{HOME} $$ `touch canary` $''(shell touch canary) ; touch canary #1 \\ 50% a:=b c d\ufffde\ufffd \\' # export.x",
+  "echo 'Line  break  and  end' # define.y",
+];

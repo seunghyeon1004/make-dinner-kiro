@@ -8,10 +8,18 @@ import {
   PlanSchema,
   ProgressSchema,
   ScheduleSchema,
+  SERVE_TIME_PATTERN,
 } from '../../src/core/schema.js';
 import type { ErrorCode, Plan, Progress, RebuiltStep, Schedule } from '../../src/core/schema.js';
 import {
+  arbAnyDinnerfileOptions,
+  arbBreakingEdit,
   arbBrokenPlan,
+  arbDinnerfileLikeText,
+  arbDinnerfileOptions,
+  arbDinnerfileStyle,
+  arbHostileText,
+  arbServeTime,
   arbHandsFreePair,
   arbNow,
   arbOnPlan,
@@ -30,9 +38,18 @@ import {
 } from '../support/arbitraries.js';
 import type { BrokenCase, Run, RunOpts } from '../support/arbitraries.js';
 import { fcParams } from '../support/fc-params.js';
-import { H1_SCHEDULE, RB_C_PROGRESS, SUNDAY_ROAST } from '../support/fixtures.js';
+import {
+  H1_SCHEDULE,
+  HOME_KITCHEN,
+  RB_C_PROGRESS,
+  SUNDAY_ROAST,
+  WORST_CASE,
+} from '../support/fixtures.js';
 import { checkKitchen, checkPlan } from '../../src/core/sanity.js';
 import {
+  CANONICAL_STYLE,
+  oracleDinnerfile,
+  oracleMakeLines,
   oraclePinnedIntervals,
   oracleRebuildViolations,
   oracleStronglyConnected,
@@ -951,5 +968,431 @@ describe('RQ11.1 followPlan and arbOnPlan meet the premise of R4', () => {
       seen++;
     }
     expect(seen).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// Dinnerfile spec, T1.2: the hostile extensions of the existing generators and the new ones.
+
+/** The hostile alphabet of the dinnerfile design, written out here (not read from the generator). */
+const HOSTILE_TOKENS: readonly string[] = [
+  "'",
+  '"',
+  '$',
+  '$$',
+  '$(MAKE)',
+  '${MAKE}',
+  '$(shell touch canary)',
+  '`touch canary`',
+  "'\\''",
+  '; touch canary',
+  '#',
+  '# step dish=x',
+  '\\',
+  '\\c',
+  '\n',
+  '\r',
+  '\r\n',
+  '\t',
+  '\t@touch canary',
+  ':',
+  '=',
+  ':=',
+  '%',
+  '|',
+  '*',
+  '-n',
+  '-e',
+  '  ',
+  '\u0000',
+  '\u001b[31m',
+  '\u007f',
+  '\u0085',
+  '\u00a0',
+  '\u2028',
+  '\u2029',
+  '\u202e',
+  '\u2066',
+  '\ufeff',
+  '\u00e9',
+  'e\u0301',
+  '\u{1F525}',
+  '\u6f22\u5b57',
+  'word',
+];
+const LONE_HIGH = /[\ud800-\udbff](?![\udc00-\udfff])/;
+const LONE_LOW = /(?<![\ud800-\udbff])[\udc00-\udfff]/;
+
+/** Every title, detail, dish name and plan title of the plans, one string each. */
+const textsOf = (plans: readonly Plan[]): string[] =>
+  plans.flatMap((p) => [
+    p.title,
+    ...p.dishes.map((d) => d.name),
+    ...p.steps.flatMap((s) => (s.detail === undefined ? [s.title] : [s.title, s.detail])),
+  ]);
+
+describe('R10.1 (dinnerfile) the extended plan generators stay valid and reach the hostile cases', () => {
+  const plans = [
+    ...sampleOf(arbPlan(), 400),
+    ...fc.sample(arbPlan({ large: true }), { numRuns: 100, seed: SEED }),
+  ];
+  const texts = textsOf(plans);
+
+  it('every sample, large ones included, passes PlanSchema with unique ids', () => {
+    for (const plan of plans) {
+      expect(PlanSchema.safeParse(plan).success).toBe(true);
+      expect(duplicates(plan.steps.map((s) => s.id))).toEqual([]);
+      expect(duplicates(plan.dishes.map((d) => d.id))).toEqual([]);
+    }
+  });
+  it('no sample has a sanity error', () => {
+    for (const plan of plans) {
+      expect(checkPlan(plan).filter((i) => i.severity === 'error')).toEqual([]);
+    }
+  });
+  it.each(HOSTILE_TOKENS.map((t) => [JSON.stringify(t), t] as const))(
+    'some title, name or detail holds the token %s',
+    (_name, token) => {
+      expect(texts.some((t) => t.includes(token))).toBe(true);
+    },
+  );
+  it('some text holds a lone high surrogate and some a lone low surrogate', () => {
+    expect(texts.some((t) => LONE_HIGH.test(t))).toBe(true);
+    expect(texts.some((t) => LONE_LOW.test(t))).toBe(true);
+  });
+  it('some plan has a dish called dinner and one for each directive word', () => {
+    const dishIds = new Set(plans.flatMap((p) => p.dishes.map((d) => d.id)));
+    for (const id of [
+      'dinner',
+      'define',
+      'export',
+      'include',
+      'ifeq',
+      'else',
+      'endif',
+      'override',
+      'vpath',
+      'makefile',
+    ]) {
+      expect(dishIds.has(id)).toBe(true);
+    }
+  });
+  it('some step slug starts with a dash, some ends with one, and some are only dashes', () => {
+    const slugs = plans.flatMap((p) => p.steps.map((s) => s.id.slice(s.dish.length + 1)));
+    expect(slugs.some((s) => s.startsWith('-'))).toBe(true);
+    expect(slugs.some((s) => s.endsWith('-'))).toBe(true);
+    expect(slugs.some((s) => /^-+$/.test(s))).toBe(true);
+  });
+});
+
+describe('R10.1 (dinnerfile) arbHostileText', () => {
+  const samples = sampleOf(arbHostileText(120), 300);
+
+  it('gives at most max code points and a non-white-space character', () => {
+    for (const text of samples) {
+      expect([...text].length).toBeLessThanOrEqual(120);
+      expect(/\S/.test(text)).toBe(true);
+    }
+    for (const text of sampleOf(arbHostileText(5), 300)) {
+      expect([...text].length).toBeLessThanOrEqual(5);
+      expect(/\S/.test(text)).toBe(true);
+    }
+  });
+  it('reaches every token of the hostile alphabet', () => {
+    for (const token of HOSTILE_TOKENS) {
+      expect(samples.some((t) => t.includes(token))).toBe(true);
+    }
+  });
+});
+
+describe('R10.1 (dinnerfile) arbServeTime and the option generators', () => {
+  it('arbServeTime always matches SERVE_TIME_PATTERN and reaches 00:xx, 23:xx and xx:59', () => {
+    const times = sampleOf(arbServeTime(), 1000);
+    for (const t of times) expect(SERVE_TIME_PATTERN.test(t)).toBe(true);
+    expect(times.some((t) => t.startsWith('00:'))).toBe(true);
+    expect(times.some((t) => t.startsWith('23:'))).toBe(true);
+    expect(times.some((t) => t.endsWith(':59'))).toBe(true);
+    expect(times.some((t) => t.endsWith(':00'))).toBe(true);
+  });
+  it('arbDinnerfileOptions: valid values, every key combination, keys absent never undefined', () => {
+    const options = sampleOf(arbDinnerfileOptions(), 300);
+    for (const o of options) {
+      expect(Object.keys(o).filter((k) => k !== 'kitchen' && k !== 'serve')).toEqual([]);
+      if ('kitchen' in o) expect(KitchenSchema.safeParse(o.kitchen).success).toBe(true);
+      if ('serve' in o) expect(SERVE_TIME_PATTERN.test(o.serve ?? '')).toBe(true);
+    }
+    const shapes = new Set(options.map((o) => `${'kitchen' in o}/${'serve' in o}`));
+    expect([...shapes].sort()).toEqual(['false/false', 'false/true', 'true/false', 'true/true']);
+  });
+  it('arbAnyDinnerfileOptions: valid and invalid kitchens and serving times, keys never undefined', () => {
+    const options = sampleOf(arbAnyDinnerfileOptions(), 500);
+    for (const o of options) {
+      expect(Object.keys(o).filter((k) => k !== 'kitchen' && k !== 'serve')).toEqual([]);
+      for (const key of ['kitchen', 'serve'] as const) {
+        if (key in o) expect(o[key]).not.toBeUndefined();
+      }
+    }
+    const kitchens = options.flatMap((o) => ('kitchen' in o ? [o.kitchen] : []));
+    const serves = options.flatMap((o) => ('serve' in o ? [o.serve] : []));
+    expect(kitchens.some((k) => KitchenSchema.safeParse(k).success)).toBe(true);
+    expect(kitchens.some((k) => !KitchenSchema.safeParse(k).success)).toBe(true);
+    expect(serves.some((v) => SERVE_TIME_PATTERN.test(String(v)))).toBe(true);
+    expect(serves.some((v) => !SERVE_TIME_PATTERN.test(String(v)))).toBe(true);
+    // The named invalid values of the design are all reached.
+    for (const bad of ['24:00', '7:00', '19:60', '19:00\n.PHONY: x', '']) {
+      expect(serves).toContain(bad);
+    }
+    expect(kitchens.some((k) => (k as { burners?: unknown }).burners === -1)).toBe(true);
+    expect(kitchens.some((k) => (k as { burners?: unknown }).burners === 9)).toBe(true);
+    expect(kitchens.some((k) => (k as { cooks?: unknown }).cooks === 1.5)).toBe(true);
+    expect(kitchens.some((k) => typeof k === 'string')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// Dinnerfile spec, T1.5: styles, Dinnerfile-like text and breaking edits.
+
+describe('R10.1 (dinnerfile) arbDinnerfileStyle covers every style field', () => {
+  const styles = sampleOf(arbDinnerfileStyle(SUNDAY_ROAST), 400);
+  const valuesOf = (key: keyof typeof CANONICAL_STYLE): Set<string> =>
+    new Set(styles.map((st) => JSON.stringify(st[key])));
+
+  it.each([
+    ['eol', ['lf', 'crlf']],
+    ['bom', [true, false]],
+    ['header', [true, false]],
+    ['phony', ['one', 'none', 'per-rule']],
+    ['dinnerRule', [true, false]],
+    ['dishRules', [true, false]],
+    ['recipes', ['echo', 'none', 'true', 'fail']],
+    ['stepOrder', ['canonical', 'reversed', 'rotated']],
+    ['dishOrder', ['canonical', 'reversed', 'rotated']],
+    ['optionOrder', ['canonical', 'reversed']],
+    ['metadataAtBottom', [true, false]],
+    ['escapes', [true, false]],
+    ['ruleNote', [true, false]],
+    ['spaceAfterColon', [true, false]],
+    ['repeatPrerequisite', [true, false]],
+  ] as const)('%s takes every value of its set', (key, expected) => {
+    expect([...valuesOf(key)].sort()).toEqual(expected.map((v) => JSON.stringify(v)).sort());
+  });
+  it('white space at line ends, indents and separators take several values, tabs among them', () => {
+    expect(valuesOf('lineEndSpace').size).toBeGreaterThan(2);
+    expect(styles.some((st) => st.lineEndSpace.includes('\t'))).toBe(true);
+    expect(valuesOf('indent').size).toBeGreaterThan(1);
+    expect(valuesOf('separator').size).toBeGreaterThan(2);
+    expect(styles.some((st) => st.separator.includes('\t'))).toBe(true);
+    expect(styles.every((st) => /^[ \t]+$/.test(st.separator))).toBe(true);
+    expect(styles.every((st) => /^[ \t]*$/.test(st.lineEndSpace) && /^ *$/.test(st.indent))).toBe(
+      true,
+    );
+  });
+  it('blank lines and unknown comments are drawn at several rates, comments from a fixed pool', () => {
+    expect(valuesOf('blankEvery').size).toBeGreaterThan(2);
+    expect(valuesOf('commentEvery').size).toBeGreaterThan(2);
+    expect(styles.some((st) => st.commentEvery > 0 && st.comments.length > 0)).toBe(true);
+    const pool = new Set(styles.flatMap((st) => st.comments));
+    expect([...pool].sort()).toEqual(
+      ['#', '# note', '#   Plan "x"', '# plan2', '# steps below', '#stepping'].sort(),
+    );
+  });
+  it('step keys and kitchen keys are permutations of the full key sets, in several orders', () => {
+    const stepKeys = ['dish', 'minutes', 'appliance', 'handsOn', 'hold', 'title', 'detail'].sort();
+    const kitchenKeys = ['burners', 'ovens', 'cooks'].sort();
+    for (const st of styles) {
+      expect([...st.stepKeys].sort()).toEqual(stepKeys);
+      expect([...st.kitchenKeys].sort()).toEqual(kitchenKeys);
+    }
+    expect(valuesOf('stepKeys').size).toBeGreaterThan(5);
+    expect(valuesOf('kitchenKeys').size).toBeGreaterThan(2);
+  });
+});
+
+describe('R10.2 (dinnerfile) CANONICAL_STYLE and styled texts', () => {
+  const plans = [SUNDAY_ROAST, WORST_CASE, ...sampleOf(arbPlan(), 60)];
+  it('oracleDinnerfile with CANONICAL_STYLE equals oracleDinnerfile with no style, for 62 plans', () => {
+    for (const plan of plans) {
+      expect(
+        oracleDinnerfile(plan, { kitchen: HOME_KITCHEN, serve: '19:00' }, CANONICAL_STYLE),
+      ).toBe(oracleDinnerfile(plan, { kitchen: HOME_KITCHEN, serve: '19:00' }));
+    }
+  });
+  it('the canonical text is made of the line forms export writes, and no line is "other"', () => {
+    for (const plan of plans) {
+      const kinds = oracleMakeLines(
+        oracleDinnerfile(plan, { kitchen: HOME_KITCHEN, serve: '07:30' }),
+      );
+      expect(kinds.filter((k) => k === 'other')).toEqual([]);
+    }
+  });
+  it('a styled text has the same number of step blocks as the canonical one', () => {
+    const styles = sampleOf(arbDinnerfileStyle(SUNDAY_ROAST), 100);
+    for (const style of styles) {
+      const text = oracleDinnerfile(SUNDAY_ROAST, {}, style);
+      const stepLines = text
+        .split(/\r?\n/)
+        .filter((l) => /^[ \t]*#[ \t]*step[ \t]/.test(l.replace('\ufeff', '')));
+      expect(stepLines.length).toBe(10);
+    }
+  });
+});
+
+describe('R10.1 (dinnerfile) arbDinnerfileLikeText', () => {
+  const texts = sampleOf(arbDinnerfileLikeText(), 600);
+
+  it('gives strings, including the empty one, and many that look like a Dinnerfile', () => {
+    expect(texts.every((t) => typeof t === 'string')).toBe(true);
+    expect(texts.some((t) => t === '')).toBe(true);
+    expect(texts.filter((t) => /^[ \t]*# *(plan|dish|step)\b/m.test(t)).length).toBeGreaterThan(50);
+  });
+  it('reaches CRLF, a lone CR, tab lines, lines ending in a backslash and the design vocabulary', () => {
+    expect(texts.some((t) => t.includes('\r\n'))).toBe(true);
+    expect(texts.some((t) => /\r(?!\n)/.test(t))).toBe(true);
+    expect(texts.some((t) => /^\t/m.test(t))).toBe(true);
+    expect(texts.some((t) => /\\$/m.test(t))).toBe(true);
+    expect(texts.some((t) => t.includes('X = 1'))).toBe(true);
+    expect(texts.some((t) => t.includes('include '))).toBe(true);
+    expect(texts.some((t) => t.includes('::'))).toBe(true);
+    expect(texts.some((t) => /minutes=-?1\.5|minutes=abc|minutes=007/.test(t))).toBe(true);
+  });
+  it('includes texts that are an export with a few characters inserted, deleted or lines swapped', () => {
+    const exportLike = texts.filter((t) => t.includes('# Dinnerfile written by Make Dinner'));
+    expect(exportLike.length).toBeGreaterThan(20);
+    expect(exportLike.some((t) => !t.endsWith('\n'))).toBe(true);
+  });
+});
+
+describe('R10.1 (dinnerfile) arbBreakingEdit', () => {
+  const plans = [SUNDAY_ROAST, WORST_CASE, ...sampleOf(arbPlan(), 40)];
+  // A different seed per plan, or every plan would see the same sequence of draws.
+  const cases = plans.flatMap((plan, i) =>
+    fc.sample(arbBreakingEdit(plan), { numRuns: 60, seed: SEED + i }),
+  );
+
+  it('every case has a text and a line that is null (missing_plan only) or inside the text', () => {
+    expect(cases.length).toBe(plans.length * 60);
+    for (const c of cases) {
+      const lines = c.text.split('\n');
+      if (c.line === null) {
+        expect(c.code).toBe('missing_plan');
+      } else {
+        expect(c.line).toBeGreaterThanOrEqual(1);
+        expect(c.line).toBeLessThanOrEqual(lines.length);
+      }
+    }
+  });
+  it('the line points at the edited line: the form each edit leaves there', () => {
+    for (const c of cases) {
+      if (c.line === null) continue;
+      const line = c.text.split('\n')[c.line - 1] ?? '';
+      switch (c.code) {
+        case 'target_without_step':
+        case 'duplicate_target':
+          expect(oracleMakeLines(line)).toEqual(['rule']);
+          expect(line.startsWith('.PHONY')).toBe(false);
+          break;
+        case 'step_without_target':
+        case 'missing_key':
+        case 'bad_value':
+          expect(line.startsWith('# step ')).toBe(true);
+          break;
+        case 'unknown_key':
+          expect(line.startsWith('# step ') && line.includes(' extra=1')).toBe(true);
+          break;
+        case 'duplicate_metadata':
+          expect(line.startsWith('# plan ')).toBe(true);
+          break;
+        case 'dish_target_mismatch':
+          expect(oracleMakeLines(line)).toEqual(['rule']);
+          expect(line.split(':')[0]?.includes('.')).toBe(false);
+          break;
+        case 'dinner_mismatch':
+          expect(line.startsWith('dinner:')).toBe(true);
+          break;
+        case 'line_continuation':
+          expect(line.endsWith(' \\')).toBe(true);
+          break;
+        case 'unsupported_line':
+          expect(['X = 1', 'include other', 'a.x : b.y', 'a.x b.y:']).toContain(line);
+          break;
+        case 'recipe_before_rule':
+          expect(line).toBe('\t@true');
+          expect(c.text.split('\n')[c.line] ?? '').toMatch(/^\.PHONY:/);
+          break;
+        default:
+          throw new Error(`unexpected code ${c.code}`);
+      }
+    }
+  });
+  it('the edit leaves the text different from the canonical export of its plan', () => {
+    for (const plan of plans.slice(0, 10)) {
+      const canonicalText = oracleDinnerfile(plan, {});
+      for (const c of sampleOf(arbBreakingEdit(plan), 40)) expect(c.text).not.toBe(canonicalText);
+    }
+  });
+  it('every row of the design table occurs, with its code', () => {
+    const byEdit = new Map<string, Set<string>>();
+    for (const c of cases) {
+      const codes = byEdit.get(c.edit) ?? new Set<string>();
+      codes.add(c.code);
+      byEdit.set(c.edit, codes);
+    }
+    const expected: Record<string, string> = {
+      'remove-step-line': 'target_without_step',
+      'remove-rule-line': 'step_without_target',
+      'duplicate-rule': 'duplicate_target',
+      'unknown-key': 'unknown_key',
+      'bad-minutes': 'bad_value',
+      'bad-handsOn': 'bad_value',
+      'bad-hold': 'bad_value',
+      'remove-minutes': 'missing_key',
+      'repeat-plan': 'duplicate_metadata',
+      'remove-plan': 'missing_plan',
+      'dish-rule-extra': 'dish_target_mismatch',
+      'dinner-rule-extra': 'dinner_mismatch',
+      'line-continuation': 'line_continuation',
+      'unsupported-line': 'unsupported_line',
+      'recipe-before-rule': 'recipe_before_rule',
+    };
+    expect([...byEdit.keys()].sort()).toEqual(Object.keys(expected).sort());
+    for (const [edit, code] of Object.entries(expected)) {
+      expect([edit, [...(byEdit.get(edit) ?? [])]]).toEqual([edit, [code]]);
+    }
+  });
+  it('the bad minutes of the table all occur, and the four unsupported lines', () => {
+    const texts = cases.map((c) => c.text);
+    for (const bad of ['1.5', '-3', '007', '', 'abc', '1e3', '1234567']) {
+      expect(texts.some((t) => t.includes(` minutes=${bad} `))).toBe(true);
+    }
+    for (const line of ['X = 1', 'include other', 'a.x : b.y', 'a.x b.y:']) {
+      expect(texts.some((t) => t.split('\n').includes(line))).toBe(true);
+    }
+    expect(texts.some((t) => t.includes(' handsOn=yes '))).toBe(true);
+    expect(texts.some((t) => t.includes(' hold=keep '))).toBe(true);
+  });
+  it('edits that need a shape the plan lacks are not drawn for it', () => {
+    // SUNDAY_ROAST has a non-terminal step and dishes with several steps; a one-step plan has
+    // neither a non-last step nor a non-terminal one.
+    const single: Plan = {
+      title: 'One',
+      dishes: [{ id: 'a', name: 'A' }],
+      steps: [
+        {
+          id: 'a.x',
+          dish: 'a',
+          title: 'Do it',
+          minutes: 5,
+          appliance: 'none',
+          handsOn: true,
+          after: [],
+          holdMin: null,
+        },
+      ],
+    };
+    const edits = new Set(sampleOf(arbBreakingEdit(single), 200).map((c) => c.edit));
+    expect(edits.has('dish-rule-extra')).toBe(false);
+    expect(edits.has('dinner-rule-extra')).toBe(false);
+    expect(edits.has('duplicate-rule')).toBe(false);
+    expect(edits.has('bad-minutes')).toBe(true);
   });
 });
