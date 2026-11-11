@@ -1,24 +1,49 @@
 import { describe, expect, it } from 'vitest';
+import { rebuild } from '../../src/core/rebuild.js';
+import type { RebuildError } from '../../src/core/rebuild.js';
 import { forwardRepair } from '../../src/core/passes/forward-repair.js';
 import { assignRebuildLanes } from '../../src/core/passes/lanes.js';
 import { rebuildReadout } from '../../src/core/passes/readout.js';
 import { reAlign } from '../../src/core/passes/re-align.js';
 import { canonicalPlan } from '../../src/core/schema.js';
-import type { StepLanes } from '../../src/core/schema.js';
+import type {
+  Progress,
+  Rebuilt,
+  RebuiltSchedule,
+  Schedule,
+  StepLanes,
+} from '../../src/core/schema.js';
 import { capacityOf, timelineFrom } from '../../src/core/timeline.js';
 import type { Interval } from '../../src/core/timeline.js';
 import {
+  E1_NOW,
   E1_PROGRESS,
+  E2_NOW,
   E2_PROGRESS,
+  E3_NOW,
+  E3_PROGRESS,
+  E4_NOW,
+  E4_PROGRESS,
+  E5_EARLY_NOW,
   E5_EARLY_PROGRESS,
+  E5_NOW,
   E5_PROGRESS,
+  E6_NOW,
   E6_PROGRESS,
+  E7_NOW,
+  E7_PROGRESS,
+  E8_NOW,
+  E8_PROGRESS,
   H1_SCHEDULE,
   H3_SCHEDULE,
   HOME_KITCHEN,
+  RB_A_NOW,
   RB_A_PROGRESS,
+  RB_B2_NOW,
   RB_B2_PROGRESS,
+  RB_B_NOW,
   RB_B_PROGRESS,
+  RB_C_NOW,
   RB_C_PROGRESS,
   TIGHT_OVEN,
 } from '../support/fixtures.js';
@@ -355,6 +380,15 @@ describe('RQ7 assignRebuildLanes', () => {
     const lanes = lanesOf(assignRebuildLanes(PLAN, CAP, mapOf(RB_A_FINAL), asked));
     expect(lanes['gravy.roux']).toEqual([1, null, 1]);
   });
+  it('RQ7.2 an empty pinned interval occupies no minute: boil done in zero time inside simmer keeps its burner lane 1', () => {
+    const asked = new Map(prev);
+    asked.set('greens.boil', { burner: 1, oven: null, cook: null });
+    const lanes = lanesOf(
+      assignRebuildLanes(PLAN, CAP, mapOf({ ...RB_A_FINAL, 'greens.boil': iv(0, 0) }), asked),
+    );
+    expect(lanes['greens.boil']).toEqual([1, null, null]);
+    expect(lanes['gravy.simmer']).toEqual([1, null, null]);
+  });
   it('a step with no resource gets no lane; the arguments are not changed', () => {
     const intervals = mapOf(RB_A_FINAL);
     const copy = plain(intervals);
@@ -522,5 +556,418 @@ describe('RQ8 rebuildReadout on the hand-worked rebuilds', () => {
     rebuildReadout(PLAN, CAP, intervals, pinned, -60, 15);
     expect(plain(intervals)).toEqual(copy);
     expect([...pinned].sort()).toEqual(['chicken.prep', 'chicken.roast', 'greens.shred']);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// Rebuild spec, T5: `rebuild` end to end, against the hand-worked tables of the design.
+
+const rebuilt = (
+  schedule: Schedule | RebuiltSchedule,
+  progress: Progress,
+  now: number,
+): Rebuilt => {
+  const r = rebuild(schedule, progress, now);
+  if (!r.ok) throw new Error(`expected ok, got ${JSON.stringify(r.error)}`);
+  return r.value;
+};
+const failure = (schedule: unknown, progress: unknown, now: unknown): RebuildError => {
+  const r = rebuild(schedule as Schedule, progress as Progress, now as number);
+  if (r.ok) throw new Error('expected an error, got ok');
+  return r.error;
+};
+
+/** One table row: start, end, slack, critical, wait. */
+type Row = readonly [number, number, number, boolean, number | null];
+const rowsOf = (r: Rebuilt): Record<string, Row> =>
+  Object.fromEntries(
+    r.schedule.steps.map((x): [string, Row] => [
+      x.id,
+      [x.startMin, x.endMin, x.slackMin, x.critical, x.waitMin],
+    ]),
+  );
+const laneRowsOf = (r: Rebuilt): Record<string, LaneTriple> => lanesOf(lanesMap(r.schedule.steps));
+const movesOf = (r: Rebuilt): [string, number, number][] =>
+  r.diff.moved.map((m) => [m.stepId, m.fromStartMin, m.toStartMin]);
+const warningsOf = (r: Rebuilt): [string, number, number][] =>
+  r.schedule.warnings.map((w) => [w.stepId, w.waitMin, w.holdMin]);
+
+/** The H1 table rows (start, end, slack, critical, wait); every slack is 0 except shred's 75. */
+const H1_ROWS: Record<string, Row> = {
+  'chicken.carve': [-5, 0, 0, true, 0],
+  'chicken.prep': [-110, -100, 0, true, null],
+  'chicken.rest': [-25, -5, 0, true, 0],
+  'chicken.roast': [-100, -25, 0, true, 5],
+  'gravy.roux': [-20, -18, 0, true, 0],
+  'gravy.simmer': [-18, -8, 0, true, 0],
+  'gravy.strain': [-8, -6, 0, true, 6],
+  'greens.boil': [-10, -6, 0, true, 0],
+  'greens.shred': [-100, -95, 75, false, null],
+  'greens.toss': [-6, -5, 0, true, 5],
+};
+/** H1 rows with some replaced. */
+const h1Rows = (over: Record<string, Row> = {}): Record<string, Row> => ({ ...H1_ROWS, ...over });
+const ALL_IDS = Object.keys(H1_ROWS);
+const idsExcept = (...skip: string[]): string[] => ALL_IDS.filter((id) => !skip.includes(id));
+
+describe('RQ1 to RQ9 rebuild: the hand-worked rebuilds of the design, every column', () => {
+  it('RB-a: roast needs 15 more minutes at -60; serving 15, span 125, chain 110, two warnings, seven moves', () => {
+    const r = rebuilt(H1_SCHEDULE, RB_A_PROGRESS, RB_A_NOW);
+    expect(rowsOf(r)).toEqual({
+      'chicken.carve': [10, 15, 0, true, 0],
+      'chicken.prep': [-110, -100, 0, false, null],
+      'chicken.rest': [-10, 10, 0, true, 0],
+      'chicken.roast': [-100, -10, 0, false, 6],
+      'gravy.roux': [-4, -2, 0, true, 0],
+      'gravy.simmer': [-2, 8, 0, true, 0],
+      'gravy.strain': [8, 10, 0, true, 5],
+      'greens.boil': [3, 7, 0, true, 0],
+      'greens.shred': [-100, -95, 0, false, null],
+      'greens.toss': [7, 8, 0, true, 7],
+    });
+    expect(laneRowsOf(r)).toEqual(H1_LANES);
+    expect(r.schedule.servingMin).toBe(15);
+    expect(r.schedule.spanMin).toBe(125);
+    expect(r.schedule.chainMin).toBe(110);
+    expect(r.schedule.kitchen).toEqual(HOME_KITCHEN);
+    expect(r.schedule.plan).toEqual(H1_SCHEDULE.plan);
+    expect(r.schedule.warnings).toEqual([
+      warning(
+        'chicken.roast',
+        6,
+        5,
+        'Step chicken.roast will be ready 6 minutes before the step that uses it and can wait only 5 minutes. More ovens, burners or cooks may help.',
+      ),
+      warning(
+        'greens.toss',
+        7,
+        5,
+        'Step greens.toss will be ready 7 minutes before serving and can wait only 5 minutes. More ovens, burners or cooks may help.',
+      ),
+    ]);
+    expect(movesOf(r)).toEqual([
+      ['chicken.carve', -5, 10],
+      ['chicken.rest', -25, -10],
+      ['gravy.roux', -20, -4],
+      ['gravy.simmer', -18, -2],
+      ['gravy.strain', -8, 8],
+      ['greens.boil', -10, 3],
+      ['greens.toss', -6, 7],
+    ]);
+    expect(r.diff.unchanged).toEqual(['chicken.prep', 'chicken.roast', 'greens.shred']);
+    expect(r.diff.servingShiftMin).toBe(15);
+  });
+
+  it('RB-b: 8 minutes behind on the roux at -12; serving 2, span 112, warnings roast 13 and toss 7', () => {
+    const r = rebuilt(H1_SCHEDULE, RB_B_PROGRESS, RB_B_NOW);
+    expect(rowsOf(r)).toEqual({
+      'chicken.carve': [-5, 0, 0, true, 2],
+      'chicken.prep': [-110, -100, 0, false, null],
+      'chicken.rest': [-25, -5, 0, false, 0],
+      'chicken.roast': [-100, -25, 0, false, 13],
+      'gravy.roux': [-12, -10, 0, true, 0],
+      'gravy.simmer': [-10, 0, 0, true, 0],
+      'gravy.strain': [0, 2, 0, true, 0],
+      'greens.boil': [-10, -6, 0, true, 0],
+      'greens.shred': [-100, -95, 0, false, null],
+      'greens.toss': [-6, -5, 0, true, 7],
+    });
+    expect(laneRowsOf(r)).toEqual(H1_LANES);
+    expect([r.schedule.servingMin, r.schedule.spanMin, r.schedule.chainMin]).toEqual([2, 112, 110]);
+    expect(warningsOf(r)).toEqual([
+      ['chicken.roast', 13, 5],
+      ['greens.toss', 7, 5],
+    ]);
+    expect(movesOf(r)).toEqual([
+      ['gravy.roux', -20, -12],
+      ['gravy.simmer', -18, -10],
+      ['gravy.strain', -8, 0],
+    ]);
+    expect(r.diff.unchanged).toHaveLength(7);
+    expect(r.diff.servingShiftMin).toBe(2);
+  });
+
+  it('RB-b2: behind on a step with slack at -92; only shred moves, to [-92,-87), slack 67; serving 0', () => {
+    const r = rebuilt(H1_SCHEDULE, RB_B2_PROGRESS, RB_B2_NOW);
+    expect(rowsOf(r)).toEqual(
+      h1Rows({
+        'chicken.prep': [-110, -100, 0, false, null],
+        'chicken.roast': [-100, -25, 0, false, 5],
+        'greens.shred': [-92, -87, 67, false, null],
+      }),
+    );
+    expect(laneRowsOf(r)).toEqual(H1_LANES);
+    expect([r.schedule.servingMin, r.schedule.spanMin, r.schedule.chainMin]).toEqual([0, 110, 110]);
+    expect(r.schedule.warnings).toEqual([]);
+    expect(movesOf(r)).toEqual([['greens.shred', -100, -92]]);
+    expect(r.diff.unchanged).toEqual(idsExcept('greens.shred'));
+    expect(r.diff.servingShiftMin).toBe(0);
+  });
+
+  it('RB-c: no slip (R4) at -60; every start, end, lane and wait as H1; nothing moves', () => {
+    const r = rebuilt(H1_SCHEDULE, RB_C_PROGRESS, RB_C_NOW);
+    expect(rowsOf(r)).toEqual(
+      h1Rows({
+        'chicken.prep': [-110, -100, 0, false, null],
+        'chicken.roast': [-100, -25, 0, false, 5],
+        'greens.shred': [-100, -95, 0, false, null],
+      }),
+    );
+    expect(laneRowsOf(r)).toEqual(H1_LANES);
+    expect([r.schedule.servingMin, r.schedule.spanMin, r.schedule.chainMin]).toEqual([0, 110, 110]);
+    expect(r.schedule.warnings).toEqual([]);
+    expect(r.diff.moved).toEqual([]);
+    expect(r.diff.unchanged).toEqual(ALL_IDS);
+    expect(r.diff.servingShiftMin).toBe(0);
+  });
+});
+
+describe('RQ1 to RQ9 rebuild: the situations E1 to E8 of the design', () => {
+  it('E1 finished early: nothing moves (R3), serving 0, the roast waits 15 > 5', () => {
+    const r = rebuilt(H1_SCHEDULE, E1_PROGRESS, E1_NOW);
+    expect(r.diff.moved).toEqual([]);
+    expect(r.schedule.servingMin).toBe(0);
+    expect(rowsOf(r)['chicken.roast']).toEqual([-100, -35, 0, false, 15]);
+    expect(rowsOf(r)['chicken.rest']).toEqual([-25, -5, 0, true, 0]);
+    expect(warningsOf(r)).toEqual([['chicken.roast', 15, 5]]);
+  });
+
+  it('E2 started early: roast [-102,-27); only chicken.roast moves, -100 to -102; its wait 7 is warned', () => {
+    const r = rebuilt(H1_SCHEDULE, E2_PROGRESS, E2_NOW);
+    expect(rowsOf(r)['chicken.roast']).toEqual([-102, -27, 0, false, 7]);
+    expect(movesOf(r)).toEqual([['chicken.roast', -100, -102]]);
+    expect(r.schedule.servingMin).toBe(0);
+    expect(warningsOf(r)).toEqual([['chicken.roast', 7, 5]]);
+  });
+
+  it('E3 overrun without taps: roast ends now [-100,-20); rest [-20,0), carve [0,5), serving 5, the hot steps re-aligned, no warnings', () => {
+    const r = rebuilt(H1_SCHEDULE, E3_PROGRESS, E3_NOW);
+    const rows = rowsOf(r);
+    expect(rows['chicken.roast']?.slice(0, 2)).toEqual([-100, -20]);
+    expect(rows['chicken.rest']?.slice(0, 2)).toEqual([-20, 0]);
+    expect(rows['chicken.carve']?.slice(0, 2)).toEqual([0, 5]);
+    expect(rows['greens.toss']?.[0]).toBe(-1);
+    expect(rows['gravy.strain']?.[0]).toBe(-3);
+    expect(rows['greens.boil']?.[0]).toBe(-5);
+    expect(rows['gravy.simmer']?.[0]).toBe(-13);
+    expect(rows['gravy.roux']?.[0]).toBe(-15);
+    expect(r.schedule.servingMin).toBe(5);
+    expect(r.schedule.warnings).toEqual([]);
+    expect(r.diff.servingShiftMin).toBe(5);
+  });
+
+  it('E4 done long: nothing moves, serving 0, no warnings', () => {
+    const r = rebuilt(H1_SCHEDULE, E4_PROGRESS, E4_NOW);
+    expect(r.diff.moved).toEqual([]);
+    expect(r.schedule.servingMin).toBe(0);
+    expect(r.schedule.warnings).toEqual([]);
+    expect(rowsOf(r)['greens.shred']).toEqual([-100, -88, 0, false, null]);
+  });
+
+  it('E5 all done late: nothing planned; serving 3, shift 3; strain waits 9, toss waits 8 and is warned', () => {
+    const r = rebuilt(H1_SCHEDULE, E5_PROGRESS, E5_NOW);
+    expect(r.schedule.servingMin).toBe(3);
+    expect(r.diff.servingShiftMin).toBe(3);
+    expect(r.diff.moved).toEqual([]);
+    const rows = rowsOf(r);
+    expect(Object.values(rows).map((x) => [x[2], x[3]])).toEqual(ALL_IDS.map(() => [0, false]));
+    expect(rows['gravy.strain']?.[4]).toBe(9);
+    expect(rows['greens.toss']?.[4]).toBe(8);
+    expect(warningsOf(r)).toEqual([['greens.toss', 8, 5]]);
+  });
+
+  it("E5' all done early: serving stays 0 (R5, C5); carve waits 2; no warnings", () => {
+    const r = rebuilt(H1_SCHEDULE, E5_EARLY_PROGRESS, E5_EARLY_NOW);
+    expect(r.schedule.servingMin).toBe(0);
+    expect(r.diff.servingShiftMin).toBe(0);
+    expect(rowsOf(r)['chicken.carve']).toEqual([-5, -2, 0, false, 2]);
+    expect(r.schedule.warnings).toEqual([]);
+  });
+
+  it('E6 out of order: boil [-2,2) on burner 2 waits 0; serving 2 (C3); toss waits 7 and is warned; only boil moves', () => {
+    const r = rebuilt(H1_SCHEDULE, E6_PROGRESS, E6_NOW);
+    expect(rowsOf(r)['greens.boil']).toEqual([-2, 2, 0, true, 0]);
+    expect(laneRowsOf(r)['greens.boil']).toEqual([2, null, null]);
+    expect(r.schedule.servingMin).toBe(2);
+    expect(warningsOf(r)).toEqual([['greens.toss', 7, 5]]);
+    expect(movesOf(r)).toEqual([['greens.boil', -10, -2]]);
+  });
+
+  it('E7 one oven, two pans (C2): ok; both pans on oven lane 1; serving 0; only pie.bake moves, -40 to -60; both warned', () => {
+    const r = rebuilt(H3_SCHEDULE, E7_PROGRESS, E7_NOW);
+    const lanes = laneRowsOf(r);
+    expect([lanes['pie.bake']?.[1], lanes['potatoes.roast']?.[1]]).toEqual([1, 1]);
+    expect(r.schedule.servingMin).toBe(0);
+    expect(movesOf(r)).toEqual([['pie.bake', -40, -60]]);
+    expect(warningsOf(r)).toEqual([
+      ['pie.bake', 20, 10],
+      ['potatoes.roast', 40, 10],
+    ]);
+  });
+
+  it('E8 untap (C4): from E6 output, toss untapped at 0: boil [0,4) then toss [4,5); serving 5, shift 3', () => {
+    const e6 = rebuilt(H1_SCHEDULE, E6_PROGRESS, E6_NOW).schedule;
+    const r = rebuilt(e6, E8_PROGRESS, E8_NOW);
+    const rows = rowsOf(r);
+    expect(rows['greens.boil']?.slice(0, 2)).toEqual([0, 4]);
+    expect(rows['greens.toss']?.slice(0, 2)).toEqual([4, 5]);
+    expect(r.schedule.servingMin).toBe(5);
+    expect(r.diff.servingShiftMin).toBe(3);
+    expect(movesOf(r)).toEqual([
+      ['greens.boil', -2, 0],
+      ['greens.toss', -6, 4],
+    ]);
+  });
+});
+
+describe('RQ1.2 rebuild errors, each with its exact error', () => {
+  const at60 = (progress: unknown, now: unknown = -60): RebuildError =>
+    failure(H1_SCHEDULE, progress, now);
+  it('unknown_step: an id not in the plan', () => {
+    expect(at60({ 'chicken.fry': { state: 'done', startMin: -100, endMin: -90 } })).toEqual({
+      kind: 'unknown_step',
+      stepId: 'chicken.fry',
+    });
+  });
+  it('unknown_step names the smallest unknown id', () => {
+    const entry = { state: 'done', startMin: -100, endMin: -90 };
+    expect(at60({ 'zz.last': entry, 'aa.first': entry })).toEqual({
+      kind: 'unknown_step',
+      stepId: 'aa.first',
+    });
+  });
+  it('done_ends_before_start: shred done [-95,-100)', () => {
+    expect(at60({ 'greens.shred': { state: 'done', startMin: -95, endMin: -100 } })).toEqual({
+      kind: 'done_ends_before_start',
+      stepId: 'greens.shred',
+    });
+  });
+  it('done_after_now: shred done [-100,-50) at now -60', () => {
+    expect(at60({ 'greens.shred': { state: 'done', startMin: -100, endMin: -50 } })).toEqual({
+      kind: 'done_after_now',
+      stepId: 'greens.shred',
+    });
+  });
+  it('running_starts_after_now: roast running from -50 at now -60', () => {
+    expect(at60({ 'chicken.roast': { state: 'running', startMin: -50, extraMin: 0 } })).toEqual({
+      kind: 'running_starts_after_now',
+      stepId: 'chicken.roast',
+    });
+  });
+  it('invalid_now: -60.5, NaN, 1441 and a string', () => {
+    for (const now of [-60.5, Number.NaN, 1441, 'x', null, Number.POSITIVE_INFINITY]) {
+      expect(at60({}, now)).toEqual({ kind: 'invalid_now' });
+    }
+  });
+  it('invalid_now: below the axis minimum -38400', () => {
+    expect(at60({}, -38401)).toEqual({ kind: 'invalid_now' });
+  });
+  it('invalid_progress: a done entry without endMin, and a progress that is not an object', () => {
+    expect(at60({ 'greens.shred': { state: 'done', startMin: -100 } })).toEqual({
+      kind: 'invalid_progress',
+    });
+    expect(at60(42)).toEqual({ kind: 'invalid_progress' });
+  });
+  it('the checks run in order: invalid_now before invalid_progress before unknown_step', () => {
+    expect(at60(42, 1441)).toEqual({ kind: 'invalid_now' });
+    expect(at60({ 'chicken.fry': { state: 'nope' } })).toEqual({ kind: 'invalid_progress' });
+  });
+  it('invalid_schedule shape: a step ending at 1 without servingMin, and rebuild(null, 42, "x")', () => {
+    const bad = {
+      ...H1_SCHEDULE,
+      steps: H1_SCHEDULE.steps.map((x) => (x.id === 'greens.toss' ? { ...x, endMin: 1 } : x)),
+    };
+    expect(failure(bad, {}, -60)).toEqual({
+      kind: 'invalid_schedule',
+      reason: 'shape',
+      issues: [],
+    });
+    expect(failure(null, 42, 'x')).toEqual({
+      kind: 'invalid_schedule',
+      reason: 'shape',
+      issues: [],
+    });
+  });
+  it('invalid_schedule plan: a step that depends on itself, with the sanity issue', () => {
+    const plan = {
+      ...H1_SCHEDULE.plan,
+      steps: H1_SCHEDULE.plan.steps.map((x) =>
+        x.id === 'greens.toss' ? { ...x, after: [...x.after, 'greens.toss'] } : x,
+      ),
+    };
+    const e = failure({ ...H1_SCHEDULE, plan }, {}, -60);
+    expect(e).toMatchObject({ kind: 'invalid_schedule', reason: 'plan' });
+    const issues = (e as { issues: { code: string; stepId?: string }[] }).issues;
+    expect(issues.map((i) => [i.code, i.stepId])).toContainEqual([
+      'self_dependency',
+      'greens.toss',
+    ]);
+  });
+  it('invalid_schedule kitchen: burners 0 gives the 3 missing_appliance issues', () => {
+    const e = failure({ ...H1_SCHEDULE, kitchen: { burners: 0, ovens: 1, cooks: 1 } }, {}, -60);
+    expect(e).toMatchObject({ kind: 'invalid_schedule', reason: 'kitchen' });
+    const issues = (e as { issues: { code: string; stepId: string }[] }).issues;
+    expect(issues.map((i) => [i.code, i.stepId])).toEqual([
+      ['missing_appliance', 'gravy.roux'],
+      ['missing_appliance', 'gravy.simmer'],
+      ['missing_appliance', 'greens.boil'],
+    ]);
+  });
+  it('invalid_schedule step_ids: one step removed from the schedule rows', () => {
+    const e = failure({ ...H1_SCHEDULE, steps: H1_SCHEDULE.steps.slice(1) }, {}, -60);
+    expect(e).toEqual({ kind: 'invalid_schedule', reason: 'step_ids', issues: [] });
+  });
+  it('serving_out_of_range: now 1440 with nothing done puts the last end at 1550', () => {
+    expect(failure(H1_SCHEDULE, {}, 1440)).toEqual({
+      kind: 'serving_out_of_range',
+      servingMin: 1550,
+    });
+  });
+  it('serving_out_of_range is checked last: a bad progress at now 1440 is reported first', () => {
+    expect(
+      failure(H1_SCHEDULE, { 'chicken.fry': { state: 'done', startMin: 0, endMin: 1 } }, 1440),
+    ).toEqual({
+      kind: 'unknown_step',
+      stepId: 'chicken.fry',
+    });
+  });
+  it('RQ1.3 values of every wrong kind give an error and no throw', () => {
+    for (const bad of [undefined, null, 0, 'x', [], {}, () => 1]) {
+      expect(rebuild(bad as never, bad as never, bad as never).ok).toBe(false);
+    }
+  });
+});
+
+describe('RQ9.3 and RQ1.3 rebuild repeats and leaves its arguments alone', () => {
+  it("RB-a's output, rebuilt with RB-a's progress and now, equals RB-a's schedule with an empty diff", () => {
+    const first = rebuilt(H1_SCHEDULE, RB_A_PROGRESS, RB_A_NOW);
+    const second = rebuilt(first.schedule, RB_A_PROGRESS, RB_A_NOW);
+    expect(second.schedule).toEqual(first.schedule);
+    expect(second.diff).toEqual({
+      moved: [],
+      unchanged: ALL_IDS,
+      servingShiftMin: 0,
+    });
+  });
+  it('the schedule, the progress and now are unchanged after the call', () => {
+    const schedule = structuredClone(H1_SCHEDULE);
+    const progress = structuredClone(RB_A_PROGRESS);
+    rebuild(schedule, progress, RB_A_NOW);
+    expect(schedule).toEqual(H1_SCHEDULE);
+    expect(progress).toEqual(RB_A_PROGRESS);
+  });
+  it('a step done in zero time (end == start) is accepted and occupies nothing: all done at H1, shred in zero time', () => {
+    const progress: Progress = Object.fromEntries(
+      Object.entries(H1_ROWS).map(([id, row]): [string, Progress[string]] => [
+        id,
+        id === 'greens.shred'
+          ? { state: 'done', startMin: -100, endMin: -100 }
+          : { state: 'done', startMin: row[0], endMin: row[1] },
+      ]),
+    );
+    const r = rebuilt(H1_SCHEDULE, progress, 0);
+    expect(rowsOf(r)['greens.shred']).toEqual([-100, -100, 0, false, null]);
+    expect(r.schedule.servingMin).toBe(0);
+    expect(r.diff.moved).toEqual([]);
   });
 });

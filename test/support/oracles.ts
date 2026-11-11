@@ -542,7 +542,9 @@ export function oracleLaneViolations(
         if (a === undefined || b === undefined) continue;
         const lane = a.lanes[resource];
         if (lane === null || lane !== b.lanes[resource]) continue;
-        if (a.startMin < b.endMin && b.startMin < a.endMin) {
+        // An empty interval (end == start, a rebuild step done in zero time) holds no minute.
+        const bothHoldAMinute = a.startMin < a.endMin && b.startMin < b.endMin;
+        if (bothHoldAMinute && a.startMin < b.endMin && b.startMin < a.endMin) {
           out.push(`lane_clash:${resource}:${lane}:${a.id}:${b.id}`);
         }
       }

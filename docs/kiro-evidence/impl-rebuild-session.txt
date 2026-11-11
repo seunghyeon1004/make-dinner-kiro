@@ -4032,3 +4032,1890 @@ Every hand-worked table (RB-a, RB-b, RB-b2, RB-c, E1 to E8) agreed with the inde
 The lane clash rule for empty pinned intervals may need a decision when P-RB5 is written. Say a pinned step with an empty interval sits inside a pending step's window and every lane is held. The oracle would report a clash because usage at that minute does not exceed capacity. I did not change anything for this.
 
 --- run success (end_turn); credits reported by this session: 39.59 ---
+
+=== session 2026-11-11T06:10:53Z ===
+$ kiro-cli chat --output-format stream-json --v3 --agent sous-chef --trust-all-tools --trust-workspace --model auto "$(cat docs/kiro-evidence/prompts/14b-impl-rebuild.md)"
+--- prompt ---
+T1 to T4 are done. On your open question about empty pinned intervals: an empty pinned interval (a step done in zero time cannot exist: minutes >= 1; an interval is empty only if the cook recorded end == start) occupies no minute, so it never clashes with anything; make the lane oracle and the algorithm agree on that if they do not, and say what you changed.
+
+Spec rebuild: T5 (rebuild), T6 (properties R1 to R6 and P-RB) and T7 (public surface and the whole suite); that completes the spec. Read .kiro/specs/rebuild/requirements.md, design.md (including "Conflicts found" and the review notes at the end) and tasks.md in full first. The hand-worked tables RB-a, RB-b, RB-c and the situations table are the expected results: if your implementation disagrees with one, work the case by hand before deciding which is wrong; if the table is wrong, stop and report it with your working.
+
+Each sub-task: test first, see it fail on an assertion, implement, run the proving command the task names, tick the sub-task only when it passed in this session. Never lower a run count in code; a failing property is a scheduler bug until shown otherwise.
+
+Working rule: when the design is ambiguous or slightly off in a way that touches no guarantee, no schema bound and no sanity rule, choose the reading closest to the requirement, write it under "Decisions I made", and continue. Stop and ask only when a requirement, a guarantee, a property or a hand-worked table would have to change.
+
+Do not commit. End with the report kiro-conduct.md asks for, with the real counts from `npm test`, `npm run test:props`, `npm run typecheck`, `npm run lint` and `npx prettier --check .`.
+--- transcript (rendered from the event stream by scripts/kiro-render.mjs) ---
+[steering] {"steeringDocuments":["file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/kiro-conduct.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/product.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/scheduler-guarantees.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/structure.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/tech.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/testing.md"],"kind":"steering_inclusion"}
+
+I'll start by reading the spec files in full.
+
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/rebuild/requirements.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/rebuild/design.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/rebuild/tasks.md
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && git status --short | head -30; wc -l src/core/*.ts src/core/passes/*.ts test/core/rebuild.test.ts test/support/*.ts test/meta/*; ls test/core
+    … (16 earlier lines not shown)
+          47 src/core/passes/re-align.ts
+         160 src/core/passes/readout.ts
+          44 src/core/passes/right-justify.ts
+         526 test/core/rebuild.test.ts
+        1070 test/support/arbitraries.ts
+          26 test/support/fakes.ts
+          13 test/support/fc-params.ts
+         851 test/support/fixtures.ts
+         949 test/support/oracles.ts
+         955 test/meta/arbitraries.test.ts
+           9 test/meta/guarantee-claims.ts
+         289 test/meta/guarantees.test.ts
+        1115 test/meta/oracles.test.ts
+        7581 total
+    graph.pbt.ts
+    graph.test.ts
+    index.test.ts
+    normalise.pbt.ts
+    normalise.test.ts
+    passes.pbt.ts
+    passes.test.ts
+    rebuild.test.ts
+    result.test.ts
+    sanity.pbt.ts
+    sanity.test.ts
+    schedule.pbt.ts
+    schedule.test.ts
+    schema.pbt.ts
+    schema.test.ts
+    timeline.test.ts
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/schema.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/timeline.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/passes/forward-repair.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/passes/re-align.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/passes/lanes.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/passes/readout.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/schedule.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/index.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/core/rebuild.test.ts
+[tool:search] Grep Search
+[tool:search] Grep Search
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/core/rebuild.test.ts
+[tool:search] Grep Search
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && grep -n "^export" test/support/fixtures.ts | sed -n 1,80p; grep -n "E3_\|E4_\|E7_\|E8_" test/support/fixtures.ts | head -30
+    … (23 earlier lines not shown)
+    752:export const RB_B2_PROGRESS: Progress = {
+    756:export const RB_B2_NOW = -92;
+    762:export const RB_C_PROGRESS: Progress = {
+    766:export const RB_C_NOW = -60;
+    769:export const E1_PROGRESS: Progress = {
+    773:export const E1_NOW = -35;
+    779:export const E2_PROGRESS: Progress = {
+    783:export const E2_NOW = -100;
+    790:export const E3_PROGRESS: Progress = {
+    794:export const E3_NOW = -20;
+    797:export const E4_PROGRESS: Progress = {
+    802:export const E4_NOW = -88;
+    808:export const E5_PROGRESS: Progress = {
+    812:export const E5_NOW = 3;
+    815:export const E5_EARLY_PROGRESS: Progress = {
+    819:export const E5_EARLY_NOW = -2;
+    826:export const E6_PROGRESS: Progress = {
+    830:export const E6_NOW = -2;
+    836:export const E7_PROGRESS: Progress = {
+    842:export const E7_NOW = -50;
+    848:export const E8_PROGRESS: Progress = Object.fromEntries(
+    851:export const E8_NOW = 0;
+    790:export const E3_PROGRESS: Progress = {
+    794:export const E3_NOW = -20;
+    797:export const E4_PROGRESS: Progress = {
+    802:export const E4_NOW = -88;
+    836:export const E7_PROGRESS: Progress = {
+    842:export const E7_NOW = -50;
+    848:export const E8_PROGRESS: Progress = Object.fromEntries(
+    851:export const E8_NOW = 0;
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/support/fixtures.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 1,60p src/core/sanity.ts | head -5; grep -n "^export" src/core/sanity.ts src/core/graph.ts src/core/result.ts; cat test/core/index.test.ts | head -60; cat test/meta/guarantee-claims.ts
+    … (61 earlier lines not shown)
+      hasErrors: [sanity.hasErrors, 'function'],
+      normaliseRecipeText: [normalise.normaliseRecipeText, 'function'],
+      // The scheduler spec (N4): the entry point and the schedule schemas only.
+      schedule: [scheduler.schedule, 'function'],
+      StepLanesSchema: [schema.StepLanesSchema, 'object'],
+      ScheduledStepSchema: [schema.ScheduledStepSchema, 'object'],
+      ScheduleSchema: [schema.ScheduleSchema, 'object'],
+    } as const;
+    
+    describe('N4 the public surface of src/core/index.ts', () => {
+      it('N4 exports exactly the values the design lists', () => {
+        expect(Object.keys(core).sort()).toEqual(Object.keys(VALUES).sort());
+      });
+    
+      it.each(Object.entries(VALUES))(
+        'N4 %s is the module export, of the right kind',
+        (name, entry) => {
+          const [value, kind] = entry;
+          const exported: unknown = (core as Record<string, unknown>)[name];
+          expect(typeof exported).toBe(kind);
+          expect(exported).toBe(value);
+    /**
+     * Guarantee families each spec proves, as the leading letter of the ids in
+     * `.kiro/steering/scheduler-guarantees.md`. A family is claimed whole: every id of it needs a
+     * property (see `guarantees.test.ts`). Later specs add an entry; none is removed.
+     */
+    export const CLAIMS: Readonly<Record<string, readonly ('G' | 'R' | 'S' | 'D')[]>> = {
+      'recipe-graph': ['S'],
+      scheduler: ['G'],
+    };
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && grep -n "oracleRebuildLaneViolations" -A70 test/support/oracles.ts | head -130
+    926:export function oracleRebuildLaneViolations(
+    927-  plan: Plan,
+    928-  kitchen: Kitchen,
+    929-  iv: Iv,
+    930-  pinned: readonly string[],
+    931-  steps: readonly RebuiltStep[],
+    932-): string[] {
+    933-  return oracleLaneViolations(plan, kitchen, steps).filter((v) => {
+    934-    const parts = v.split(':');
+    935-    if (parts[0] !== 'lane_clash') return true;
+    936-    const resource = parts[1] as ResourceName;
+    937-    const a = parts[3] ?? '';
+    938-    const b = parts[4] ?? '';
+    939-    const ia = intervalOf(iv, a);
+    940-    const ib = intervalOf(iv, b);
+    941-    const bIsLater = ib.startMin > ia.startMin || (ib.startMin === ia.startMin && b > a);
+    942-    const later = bIsLater ? b : a;
+    943-    const laterStart = bIsLater ? ib.startMin : ia.startMin;
+    944-    const allowed =
+    945-      pinned.includes(later) &&
+    946-      useAt(plan, iv, resource, laterStart, null) > limitOf(kitchen, resource);
+    947-    return !allowed;
+    948-  });
+    949-}
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && grep -n "function oracleLaneViolations" -B3 -A60 test/support/oracles.ts; grep -n "function useAt" -A25 test/support/oracles.ts
+    … (60 earlier lines not shown)
+    570-      for (const resource of RESOURCE_NAMES) {
+    571-        if (!usesResource(step, resource)) continue;
+    572-        let count = 1;
+    573-        for (const o of others) {
+    647:function useAt(
+    648-  plan: Plan,
+    649-  iv: Iv,
+    650-  resource: ResourceName,
+    651-  minute: number,
+    652-  skip: string | null,
+    653-): number {
+    654-  let count = 0;
+    655-  for (const s of plan.steps) {
+    656-    if (s.id === skip || !usesResource(s, resource)) continue;
+    657-    const i = iv[s.id];
+    658-    if (i !== undefined && i.startMin <= minute && minute < i.endMin) count++;
+    659-  }
+    660-  return count;
+    661-}
+    662-
+    663-/**
+    664- * RQ2.2: a done step keeps `[startMin, endMin)`; a running step lasts
+    665- * `[startMin, max(startMin + minutes + extraMin, now))`.
+    666- */
+    667-export function oraclePinnedIntervals(plan: Plan, progress: Progress, now: number): Iv {
+    668-  const out: Iv = {};
+    669-  for (const step of byId(plan)) {
+    670-    const entry = progress[step.id];
+    671-    if (entry === undefined) continue;
+    672-    if (entry.state === 'done') {
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && grep -n "oracleRebuildLaneViolations\|oracleLaneViolations" test/meta/oracles.test.ts | head; grep -n "^import\|^} from" test/meta/oracles.test.ts | head -30
+    38:  oracleLaneViolations,
+    47:  oracleRebuildLaneViolations,
+    555:    expect(oracleLaneViolations(plan, kitchen, steps)).toEqual([]);
+    734:      oracleLaneViolations(
+    744:      oracleLaneViolations(
+    757:      oracleLaneViolations(one, HOME_KITCHEN, steps([['x.a', -2, 0, null, null, null, 0, 0]])),
+    760:      oracleLaneViolations(one, HOME_KITCHEN, steps([['x.a', -2, 0, null, 1, 1, 0, 0]])),
+    763:      oracleLaneViolations(one, HOME_KITCHEN, steps([['x.a', -2, 0, null, 2, null, 0, 0]])),
+    943:        oracleRebuildLaneViolations(SUNDAY_ROAST, HOME_KITCHEN, iv, Object.keys(progress), steps),
+    1049:      oracleRebuildLaneViolations(TIGHT_OVEN, HOME_KITCHEN, iv, Object.keys(E7_PROGRESS), steps),
+    1:import { describe, expect, it } from 'vitest';
+    2:import type {
+    10:} from '../../src/core/schema.js';
+    11:import {
+    31:} from '../support/fixtures.js';
+    32:import {
+    61:} from '../support/oracles.js';
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/meta/oracles.test.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/meta/oracles.test.ts
+[tool:edit] Append to File ~/hackathons-2026/kiroween/makedinner/test/meta/oracles.test.ts
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/test/core/rebuild.test.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx vitest run --project examples test/meta/oracles.test.ts test/core/rebuild.test.ts 2>&1 | grep -v "^$" | tail -40
+    … (10 earlier lines not shown)
+        null,
+      ]
+     ❯ test/core/rebuild.test.ts:364:34
+        362|       assignRebuildLanes(PLAN, CAP, mapOf({ ...RB_A_FINAL, 'greens.boi…
+        363|     );
+        364|     expect(lanes['greens.boil']).toEqual([1, null, null]);
+           |                                  ^
+        365|     expect(lanes['gravy.simmer']).toEqual([1, null, null]);
+        366|   });
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+     FAIL  |examples| test/meta/oracles.test.ts > RQ7.2 an empty pinned interval occupies no minute, so it clashes with nothing > the lane oracle reports no lane_clash for it
+    AssertionError: expected [ Array(1) ] to deeply equal []
+    - Expected
+    + Received
+    - []
+    + [
+    +   "lane_clash:burner:1:gravy.simmer:greens.boil",
+    + ]
+     ❯ test/meta/oracles.test.ts:1129:7
+        1127|     expect(
+        1128|       oracleRebuildLaneViolations(SUNDAY_ROAST, HOME_KITCHEN, ivOf(ste…
+        1129|     ).toEqual([]);
+           |       ^
+        1130|   });
+        1131|   it('a non-empty step on the same lane is still a clash', () => {
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+     Test Files  2 failed (2)
+          Tests  2 failed | 161 passed (163)
+       Start at  15:12:12
+       Duration  134ms (transform 45%, import 37%, tests 16%, worker 2%)
+    exit 0
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/test/support/oracles.ts
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/src/core/passes/lanes.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx vitest run --project examples test/meta/oracles.test.ts test/core/rebuild.test.ts 2>&1 | grep -v "^$" | tail -8
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+     Test Files  2 passed (2)
+          Tests  163 passed (163)
+       Start at  15:12:30
+       Duration  99ms (import 60%, tests 20%, transform 17%, worker 3%)
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/sanity.ts
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/src/core/rebuild.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/sanity.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/core/rebuild.test.ts'
+s=open(p).read()
+s=s.replace("""import { forwardRepair }""","""import { rebuild } from '../../src/core/rebuild.js';
+import type { RebuildError } from '../../src/core/rebuild.js';
+import { forwardRepair }""",1)
+s=s.replace("""import type { StepLanes } from '../../src/core/schema.js';""","""import type {
+  Progress,
+  Rebuilt,
+  RebuiltSchedule,
+  Schedule,
+  StepLanes,
+} from '../../src/core/schema.js';""",1)
+s=s.replace("""import {
+  E1_PROGRESS,
+  E2_PROGRESS,
+  E5_EARLY_PROGRESS,
+  E5_PROGRESS,
+  E6_PROGRESS,
+  H1_SCHEDULE,
+  H3_SCHEDULE,
+  HOME_KITCHEN,
+  RB_A_PROGRESS,
+  RB_B2_PROGRESS,
+  RB_B_PROGRESS,
+  RB_C_PROGRESS,
+  TIGHT_OVEN,
+} from""","""import {
+  E1_NOW,
+  E1_PROGRESS,
+  E2_NOW,
+  E2_PROGRESS,
+  E3_NOW,
+  E3_PROGRESS,
+  E4_NOW,
+  E4_PROGRESS,
+  E5_EARLY_NOW,
+  E5_EARLY_PROGRESS,
+  E5_NOW,
+  E5_PROGRESS,
+  E6_NOW,
+  E6_PROGRESS,
+  E7_NOW,
+  E7_PROGRESS,
+  E8_NOW,
+  E8_PROGRESS,
+  H1_SCHEDULE,
+  H3_SCHEDULE,
+  HOME_KITCHEN,
+  RB_A_NOW,
+  RB_A_PROGRESS,
+  RB_B2_NOW,
+  RB_B2_PROGRESS,
+  RB_B_NOW,
+  RB_B_PROGRESS,
+  RB_C_NOW,
+  RB_C_PROGRESS,
+  TIGHT_OVEN,
+} from""",1)
+open(p,'w').write(s)
+EOF
+cat >> test/core/rebuild.test.ts <<'EOF'
+
+// ---------------------------------------------------------------------------------------
+// Rebuild spec, T5: `rebuild` end to end, against the hand-worked tables of the design.
+
+const rebuilt = (
+  schedule: Schedule | RebuiltSchedule,
+  progress: Progress,
+  now: number,
+): Rebuilt => {
+  const r = rebuild(schedule, progress, now);
+  if (!r.ok) throw new Error(`expected ok, got ${JSON.stringify(r.error)}`);
+  return r.value;
+};
+const failure = (schedule: unknown, progress: unknown, now: unknown): RebuildError => {
+  const r = rebuild(schedule as Schedule, progress as Progress, now as number);
+  if (r.ok) throw new Error('expected an error, got ok');
+  return r.error;
+};
+
+/** One table row: start, end, slack, critical, wait. */
+type Row = readonly [number, number, number, boolean, number | null];
+const rowsOf = (r: Rebuilt): Record<string, Row> =>
+  Object.fromEntries(
+    r.schedule.steps.map((x): [string, Row] => [
+      x.id,
+      [x.startMin, x.endMin, x.slackMin, x.critical, x.waitMin],
+    ]),
+  );
+const laneRowsOf = (r: Rebuilt): Record<string, LaneTriple> =>
+  lanesOf(lanesMap(r.schedule.steps));
+const movesOf = (r: Rebuilt): [string, number, number][] =>
+  r.diff.moved.map((m) => [m.stepId, m.fromStartMin, m.toStartMin]);
+const warningsOf = (r: Rebuilt): [string, number, number][] =>
+  r.schedule.warnings.map((w) => [w.stepId, w.waitMin, w.holdMin]);
+
+/** The H1 table rows (start, end, slack, critical, wait); every slack is 0 except shred's 75. */
+const H1_ROWS: Record<string, Row> = {
+  'chicken.carve': [-5, 0, 0, true, 0],
+  'chicken.prep': [-110, -100, 0, true, null],
+  'chicken.rest': [-25, -5, 0, true, 0],
+  'chicken.roast': [-100, -25, 0, true, 5],
+  'gravy.roux': [-20, -18, 0, true, 0],
+  'gravy.simmer': [-18, -8, 0, true, 0],
+  'gravy.strain': [-8, -6, 0, true, 6],
+  'greens.boil': [-10, -6, 0, true, 0],
+  'greens.shred': [-100, -95, 75, false, null],
+  'greens.toss': [-6, -5, 0, true, 5],
+};
+/** H1 rows with some replaced. */
+const h1Rows = (over: Record<string, Row> = {}): Record<string, Row> => ({ ...H1_ROWS, ...over });
+const ALL_IDS = Object.keys(H1_ROWS);
+const idsExcept = (...skip: string[]): string[] => ALL_IDS.filter((id) => !skip.includes(id));
+
+describe('RQ1 to RQ9 rebuild: the hand-worked rebuilds of the design, every column', () => {
+  it('RB-a: roast needs 15 more minutes at -60; serving 15, span 125, chain 110, two warnings, seven moves', () => {
+    const r = rebuilt(H1_SCHEDULE, RB_A_PROGRESS, RB_A_NOW);
+    expect(rowsOf(r)).toEqual({
+      'chicken.carve': [10, 15, 0, true, 0],
+      'chicken.prep': [-110, -100, 0, false, null],
+      'chicken.rest': [-10, 10, 0, true, 0],
+      'chicken.roast': [-100, -10, 0, false, 6],
+      'gravy.roux': [-4, -2, 0, true, 0],
+      'gravy.simmer': [-2, 8, 0, true, 0],
+      'gravy.strain': [8, 10, 0, true, 5],
+      'greens.boil': [3, 7, 0, true, 0],
+      'greens.shred': [-100, -95, 0, false, null],
+      'greens.toss': [7, 8, 0, true, 7],
+    });
+    expect(laneRowsOf(r)).toEqual(H1_LANES);
+    expect(r.schedule.servingMin).toBe(15);
+    expect(r.schedule.spanMin).toBe(125);
+    expect(r.schedule.chainMin).toBe(110);
+    expect(r.schedule.kitchen).toEqual(HOME_KITCHEN);
+    expect(r.schedule.plan).toEqual(H1_SCHEDULE.plan);
+    expect(r.schedule.warnings).toEqual([
+      warning(
+        'chicken.roast',
+        6,
+        5,
+        'Step chicken.roast will be ready 6 minutes before the step that uses it and can wait only 5 minutes. More ovens, burners or cooks may help.',
+      ),
+      warning(
+        'greens.toss',
+        7,
+        5,
+        'Step greens.toss will be ready 7 minutes before serving and can wait only 5 minutes. More ovens, burners or cooks may help.',
+      ),
+    ]);
+    expect(movesOf(r)).toEqual([
+      ['chicken.carve', -5, 10],
+      ['chicken.rest', -25, -10],
+      ['gravy.roux', -20, -4],
+      ['gravy.simmer', -18, -2],
+      ['gravy.strain', -8, 8],
+      ['greens.boil', -10, 3],
+      ['greens.toss', -6, 7],
+    ]);
+    expect(r.diff.unchanged).toEqual(['chicken.prep', 'chicken.roast', 'greens.shred']);
+    expect(r.diff.servingShiftMin).toBe(15);
+  });
+
+  it('RB-b: 8 minutes behind on the roux at -12; serving 2, span 112, warnings roast 13 and toss 7', () => {
+    const r = rebuilt(H1_SCHEDULE, RB_B_PROGRESS, RB_B_NOW);
+    expect(rowsOf(r)).toEqual({
+      'chicken.carve': [-5, 0, 0, true, 2],
+      'chicken.prep': [-110, -100, 0, false, null],
+      'chicken.rest': [-25, -5, 0, false, 0],
+      'chicken.roast': [-100, -25, 0, false, 13],
+      'gravy.roux': [-12, -10, 0, true, 0],
+      'gravy.simmer': [-10, 0, 0, true, 0],
+      'gravy.strain': [0, 2, 0, true, 0],
+      'greens.boil': [-10, -6, 0, true, 0],
+      'greens.shred': [-100, -95, 0, false, null],
+      'greens.toss': [-6, -5, 0, true, 7],
+    });
+    expect(laneRowsOf(r)).toEqual(H1_LANES);
+    expect([r.schedule.servingMin, r.schedule.spanMin, r.schedule.chainMin]).toEqual([2, 112, 110]);
+    expect(warningsOf(r)).toEqual([
+      ['chicken.roast', 13, 5],
+      ['greens.toss', 7, 5],
+    ]);
+    expect(movesOf(r)).toEqual([
+      ['gravy.roux', -20, -12],
+      ['gravy.simmer', -18, -10],
+      ['gravy.strain', -8, 0],
+    ]);
+    expect(r.diff.unchanged).toHaveLength(7);
+    expect(r.diff.servingShiftMin).toBe(2);
+  });
+
+  it('RB-b2: behind on a step with slack at -92; only shred moves, to [-92,-87), slack 67; serving 0', () => {
+    const r = rebuilt(H1_SCHEDULE, RB_B2_PROGRESS, RB_B2_NOW);
+    expect(rowsOf(r)).toEqual(
+      h1Rows({
+        'chicken.prep': [-110, -100, 0, false, null],
+        'chicken.roast': [-100, -25, 0, false, 5],
+        'greens.shred': [-92, -87, 67, false, null],
+      }),
+    );
+    expect(laneRowsOf(r)).toEqual(H1_LANES);
+    expect([r.schedule.servingMin, r.schedule.spanMin, r.schedule.chainMin]).toEqual([0, 110, 110]);
+    expect(r.schedule.warnings).toEqual([]);
+    expect(movesOf(r)).toEqual([['greens.shred', -100, -92]]);
+    expect(r.diff.unchanged).toEqual(idsExcept('greens.shred'));
+    expect(r.diff.servingShiftMin).toBe(0);
+  });
+
+  it('RB-c: no slip (R4) at -60; every start, end, lane and wait as H1; nothing moves', () => {
+    const r = rebuilt(H1_SCHEDULE, RB_C_PROGRESS, RB_C_NOW);
+    expect(rowsOf(r)).toEqual(
+      h1Rows({
+        'chicken.prep': [-110, -100, 0, false, null],
+        'chicken.roast': [-100, -25, 0, false, 5],
+        'greens.shred': [-100, -95, 0, false, null],
+      }),
+    );
+    expect(laneRowsOf(r)).toEqual(H1_LANES);
+    expect([r.schedule.servingMin, r.schedule.spanMin, r.schedule.chainMin]).toEqual([0, 110, 110]);
+    expect(r.schedule.warnings).toEqual([]);
+    expect(r.diff.moved).toEqual([]);
+    expect(r.diff.unchanged).toEqual(ALL_IDS);
+    expect(r.diff.servingShiftMin).toBe(0);
+  });
+});
+
+describe('RQ1 to RQ9 rebuild: the situations E1 to E8 of the design', () => {
+  it('E1 finished early: nothing moves (R3), serving 0, the roast waits 15 > 5', () => {
+    const r = rebuilt(H1_SCHEDULE, E1_PROGRESS, E1_NOW);
+    expect(r.diff.moved).toEqual([]);
+    expect(r.schedule.servingMin).toBe(0);
+    expect(rowsOf(r)['chicken.roast']).toEqual([-100, -35, 0, false, 15]);
+    expect(rowsOf(r)['chicken.rest']).toEqual([-25, -5, 0, true, 0]);
+    expect(warningsOf(r)).toEqual([['chicken.roast', 15, 5]]);
+  });
+
+  it('E2 started early: roast [-102,-27); only chicken.roast moves, -100 to -102; its wait 7 is warned', () => {
+    const r = rebuilt(H1_SCHEDULE, E2_PROGRESS, E2_NOW);
+    expect(rowsOf(r)['chicken.roast']).toEqual([-102, -27, 0, false, 7]);
+    expect(movesOf(r)).toEqual([['chicken.roast', -100, -102]]);
+    expect(r.schedule.servingMin).toBe(0);
+    expect(warningsOf(r)).toEqual([['chicken.roast', 7, 5]]);
+  });
+
+  it('E3 overrun without taps: roast ends now [-100,-20); rest [-20,0), carve [0,5), serving 5, the hot steps re-aligned, no warnings', () => {
+    const r = rebuilt(H1_SCHEDULE, E3_PROGRESS, E3_NOW);
+    const rows = rowsOf(r);
+    expect(rows['chicken.roast']?.slice(0, 2)).toEqual([-100, -20]);
+    expect(rows['chicken.rest']?.slice(0, 2)).toEqual([-20, 0]);
+    expect(rows['chicken.carve']?.slice(0, 2)).toEqual([0, 5]);
+    expect(rows['greens.toss']?.[0]).toBe(-1);
+    expect(rows['gravy.strain']?.[0]).toBe(-3);
+    expect(rows['greens.boil']?.[0]).toBe(-5);
+    expect(rows['gravy.simmer']?.[0]).toBe(-13);
+    expect(rows['gravy.roux']?.[0]).toBe(-15);
+    expect(r.schedule.servingMin).toBe(5);
+    expect(r.schedule.warnings).toEqual([]);
+    expect(r.diff.servingShiftMin).toBe(5);
+  });
+
+  it('E4 done long: nothing moves, serving 0, no warnings', () => {
+    const r = rebuilt(H1_SCHEDULE, E4_PROGRESS, E4_NOW);
+    expect(r.diff.moved).toEqual([]);
+    expect(r.schedule.servingMin).toBe(0);
+    expect(r.schedule.warnings).toEqual([]);
+    expect(rowsOf(r)['greens.shred']).toEqual([-100, -88, 0, false, null]);
+  });
+
+  it('E5 all done late: nothing planned; serving 3, shift 3; strain waits 9, toss waits 8 and is warned', () => {
+    const r = rebuilt(H1_SCHEDULE, E5_PROGRESS, E5_NOW);
+    expect(r.schedule.servingMin).toBe(3);
+    expect(r.diff.servingShiftMin).toBe(3);
+    expect(r.diff.moved).toEqual([]);
+    const rows = rowsOf(r);
+    expect(Object.values(rows).map((x) => [x[2], x[3]])).toEqual(ALL_IDS.map(() => [0, false]));
+    expect(rows['gravy.strain']?.[4]).toBe(9);
+    expect(rows['greens.toss']?.[4]).toBe(8);
+    expect(warningsOf(r)).toEqual([['greens.toss', 8, 5]]);
+  });
+
+  it("E5' all done early: serving stays 0 (R5, C5); carve waits 2; no warnings", () => {
+    const r = rebuilt(H1_SCHEDULE, E5_EARLY_PROGRESS, E5_EARLY_NOW);
+    expect(r.schedule.servingMin).toBe(0);
+    expect(r.diff.servingShiftMin).toBe(0);
+    expect(rowsOf(r)['chicken.carve']).toEqual([-5, -2, 0, false, 2]);
+    expect(r.schedule.warnings).toEqual([]);
+  });
+
+  it('E6 out of order: boil [-2,2) on burner 2 waits 0; serving 2 (C3); toss waits 7 and is warned; only boil moves', () => {
+    const r = rebuilt(H1_SCHEDULE, E6_PROGRESS, E6_NOW);
+    expect(rowsOf(r)['greens.boil']).toEqual([-2, 2, 0, true, 0]);
+    expect(laneRowsOf(r)['greens.boil']).toEqual([2, null, null]);
+    expect(r.schedule.servingMin).toBe(2);
+    expect(warningsOf(r)).toEqual([['greens.toss', 7, 5]]);
+    expect(movesOf(r)).toEqual([['greens.boil', -10, -2]]);
+  });
+
+  it('E7 one oven, two pans (C2): ok; both pans on oven lane 1; serving 0; only pie.bake moves, -40 to -60; both warned', () => {
+    const r = rebuilt(H3_SCHEDULE, E7_PROGRESS, E7_NOW);
+    const lanes = laneRowsOf(r);
+    expect([lanes['pie.bake']?.[1], lanes['potatoes.roast']?.[1]]).toEqual([1, 1]);
+    expect(r.schedule.servingMin).toBe(0);
+    expect(movesOf(r)).toEqual([['pie.bake', -40, -60]]);
+    expect(warningsOf(r)).toEqual([
+      ['pie.bake', 20, 10],
+      ['potatoes.roast', 40, 10],
+    ]);
+  });
+
+  it('E8 untap (C4): from E6 output, toss untapped at 0: boil [0,4) then toss [4,5); serving 5, shift 3', () => {
+    const e6 = rebuilt(H1_SCHEDULE, E6_PROGRESS, E6_NOW).schedule;
+    const r = rebuilt(e6, E8_PROGRESS, E8_NOW);
+    const rows = rowsOf(r);
+    expect(rows['greens.boil']?.slice(0, 2)).toEqual([0, 4]);
+    expect(rows['greens.toss']?.slice(0, 2)).toEqual([4, 5]);
+    expect(r.schedule.servingMin).toBe(5);
+    expect(r.diff.servingShiftMin).toBe(3);
+    expect(movesOf(r)).toEqual([
+      ['greens.boil', -2, 0],
+      ['greens.toss', -6, 4],
+    ]);
+  });
+});
+
+describe('RQ1.2 rebuild errors, each with its exact error', () => {
+  const at60 = (progress: unknown, now: unknown = -60): RebuildError =>
+    failure(H1_SCHEDULE, progress, now);
+  it('unknown_step: an id not in the plan', () => {
+    expect(at60({ 'chicken.fry': { state: 'done', startMin: -100, endMin: -90 } })).toEqual({
+      kind: 'unknown_step',
+      stepId: 'chicken.fry',
+    });
+  });
+  it('unknown_step names the smallest unknown id', () => {
+    const entry = { state: 'done', startMin: -100, endMin: -90 };
+    expect(at60({ 'zz.last': entry, 'aa.first': entry })).toEqual({
+      kind: 'unknown_step',
+      stepId: 'aa.first',
+    });
+  });
+  it('done_ends_before_start: shred done [-95,-100)', () => {
+    expect(at60({ 'greens.shred': { state: 'done', startMin: -95, endMin: -100 } })).toEqual({
+      kind: 'done_ends_before_start',
+      stepId: 'greens.shred',
+    });
+  });
+  it('done_after_now: shred done [-100,-50) at now -60', () => {
+    expect(at60({ 'greens.shred': { state: 'done', startMin: -100, endMin: -50 } })).toEqual({
+      kind: 'done_after_now',
+      stepId: 'greens.shred',
+    });
+  });
+  it('running_starts_after_now: roast running from -50 at now -60', () => {
+    expect(at60({ 'chicken.roast': { state: 'running', startMin: -50, extraMin: 0 } })).toEqual({
+      kind: 'running_starts_after_now',
+      stepId: 'chicken.roast',
+    });
+  });
+  it('invalid_now: -60.5, NaN, 1441 and a string', () => {
+    for (const now of [-60.5, Number.NaN, 1441, 'x', null, Number.POSITIVE_INFINITY]) {
+      expect(at60({}, now)).toEqual({ kind: 'invalid_now' });
+    }
+  });
+  it('invalid_now: below the axis minimum -38400', () => {
+    expect(at60({}, -38401)).toEqual({ kind: 'invalid_now' });
+  });
+  it('invalid_progress: a done entry without endMin, and a progress that is not an object', () => {
+    expect(at60({ 'greens.shred': { state: 'done', startMin: -100 } })).toEqual({
+      kind: 'invalid_progress',
+    });
+    expect(at60(42)).toEqual({ kind: 'invalid_progress' });
+  });
+  it('the checks run in order: invalid_now before invalid_progress before unknown_step', () => {
+    expect(at60(42, 1441)).toEqual({ kind: 'invalid_now' });
+    expect(at60({ 'chicken.fry': { state: 'nope' } })).toEqual({ kind: 'invalid_progress' });
+  });
+  it('invalid_schedule shape: a step ending at 1 without servingMin, and rebuild(null, 42, "x")', () => {
+    const bad = {
+      ...H1_SCHEDULE,
+      steps: H1_SCHEDULE.steps.map((x) => (x.id === 'greens.toss' ? { ...x, endMin: 1 } : x)),
+    };
+    expect(failure(bad, {}, -60)).toEqual({
+      kind: 'invalid_schedule',
+      reason: 'shape',
+      issues: [],
+    });
+    expect(failure(null, 42, 'x')).toEqual({
+      kind: 'invalid_schedule',
+      reason: 'shape',
+      issues: [],
+    });
+  });
+  it('invalid_schedule plan: a step that depends on itself, with the sanity issue', () => {
+    const plan = {
+      ...H1_SCHEDULE.plan,
+      steps: H1_SCHEDULE.plan.steps.map((x) =>
+        x.id === 'greens.toss' ? { ...x, after: [...x.after, 'greens.toss'] } : x,
+      ),
+    };
+    const e = failure({ ...H1_SCHEDULE, plan }, {}, -60);
+    expect(e).toMatchObject({ kind: 'invalid_schedule', reason: 'plan' });
+    const issues = (e as { issues: { code: string; stepId?: string }[] }).issues;
+    expect(issues.map((i) => [i.code, i.stepId])).toContainEqual(['self_dependency', 'greens.toss']);
+  });
+  it('invalid_schedule kitchen: burners 0 gives the 3 missing_appliance issues', () => {
+    const e = failure({ ...H1_SCHEDULE, kitchen: { burners: 0, ovens: 1, cooks: 1 } }, {}, -60);
+    expect(e).toMatchObject({ kind: 'invalid_schedule', reason: 'kitchen' });
+    const issues = (e as { issues: { code: string; stepId: string }[] }).issues;
+    expect(issues.map((i) => [i.code, i.stepId])).toEqual([
+      ['missing_appliance', 'gravy.roux'],
+      ['missing_appliance', 'gravy.simmer'],
+      ['missing_appliance', 'greens.boil'],
+    ]);
+  });
+  it('invalid_schedule step_ids: one step removed from the schedule rows', () => {
+    const e = failure({ ...H1_SCHEDULE, steps: H1_SCHEDULE.steps.slice(1) }, {}, -60);
+    expect(e).toEqual({ kind: 'invalid_schedule', reason: 'step_ids', issues: [] });
+  });
+  it('serving_out_of_range: now 1440 with nothing done puts the last end at 1550', () => {
+    expect(failure(H1_SCHEDULE, {}, 1440)).toEqual({
+      kind: 'serving_out_of_range',
+      servingMin: 1550,
+    });
+  });
+  it('serving_out_of_range is checked last: a bad progress at now 1440 is reported first', () => {
+    expect(failure(H1_SCHEDULE, { 'chicken.fry': { state: 'done', startMin: 0, endMin: 1 } }, 1440)).toEqual({
+      kind: 'unknown_step',
+      stepId: 'chicken.fry',
+    });
+  });
+  it('RQ1.3 values of every wrong kind give an error and no throw', () => {
+    for (const bad of [undefined, null, 0, 'x', [], {}, () => 1]) {
+      expect(rebuild(bad as never, bad as never, bad as never).ok).toBe(false);
+    }
+  });
+});
+
+describe('RQ9.3 and RQ1.3 rebuild repeats and leaves its arguments alone', () => {
+  it("RB-a's output, rebuilt with RB-a's progress and now, equals RB-a's schedule with an empty diff", () => {
+    const first = rebuilt(H1_SCHEDULE, RB_A_PROGRESS, RB_A_NOW);
+    const second = rebuilt(first.schedule, RB_A_PROGRESS, RB_A_NOW);
+    expect(second.schedule).toEqual(first.schedule);
+    expect(second.diff).toEqual({
+      moved: [],
+      unchanged: ALL_IDS,
+      servingShiftMin: 0,
+    });
+  });
+  it('the schedule, the progress and now are unchanged after the call', () => {
+    const schedule = structuredClone(H1_SCHEDULE);
+    const progress = structuredClone(RB_A_PROGRESS);
+    rebuild(schedule, progress, RB_A_NOW);
+    expect(schedule).toEqual(H1_SCHEDULE);
+    expect(progress).toEqual(RB_A_PROGRESS);
+  });
+  it('a step done in zero time (end == start) is accepted and occupies nothing', () => {
+    const r = rebuilt(H1_SCHEDULE, { 'greens.shred': { state: 'done', startMin: -90, endMin: -90 } }, -90);
+    expect(rowsOf(r)['greens.shred']).toEqual([-90, -90, 0, false, null]);
+    expect(r.schedule.servingMin).toBe(0);
+  });
+});
+EOF
+npx prettier --write test/core/rebuild.test.ts >/dev/null; npx vitest run --project examples test/core/rebuild.test.ts 2>&1 | grep -E "FAIL|Tests |AssertionError" | head -60
+    … (13 earlier lines not shown)
+     FAIL  |examples| test/core/rebuild.test.ts > RQ1 to RQ9 rebuild: the situations E1 to E8 of the design > E8 untap (C4): from E6 output, toss untapped at 0: boil [0,4) then toss [4,5); serving 5, shift 3
+     FAIL  |examples| test/core/rebuild.test.ts > RQ1.2 rebuild errors, each with its exact error > unknown_step: an id not in the plan
+    AssertionError: expected { kind: 'invalid_now' } to deeply equal { kind: 'unknown_step', …(1) }
+     FAIL  |examples| test/core/rebuild.test.ts > RQ1.2 rebuild errors, each with its exact error > unknown_step names the smallest unknown id
+    AssertionError: expected { kind: 'invalid_now' } to deeply equal { kind: 'unknown_step', …(1) }
+     FAIL  |examples| test/core/rebuild.test.ts > RQ1.2 rebuild errors, each with its exact error > done_ends_before_start: shred done [-95,-100)
+    AssertionError: expected { kind: 'invalid_now' } to deeply equal { Object (kind, stepId) }
+     FAIL  |examples| test/core/rebuild.test.ts > RQ1.2 rebuild errors, each with its exact error > done_after_now: shred done [-100,-50) at now -60
+    AssertionError: expected { kind: 'invalid_now' } to deeply equal { kind: 'done_after_now', …(1) }
+     FAIL  |examples| test/core/rebuild.test.ts > RQ1.2 rebuild errors, each with its exact error > running_starts_after_now: roast running from -50 at now -60
+    AssertionError: expected { kind: 'invalid_now' } to deeply equal { …(2) }
+     FAIL  |examples| test/core/rebuild.test.ts > RQ1.2 rebuild errors, each with its exact error > invalid_progress: a done entry without endMin, and a progress that is not an object
+    AssertionError: expected { kind: 'invalid_now' } to deeply equal { kind: 'invalid_progress' }
+     FAIL  |examples| test/core/rebuild.test.ts > RQ1.2 rebuild errors, each with its exact error > the checks run in order: invalid_now before invalid_progress before unknown_step
+    AssertionError: expected { kind: 'invalid_now' } to deeply equal { kind: 'invalid_progress' }
+     FAIL  |examples| test/core/rebuild.test.ts > RQ1.2 rebuild errors, each with its exact error > invalid_schedule shape: a step ending at 1 without servingMin, and rebuild(null, 42, "x")
+    AssertionError: expected { kind: 'invalid_now' } to deeply equal { kind: 'invalid_schedule', …(2) }
+     FAIL  |examples| test/core/rebuild.test.ts > RQ1.2 rebuild errors, each with its exact error > invalid_schedule plan: a step that depends on itself, with the sanity issue
+    AssertionError: expected { kind: 'invalid_now' } to match object { kind: 'invalid_schedule', …(1) }
+     FAIL  |examples| test/core/rebuild.test.ts > RQ1.2 rebuild errors, each with its exact error > invalid_schedule kitchen: burners 0 gives the 3 missing_appliance issues
+    AssertionError: expected { kind: 'invalid_now' } to match object { kind: 'invalid_schedule', …(1) }
+     FAIL  |examples| test/core/rebuild.test.ts > RQ1.2 rebuild errors, each with its exact error > invalid_schedule step_ids: one step removed from the schedule rows
+    AssertionError: expected { kind: 'invalid_now' } to deeply equal { kind: 'invalid_schedule', …(2) }
+     FAIL  |examples| test/core/rebuild.test.ts > RQ1.2 rebuild errors, each with its exact error > serving_out_of_range: now 1440 with nothing done puts the last end at 1550
+    AssertionError: expected { kind: 'invalid_now' } to deeply equal { kind: 'serving_out_of_range', …(1) }
+     FAIL  |examples| test/core/rebuild.test.ts > RQ1.2 rebuild errors, each with its exact error > serving_out_of_range is checked last: a bad progress at now 1440 is reported first
+    AssertionError: expected { kind: 'invalid_now' } to deeply equal { kind: 'unknown_step', …(1) }
+     FAIL  |examples| test/core/rebuild.test.ts > RQ9.3 and RQ1.3 rebuild repeats and leaves its arguments alone > RB-a's output, rebuilt with RB-a's progress and now, equals RB-a's schedule with an empty diff
+     FAIL  |examples| test/core/rebuild.test.ts > RQ9.3 and RQ1.3 rebuild repeats and leaves its arguments alone > a step done in zero time (end == start) is accepted and occupies nothing
+          Tests  28 failed | 41 passed (69)
+    exit 0
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/src/core/rebuild.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx prettier --write src/core/rebuild.ts >/dev/null; npx vitest run --project examples test/core/rebuild.test.ts 2>&1 | grep -vE "^$" | head -80
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+     ❯ |examples| test/core/rebuild.test.ts (69 tests | 1 failed) 24ms
+       ❯ RQ9.3 and RQ1.3 rebuild repeats and leaves its arguments alone (3)
+         × a step done in zero time (end == start) is accepted and occupies nothing 3ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+     FAIL  |examples| test/core/rebuild.test.ts > RQ9.3 and RQ1.3 rebuild repeats and leaves its arguments alone > a step done in zero time (end == start) is accepted and occupies nothing
+    AssertionError: expected 20 to be +0 // Object.is equality
+    - Expected
+    + Received
+    - 0
+    + 20
+     ❯ test/core/rebuild.test.ts:966:35
+        964|     );
+        965|     expect(rowsOf(r)['greens.shred']).toEqual([-90, -90, 0, false, nul…
+        966|     expect(r.schedule.servingMin).toBe(0);
+           |                                   ^
+        967|   });
+        968| });
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+     Test Files  1 failed (1)
+          Tests  1 failed | 68 passed (69)
+       Start at  15:14:33
+       Duration  119ms (import 40%, tests 34%, transform 25%, worker 2%)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+import re
+p='test/core/rebuild.test.ts'
+s=open(p).read()
+i=s.index("  it('a step done in zero time")
+j=s.index("});\n", s.index("expect(r.schedule.servingMin).toBe(0);", i))
+new="""  it('a step done in zero time (end == start) is accepted and occupies nothing: all done at H1, shred in zero time', () => {
+    const progress: Progress = Object.fromEntries(
+      Object.entries(H1_ROWS).map(([id, row]): [string, Progress[string]] => [
+        id,
+        id === 'greens.shred'
+          ? { state: 'done', startMin: -100, endMin: -100 }
+          : { state: 'done', startMin: row[0], endMin: row[1] },
+      ]),
+    );
+    const r = rebuilt(H1_SCHEDULE, progress, 0);
+    expect(rowsOf(r)['greens.shred']).toEqual([-100, -100, 0, false, null]);
+    expect(r.schedule.servingMin).toBe(0);
+    expect(r.diff.moved).toEqual([]);
+  });
+"""
+s=s[:i]+new+s[j:]
+open(p,'w').write(s)
+EOF
+npx prettier --write test/core/rebuild.test.ts >/dev/null; npx vitest run --project examples test/core/rebuild.test.ts 2>&1 | grep -vE "^$" | tail -20; tail -5 test/core/rebuild.test.ts
+    … (1 earlier lines not shown)
+    [error]   972 |   });
+    [error]   973 | });
+    [error] > 974 | });
+    [error]       | ^
+    [error]   975 |
+     FAIL  |examples| test/core/rebuild.test.ts [ test/core/rebuild.test.ts ]
+    Error: Transform failed with 1 error:
+    [PARSE_ERROR] Unexpected token
+         ╭─[ test/core/rebuild.test.ts:974:1 ]
+         │
+     974 │ });
+         │ ┬  
+         │ ╰── 
+    ─────╯
+      Plugin: vite:oxc
+      File: ~/hackathons-2026/kiroween/makedinner/test/core/rebuild.test.ts
+     ❯ transformWithOxc node_modules/vite/dist/node/chunks/node.js:7673:19
+     ❯ TransformPluginContext.transform node_modules/vite/dist/node/chunks/node.js:7747:26
+     ❯ EnvironmentPluginContainer.transform node_modules/vite/dist/node/chunks/node.js:8636:51
+     ❯ loadAndTransform node_modules/vite/dist/node/chunks/node.js:20112:26
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+     Test Files  1 failed (1)
+          Tests  no tests
+       Start at  15:14:42
+       Duration  69ms (worker 96%, environment 4%)
+        expect(r.schedule.servingMin).toBe(0);
+        expect(r.diff.moved).toEqual([]);
+      });
+    });
+    });
+    exit 0
+
+Extra closing brace from my splice; remove it.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/core/rebuild.test.ts'
+s=open(p).read().rstrip('\n')
+assert s.endswith("});\n});")
+s=s[:-len("\n});")]+"\n"
+open(p,'w').write(s)
+EOF
+npx prettier --write test/core/rebuild.test.ts >/dev/null; npx vitest run --project examples test/core/rebuild.test.ts 2>&1 | grep -vE "^$" | tail -8
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+     Test Files  1 passed (1)
+          Tests  69 passed (69)
+       Start at  15:14:46
+       Duration  123ms (import 37%, transform 35%, tests 26%, worker 2%)
+    exit 0
+[tool:execute FAILED] $ cd ~/hackathons-2026/kiroween/makedinner && sed -i 's/^- \[ \] T5\.1/- [x] T5.1/; s/^- \[ \] T5\.2/- [x] T5.2/' .kiro/specs/rebuild/tasks.md && cat test/support/fc-params.ts && sed -n 1,80p test/core/schedule.pbt.ts && grep -n "^export" test/support/arbitraries.ts | sed -n 1,80p && grep -n "^export" test/support/oracles.ts | sed -n 1,80p
+    sed: 1: ".kiro/specs/rebuild/tas ...": invalid command code .
+    exit 1
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -i '' 's/^- \[ \] T5\.1/- [x] T5.1/; s/^- \[ \] T5\.2/- [x] T5.2/' .kiro/specs/rebuild/tasks.md && grep -n "T5\.[12]" .kiro/specs/rebuild/tasks.md; cat test/support/fc-params.ts && sed -n 1,80p test/core/schedule.pbt.ts && grep -n "^export" test/support/arbitraries.ts | sed -n 1,80p && grep -n "^export" test/support/oracles.ts | sed -n 1,80p
+    … (116 earlier lines not shown)
+    48:export function oracleSuccessors(plan: Plan): Record<string, string[]> {
+    62:export function oracleTopologicalOrder(plan: Plan): string[] | null {
+    81:export function respectsPrecedence(plan: Plan, order: readonly string[]): boolean {
+    100:export function isCycleIn(plan: Plan, path: readonly string[]): boolean {
+    119:export function oracleStronglyConnected(plan: Plan): string[][] {
+    157:export function oracleShortestCycleLength(plan: Plan, id: string): number | null {
+    183:export function oracleLongestChain(plan: Plan): number {
+    202:export interface OracleWarning {
+    263:export function oracleWarnings(plan: Plan): OracleWarning[] {
+    310:export function oracleNormalise(text: string): string {
+    354:export type Starts = Record<string, number>;
+    387:export function oracleCapacityViolations(
+    414:export function oraclePrecedenceViolations(
+    433:export function oracleCompletenessViolations(
+    459:export function oracleValid(plan: Plan, kitchen: Kitchen, starts: Starts): boolean {
+    475:export function oracleWaits(plan: Plan, starts: Starts): Record<string, number | null> {
+    495:export function oracleHoldExceeded(
+    513:export function oracleLaneViolations(
+    561:export function oracleSlack(plan: Plan, kitchen: Kitchen, starts: Starts, stepId: string): number {
+    590:export function oracleLatestPosition(
+    628:export function startsOf(steps: readonly ScheduledStep[]): Starts {
+    640:export type Iv = Record<string, { startMin: number; endMin: number }>;
+    669:export function oraclePinnedIntervals(plan: Plan, progress: Progress, now: number): Iv {
+    702:export function oracleRebuildViolations(
+    767:export function oraclePendingOverfull(
+    798:export function oracleForwardRepair(
+    848:export function oracleRebuildWaits(
+    873:export function oracleRebuildHoldExceeded(
+    894:export function oracleRebuildSlack(
+    928:export function oracleRebuildLaneViolations(
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 815,870p test/support/arbitraries.ts; sed -n 1015,1075p test/support/arbitraries.ts; sed -n 640,950p test/support/oracles.ts
+    … (393 earlier lines not shown)
+    
+    /**
+     * RQ7: the field and range violations of `oracleLaneViolations`, and the lane clashes that
+     * RQ7.2 does not allow. A clash of two overlapping steps on one lane is allowed only when the
+     * one that comes later in `(start, id)` order is pinned and the use of that resource at its
+     * start exceeds the kitchen.
+     */
+    export function oracleRebuildLaneViolations(
+      plan: Plan,
+      kitchen: Kitchen,
+      iv: Iv,
+      pinned: readonly string[],
+      steps: readonly RebuiltStep[],
+    ): string[] {
+      return oracleLaneViolations(plan, kitchen, steps).filter((v) => {
+        const parts = v.split(':');
+        if (parts[0] !== 'lane_clash') return true;
+        const resource = parts[1] as ResourceName;
+        const a = parts[3] ?? '';
+        const b = parts[4] ?? '';
+        const ia = intervalOf(iv, a);
+        const ib = intervalOf(iv, b);
+        const bIsLater = ib.startMin > ia.startMin || (ib.startMin === ia.startMin && b > a);
+        const later = bIsLater ? b : a;
+        const laterStart = bIsLater ? ib.startMin : ia.startMin;
+        const allowed =
+          pinned.includes(later) &&
+          useAt(plan, iv, resource, laterStart, null) > limitOf(kitchen, resource);
+        return !allowed;
+      });
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 372,400p test/support/arbitraries.ts; sed -n 80,140p test/core/schedule.pbt.ts; grep -n "G7.2" -A25 test/core/schedule.pbt.ts | head -50; sed -n 1,60p test/meta/guarantees.test.ts
+    … (145 earlier lines not shown)
+    const familyOf = (id: string): string => id.charAt(0);
+    
+    const TEST_OPEN = /(?<![\w.$])(?:it|test)\(\s*(['"`])/g;
+    
+    /**
+     * The first argument of every `it(` or `test(` call: a quoted or template literal, cut at its
+     * closing quote or, in a template, at the first `${`. `it.each` and `.test(` are not matched.
+     */
+    function extractTitles(source: string): string[] {
+      const titles: string[] = [];
+      for (const match of source.matchAll(TEST_OPEN)) {
+        const quote = match[1] ?? "'";
+        let i = (match.index ?? 0) + match[0].length;
+        let title = '';
+        while (i < source.length) {
+          const ch = source.charAt(i);
+          if (ch === '\\') {
+            title += source.charAt(i + 1);
+            i += 2;
+            continue;
+          }
+          if (ch === quote) break;
+          if (quote === '`' && ch === '$' && source.charAt(i + 1) === '{') break;
+          title += ch;
+          i++;
+        }
+        titles.push(title);
+      }
+      return titles;
+    }
+    exit 0
+[tool:execute FAILED] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 15,30p test/support/arbitraries.ts; sed -n 296,318p test/support/arbitraries.ts; grep -n "numRuns\|FC_NUM" vitest.config.ts package.json
+    … (9 earlier lines not shown)
+      appliances?: readonly Appliance[];
+    }
+    
+    export interface BrokenCase {
+      rule: ErrorCode;
+      /** Passed to `validatePlan`. */
+      input: unknown;
+          appliances,
+        );
+      }
+      return arbDefaultSizes(1, appliances);
+    }
+    
+    export function arbPlanAndKitchen(
+      opts: Omit<PlanOpts, 'appliances'> = {},
+    ): fc.Arbitrary<{ plan: Plan; kitchen: Kitchen }> {
+      return arbKitchen().chain((kitchen) => {
+        const appliances: Appliance[] = ['none'];
+        if (kitchen.burners > 0) appliances.push('burner');
+        if (kitchen.ovens > 0) appliances.push('oven');
+        return arbPlan({ ...opts, appliances }).map((plan) => ({ plan, kitchen }));
+      });
+    }
+    
+    /**
+     * Makes a plan small enough for an "unlimited" kitchen to exist (C1): in step-id order, every
+     * hands-on step after the 6th becomes hands-free, every burner step after the 8th and every
+     * oven step after the 4th uses no appliance. Step order and all other fields stay. Only fields
+     * that no error rule reads change, so a valid plan stays valid (warnings may appear).
+     */
+    exit 1
+
+Now the properties file, starting with R1 and R2 and the claim.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/meta/guarantee-claims.ts'
+s=open(p).read()
+s=s.replace("  scheduler: ['G'],\n","  scheduler: ['G'],\n  rebuild: ['R'],\n")
+open(p,'w').write(s)
+EOF
+cat > test/core/rebuild.pbt.ts <<'EOF'
+import fc from 'fast-check';
+import { expect, it } from 'vitest';
+import { rebuild } from '../../src/core/rebuild.js';
+import type { Progress, Rebuilt, RebuiltSchedule, Schedule } from '../../src/core/schema.js';
+import { arbProgress, arbScheduled } from '../support/arbitraries.js';
+import type { RunOpts } from '../support/arbitraries.js';
+import { fcParams } from '../support/fc-params.js';
+import {
+  oracleForwardRepair,
+  oraclePinnedIntervals,
+  oracleRebuildViolations,
+  startsOf,
+} from '../support/oracles.js';
+
+// Rebuild guarantees R1 to R6 (scheduler-guarantees.md) and the P-RB properties of the rebuild
+// design. Titles start with the id and a space. A run is a schedule from `arbScheduled`, then
+// what the cook did from `arbProgress`; both default-sized and large (80 steps) plans are used.
+
+const TIMEOUT_MS = 60_000;
+const SERVING_MAX = 1440;
+
+interface Case {
+  s: Schedule;
+  progress: Progress;
+  now: number;
+}
+
+const arbCase = (large: boolean, runOpts: RunOpts = {}): fc.Arbitrary<Case> =>
+  arbScheduled(large ? { large: true } : {}).chain((s) =>
+    arbProgress(s, runOpts).map(({ progress, now }): Case => ({ s, progress, now })),
+  );
+
+/** The run options a property is checked with: in order, then with steps done out of order. */
+const IN_ORDER: RunOpts[] = [{}, { outOfOrder: true }];
+
+/** The latest end that forward repair gives, by the oracle, or the previous serving minute. */
+const oracleServing = (c: Case, prevServing: number): number => {
+  const prevStarts = startsOf(c.s.steps);
+  const iv = oracleForwardRepair(c.s.plan, c.s.kitchen, c.progress, c.now, prevStarts);
+  return Math.max(prevServing, ...Object.values(iv).map((i) => i.endMin));
+};
+
+/**
+ * Runs `rebuild`. The only error a property accepts is `serving_out_of_range`, and then only
+ * when the oracle's latest end is past a day; that case returns null and the property stops.
+ */
+const rebuildOrNull = (
+  input: Schedule | RebuiltSchedule,
+  c: Case,
+  prevServing: number,
+): Rebuilt | null => {
+  const r = rebuild(input, c.progress, c.now);
+  if (r.ok) return r.value;
+  expect(r.error.kind).toBe('serving_out_of_range');
+  expect(oracleServing(c, prevServing)).toBeGreaterThan(SERVING_MAX);
+  return null;
+};
+
+/** Runs `check` on every size and run option, given the case and its rebuild. */
+const forEveryRun = (check: (c: Case, r: Rebuilt) => void, options = IN_ORDER): void => {
+  for (const large of [false, true]) {
+    for (const runOpts of options) {
+      fc.assert(
+        fc.property(arbCase(large, runOpts), (c) => {
+          const r = rebuildOrNull(c.s, c, 0);
+          if (r !== null) check(c, r);
+        }),
+        fcParams(),
+      );
+    }
+  }
+};
+
+it(
+  'R1 valid: capacity from now, precedence for pending successors and completeness hold',
+  () => {
+    forEveryRun((c, r) => {
+      expect(
+        oracleRebuildViolations(
+          c.s.plan,
+          c.s.kitchen,
+          c.progress,
+          c.now,
+          r.schedule.steps,
+          r.schedule.servingMin,
+        ),
+      ).toEqual([]);
+    });
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'R2 pinned: done and running steps keep their start (done also their end); pending start at or after now',
+  () => {
+    forEveryRun((c, r) => {
+      const pinned = oraclePinnedIntervals(c.s.plan, c.progress, c.now);
+      for (const step of r.schedule.steps) {
+        const expected = pinned[step.id];
+        if (expected === undefined) {
+          expect(step.startMin).toBeGreaterThanOrEqual(c.now);
+        } else {
+          expect([step.startMin, step.endMin]).toEqual([expected.startMin, expected.endMin]);
+        }
+      }
+    });
+  },
+  TIMEOUT_MS,
+);
+EOF
+npx prettier --write test/core/rebuild.pbt.ts test/meta/guarantee-claims.ts >/dev/null; time npx vitest run --project props test/core/rebuild.pbt.ts -t "^R[12] " 2>&1 | grep -vE "^$" | tail -30
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+     Test Files  1 passed (1)
+          Tests  2 passed (2)
+       Start at  15:16:05
+       Duration  3.70s (tests 98%, import 1%, transform 1%)
+    npx vitest run --project props test/core/rebuild.pbt.ts -t "^R[12] " 2>&1  4.49s user 0.15s system 117% cpu 3.950 total
+    grep -vE "^$"  0.00s user 0.00s system 0% cpu 3.949 total
+    tail -30  0.00s user 0.00s system 0% cpu 3.949 total
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/core/rebuild.pbt.ts'
+s=open(p).read()
+s=s.replace("import { arbProgress, arbScheduled }","import { arbOnPlan, arbProgress, arbScheduled }")
+s=s.replace("""import {
+  oracleForwardRepair,""","""import { terminalIds } from './rebuild-support.js';
+import {
+  oracleForwardRepair,""") if False else s
+s+='''
+it(
+  'R3 never earlier: every pending step starts at or after its previous start',
+  () => {
+    forEveryRun((c, r) => {
+      const prev = startsOf(c.s.steps);
+      for (const step of r.schedule.steps) {
+        if (c.progress[step.id] !== undefined) continue;
+        expect(step.startMin).toBeGreaterThanOrEqual(prev[step.id] ?? Number.NaN);
+      }
+    });
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'R4 no slip, no change: a cook who follows the schedule gets the same starts, serving 0 and no moves',
+  () => {
+    for (const large of [false, true]) {
+      fc.assert(
+        fc.property(
+          arbScheduled(large ? { large: true } : {}).chain((s) =>
+            arbOnPlan(s).map(({ progress, now }): Case => ({ s, progress, now })),
+          ),
+          (c) => {
+            const r = rebuild(c.s, c.progress, c.now);
+            expect(r.ok).toBe(true);
+            if (!r.ok) return;
+            const prev = startsOf(c.s.steps);
+            expect(Object.fromEntries(r.value.schedule.steps.map((x) => [x.id, x.startMin]))).toEqual(
+              prev,
+            );
+            expect(r.value.schedule.servingMin).toBe(0);
+            expect(r.value.diff.moved).toEqual([]);
+            expect(r.value.diff.servingShiftMin).toBe(0);
+          },
+        ),
+        fcParams(),
+      );
+    }
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'R5 serving time: servingMin is the larger of 0 and the latest end after forward repair, never earlier',
+  () => {
+    forEveryRun((c, r) => {
+      expect(r.schedule.servingMin).toBe(oracleServing(c, 0));
+      expect(r.schedule.servingMin).toBe(Math.max(0, ...r.schedule.steps.map((x) => x.endMin)));
+    });
+    // In order, every edge is respected, so the latest end is that of a terminal step.
+    for (const large of [false, true]) {
+      fc.assert(
+        fc.property(arbCase(large), (c) => {
+          const r = rebuildOrNull(c.s, c, 0);
+          if (r === null) return;
+          const used = new Set(c.s.plan.steps.flatMap((x) => x.after));
+          const terminalEnds = r.schedule.steps
+            .filter((x) => !used.has(x.id))
+            .map((x) => x.endMin);
+          expect(r.schedule.servingMin).toBe(Math.max(0, ...terminalEnds));
+        }),
+        fcParams(),
+      );
+    }
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'R6 honest diff: moved lists exactly the steps whose start changed, unchanged the rest, shift is the serving minute',
+  () => {
+    forEveryRun((c, r) => {
+      const prev = startsOf(c.s.steps);
+      const ids = c.s.steps.map((x) => x.id).sort();
+      const expectedMoved = r.schedule.steps
+        .filter((x) => x.startMin !== prev[x.id])
+        .map((x) => ({
+          stepId: x.id,
+          fromStartMin: prev[x.id],
+          toStartMin: x.startMin,
+        }))
+        .sort((a, b) => (a.stepId < b.stepId ? -1 : 1));
+      expect(r.diff.moved).toEqual(expectedMoved);
+      expect(r.diff.unchanged).toEqual(
+        ids.filter((id) => !expectedMoved.some((m) => m.stepId === id)),
+      );
+      expect(r.diff.servingShiftMin).toBe(r.schedule.servingMin);
+    });
+  },
+  TIMEOUT_MS,
+);
+'''
+open(p,'w').write(s)
+EOF
+npx prettier --write test/core/rebuild.pbt.ts >/dev/null; for t in "^R[34] " "^R[56] "; do npx vitest run --project props test/core/rebuild.pbt.ts -t "$t" 2>&1 | grep -vE "^$" | tail -30; done
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+     Test Files  1 passed (1)
+          Tests  2 passed | 4 skipped (6)
+       Start at  15:16:20
+       Duration  2.45s (tests 98%, import 1%, transform 1%)
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+     Test Files  1 passed (1)
+          Tests  2 passed | 4 skipped (6)
+       Start at  15:16:22
+       Duration  4.47s (tests 99%, import 1%)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/core/rebuild.pbt.ts'
+s=open(p).read()
+s=s.replace("import { arbOnPlan, arbProgress, arbScheduled }","import { arbOnPlan, arbProgress, arbScheduled, followPlan }")
+s+='''
+/** The ids of a rebuilt schedule, sorted. */
+const idsOf = (r: Rebuilt): string[] => r.schedule.steps.map((x) => x.id).sort();
+
+it(
+  'P-RB1 idempotent: rebuilding the output with the same progress and now returns it with an empty diff',
+  () => {
+    forEveryRun((c, r) => {
+      const again = rebuild(r.schedule, c.progress, c.now);
+      expect(again.ok).toBe(true);
+      if (!again.ok) return;
+      expect(again.value.schedule).toStrictEqual(r.schedule);
+      expect(again.value.diff).toStrictEqual({
+        moved: [],
+        unchanged: idsOf(r),
+        servingShiftMin: 0,
+      });
+    });
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'P-RB2 no slip twice: following the rebuilt schedule to a later now changes no start and not the serving minute',
+  () => {
+    for (const large of [false, true]) {
+      fc.assert(
+        fc.property(arbCase(large), fc.integer({ min: 0, max: 90 }), (c, later) => {
+          const r = rebuildOrNull(c.s, c, 0);
+          if (r === null) return;
+          const now2 = Math.min(SERVING_MAX, c.now + later);
+          const progress2 = followPlan(r.schedule, c.progress, now2);
+          const again = rebuild(r.schedule, progress2, now2);
+          expect(again.ok).toBe(true);
+          if (!again.ok) return;
+          expect(again.value.schedule.servingMin).toBe(r.schedule.servingMin);
+          expect(again.value.schedule.steps.map((x) => [x.id, x.startMin])).toEqual(
+            r.schedule.steps.map((x) => [x.id, x.startMin]),
+          );
+          expect(again.value.diff.moved).toEqual([]);
+        }),
+        fcParams(),
+      );
+    }
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'P-RB3 slips twice: a second rebuild is valid, pinned, never earlier and never serves earlier than the first',
+  () => {
+    for (const large of [false, true]) {
+      fc.assert(
+        fc.property(
+          arbCase(large).chain((c) => {
+            const first = rebuild(c.s, c.progress, c.now);
+            if (!first.ok) return fc.constant(null);
+            return arbProgress(first.value.schedule, {
+              base: { progress: c.progress, now: c.now },
+            }).map((run) => ({ first: first.value, run }));
+          }),
+          (drawn) => {
+            if (drawn === null) return;
+            const { first, run } = drawn;
+            const base = first.schedule;
+            const c2: Case = { s: base as unknown as Schedule, progress: run.progress, now: run.now };
+            const second = rebuild(base, run.progress, run.now);
+            if (!second.ok) {
+              expect(second.error.kind).toBe('serving_out_of_range');
+              expect(oracleServing(c2, base.servingMin)).toBeGreaterThan(SERVING_MAX);
+              return;
+            }
+            const out = second.value;
+            expect(
+              oracleRebuildViolations(
+                base.plan,
+                base.kitchen,
+                run.progress,
+                run.now,
+                out.schedule.steps,
+                out.schedule.servingMin,
+              ),
+            ).toEqual([]);
+            const pinned = oraclePinnedIntervals(base.plan, run.progress, run.now);
+            const prev = startsOf(base.steps);
+            for (const step of out.schedule.steps) {
+              const p = pinned[step.id];
+              if (p === undefined) {
+                expect(step.startMin).toBeGreaterThanOrEqual(prev[step.id] ?? Number.NaN);
+              } else {
+                expect([step.startMin, step.endMin]).toEqual([p.startMin, p.endMin]);
+              }
+            }
+            expect(out.schedule.servingMin).toBe(oracleServing(c2, base.servingMin));
+            expect(out.schedule.servingMin).toBeGreaterThanOrEqual(base.servingMin);
+            expect(out.diff.servingShiftMin).toBe(out.schedule.servingMin - base.servingMin);
+            expect(out.diff.moved.map((m) => [m.stepId, m.fromStartMin, m.toStartMin])).toEqual(
+              out.schedule.steps
+                .filter((x) => x.startMin !== prev[x.id])
+                .map((x) => [x.id, prev[x.id], x.startMin]),
+            );
+          },
+        ),
+        fcParams(),
+      );
+    }
+  },
+  TIMEOUT_MS,
+);
+'''
+open(p,'w').write(s)
+EOF
+npx prettier --write test/core/rebuild.pbt.ts >/dev/null; npx vitest run --project props test/core/rebuild.pbt.ts -t "^P-RB[123] " 2>&1 | grep -vE "^$" | tail -40
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+     Test Files  1 passed (1)
+          Tests  3 passed | 6 skipped (9)
+       Start at  15:16:40
+       Duration  4.72s (tests 99%, import 1%)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/core/rebuild.pbt.ts'
+s=open(p).read()
+s=s.replace("interface Case {\n  s: Schedule;","interface Case {\n  s: AnySchedule;")
+s=s.replace("import type { RunOpts } from","import type { AnySchedule, RunOpts } from")
+s=s.replace("s: base as unknown as Schedule","s: base")
+open(p,'w').write(s)
+EOF
+npx prettier --write test/core/rebuild.pbt.ts >/dev/null; npx tsc --noEmit -p test 2>&1 | head; ls tsconfig*
+    error TS5057: Cannot find a tsconfig.json file at the specified directory: 'test'.
+    tsconfig.base.json
+    tsconfig.core.json
+    tsconfig.mcp.json
+    tsconfig.server.json
+    tsconfig.test.json
+    tsconfig.tools.json
+    tsconfig.web.json
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npm run typecheck 2>&1 | tail -30
+    
+    > make-dinner@0.0.0 typecheck
+    > tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/core/rebuild.pbt.ts'
+s=open(p).read()
+s=s.replace("""import {
+  oracleForwardRepair,
+  oraclePinnedIntervals,
+  oracleRebuildViolations,
+  startsOf,
+} from""","""import { resourcesOf } from '../../src/core/timeline.js';
+import {
+  oracleForwardRepair,
+  oracleLongestChain,
+  oraclePendingOverfull,
+  oraclePinnedIntervals,
+  oracleRebuildHoldExceeded,
+  oracleRebuildLaneViolations,
+  oracleRebuildSlack,
+  oracleRebuildViolations,
+  oracleRebuildWaits,
+  startsOf,
+} from""")
+s+='''
+/** Runs where the cook's facts can break capacity and precedence. */
+const REALITY: RunOpts[] = [
+  { overCapacity: true },
+  { outOfOrder: true },
+  { outOfOrder: true, overCapacity: true },
+];
+
+it(
+  'P-RB4 reality first: any facts give ok; no pending step sits where use is over capacity; pending successors and serving hold',
+  () => {
+    forEveryRun((c, r) => {
+      const steps = r.schedule.steps;
+      expect(oraclePendingOverfull(c.s.plan, c.s.kitchen, c.progress, c.now, steps)).toEqual([]);
+      const violations = oracleRebuildViolations(
+        c.s.plan,
+        c.s.kitchen,
+        c.progress,
+        c.now,
+        steps,
+        r.schedule.servingMin,
+      );
+      // Capacity at minutes where pinned steps alone break it is not the rebuild's to fix (C2).
+      expect(violations.filter((v) => !v.startsWith('capacity:'))).toEqual([]);
+    }, REALITY);
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'P-RB5 lanes: fields and ranges are right, shares only where pinned steps overfill, and a free input lane is kept',
+  () => {
+    forEveryRun((c, r) => {
+      const steps = r.schedule.steps;
+      const iv = Object.fromEntries(
+        steps.map((x) => [x.id, { startMin: x.startMin, endMin: x.endMin }]),
+      );
+      expect(
+        oracleRebuildLaneViolations(c.s.plan, c.s.kitchen, iv, Object.keys(c.progress), steps),
+      ).toEqual([]);
+      const caps = { burner: c.s.kitchen.burners, oven: c.s.kitchen.ovens, cook: c.s.kitchen.cooks };
+      const inputLanes = new Map(c.s.steps.map((x) => [x.id, x.lanes]));
+      const outputLanes = new Map(steps.map((x) => [x.id, x.lanes]));
+      const stepOf = new Map(c.s.plan.steps.map((x) => [x.id, x]));
+      const order = [...steps].sort(
+        (a, b) => a.startMin - b.startMin || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+      );
+      order.forEach((x, index) => {
+        const plan = stepOf.get(x.id);
+        if (plan === undefined || x.startMin >= x.endMin) return;
+        for (const resource of resourcesOf(plan)) {
+          const wanted = inputLanes.get(x.id)?.[resource] ?? null;
+          if (wanted === null || wanted < 1 || wanted > caps[resource]) continue;
+          const heldEarlier = order.slice(0, index).some((u) => {
+            const other = stepOf.get(u.id);
+            return (
+              other !== undefined &&
+              resourcesOf(other).includes(resource) &&
+              u.startMin < u.endMin &&
+              u.startMin < x.endMin &&
+              x.startMin < u.endMin &&
+              outputLanes.get(u.id)?.[resource] === wanted
+            );
+          });
+          if (!heldEarlier) expect(outputLanes.get(x.id)?.[resource]).toBe(wanted);
+        }
+      });
+    }, [...IN_ORDER, ...REALITY]);
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'P-RB6 readout: slack, critical, waits, warnings, span and chain equal the oracles',
+  () => {
+    forEveryRun((c, r) => {
+      const { plan, kitchen } = c.s;
+      const steps = r.schedule.steps;
+      const serving = r.schedule.servingMin;
+      const iv = Object.fromEntries(
+        steps.map((x) => [x.id, { startMin: x.startMin, endMin: x.endMin }]),
+      );
+      const waits = oracleRebuildWaits(plan, iv, serving);
+      for (const x of steps) {
+        const pending = c.progress[x.id] === undefined;
+        const slack = oracleRebuildSlack(plan, kitchen, c.progress, c.now, iv, serving, x.id);
+        expect([x.id, x.slackMin, x.critical, x.waitMin]).toEqual([
+          x.id,
+          pending ? slack : 0,
+          pending && slack === 0,
+          waits[x.id],
+        ]);
+      }
+      expect(
+        r.schedule.warnings.map((w) => ({
+          stepId: w.stepId,
+          waitMin: w.waitMin,
+          holdMin: w.holdMin,
+        })),
+      ).toEqual(oracleRebuildHoldExceeded(plan, iv, serving));
+      expect(r.schedule.spanMin).toBe(serving - Math.min(...steps.map((x) => x.startMin)));
+      expect(r.schedule.chainMin).toBe(oracleLongestChain(plan));
+    }, [...IN_ORDER, ...REALITY]);
+  },
+  TIMEOUT_MS,
+);
+'''
+open(p,'w').write(s)
+EOF
+npx prettier --write test/core/rebuild.pbt.ts >/dev/null; time npx vitest run --project props test/core/rebuild.pbt.ts -t "^P-RB[456] " 2>&1 | grep -vE "^$" | head -60
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+     Test Files  1 passed (1)
+          Tests  3 passed | 9 skipped (12)
+       Start at  15:17:14
+       Duration  22.47s (tests 100%)
+    npx vitest run --project props test/core/rebuild.pbt.ts -t "^P-RB[456] " 2>&1  23.70s user 0.29s system 105% cpu 22.722 total
+    grep -vE "^$"  0.00s user 0.00s system 0% cpu 22.722 total
+    head -60  0.00s user 0.00s system 0% cpu 22.721 total
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/core/rebuild.pbt.ts'
+s=open(p).read()
+s=s.replace("import type { Progress, Rebuilt, RebuiltSchedule, Schedule } from '../../src/core/schema.js';","import { AXIS_MIN, RebuiltSchema, compareIds } from '../../src/core/schema.js';\nimport type { Progress, Rebuilt, RebuiltSchedule, Schedule } from '../../src/core/schema.js';")
+s=s.replace("import { arbOnPlan, arbProgress, arbScheduled, followPlan }","import { arbOnPlan, arbProgress, arbScheduled, arbShuffledPlan, followPlan }")
+s+='''
+/** One broken input per error kind, built from a good case. */
+type Breaker = (c: Case) => { schedule: unknown; progress: unknown; now: unknown } | null;
+const BREAKERS: Record<string, [Breaker, (c: Case) => object]> = {
+  invalid_now: [(c) => ({ schedule: c.s, progress: {}, now: 0.5 }), () => ({ kind: 'invalid_now' })],
+  invalid_progress: [
+    (c) => ({
+      schedule: c.s,
+      progress: { [c.s.plan.steps[0]?.id ?? '']: { state: 'done', startMin: c.now } },
+      now: c.now,
+    }),
+    () => ({ kind: 'invalid_progress' }),
+  ],
+  unknown_step: [
+    (c) => ({
+      schedule: c.s,
+      progress: { 'zz.nope': { state: 'done', startMin: c.now, endMin: c.now } },
+      now: c.now,
+    }),
+    () => ({ kind: 'unknown_step', stepId: 'zz.nope' }),
+  ],
+  done_ends_before_start: [
+    (c) =>
+      c.now <= AXIS_MIN
+        ? null
+        : {
+            schedule: c.s,
+            progress: { 'zz.nope': 0, [firstId(c)]: { state: 'done', startMin: c.now, endMin: c.now - 1 } },
+            now: c.now,
+          },
+    (c) => ({ kind: 'done_ends_before_start', stepId: firstId(c) }),
+  ],
+  done_after_now: [
+    (c) =>
+      c.now >= SERVING_MAX
+        ? null
+        : {
+            schedule: c.s,
+            progress: { [firstId(c)]: { state: 'done', startMin: c.now, endMin: c.now + 1 } },
+            now: c.now,
+          },
+    (c) => ({ kind: 'done_after_now', stepId: firstId(c) }),
+  ],
+  running_starts_after_now: [
+    (c) =>
+      c.now >= SERVING_MAX
+        ? null
+        : {
+            schedule: c.s,
+            progress: { [firstId(c)]: { state: 'running', startMin: c.now + 1, extraMin: 0 } },
+            now: c.now,
+          },
+    (c) => ({ kind: 'running_starts_after_now', stepId: firstId(c) }),
+  ],
+  invalid_schedule_shape: [
+    (c) => ({
+      schedule: { ...c.s, steps: c.s.steps.map((x, i) => (i === 0 ? { ...x, endMin: 1 } : x)) },
+      progress: {},
+      now: c.now,
+    }),
+    () => ({ kind: 'invalid_schedule', reason: 'shape', issues: [] }),
+  ],
+  invalid_schedule_step_ids: [
+    (c) => (c.s.steps.length < 2 ? null : { schedule: { ...c.s, steps: c.s.steps.slice(1) }, progress: {}, now: c.now }),
+    () => ({ kind: 'invalid_schedule', reason: 'step_ids', issues: [] }),
+  ],
+};
+function firstId(c: Case): string {
+  return c.s.plan.steps.map((x) => x.id).sort(compareIds)[0] ?? '';
+}
+
+it(
+  'P-RB7 errors: each broken input gives its exact error, any value gives ok or err without throwing, arguments stay equal',
+  () => {
+    for (const [name, [breakIt, expected]] of Object.entries(BREAKERS)) {
+      fc.assert(
+        fc.property(arbCase(false), (c) => {
+          const input = breakIt(c);
+          fc.pre(input !== null);
+          if (input === null) return;
+          const before = structuredClone(input);
+          const r = rebuild(input.schedule as Schedule, input.progress as Progress, input.now as number);
+          expect([name, r]).toEqual([name, { ok: false, error: expected(c) }]);
+          expect(input).toEqual(before);
+        }),
+        fcParams(),
+      );
+    }
+    // plan and kitchen errors carry the sanity issues
+    fc.assert(
+      fc.property(arbCase(false), (c) => {
+        const first = c.s.plan.steps[0];
+        fc.pre(first !== undefined);
+        if (first === undefined) return;
+        const looped = {
+          ...c.s,
+          plan: {
+            ...c.s.plan,
+            steps: c.s.plan.steps.map((x) => (x.id === first.id ? { ...x, after: [...x.after, x.id] } : x)),
+          },
+        };
+        const r = rebuild(looped, {}, c.now);
+        expect(!r.ok && r.error.kind === 'invalid_schedule' && r.error.reason).toBe('plan');
+        expect(
+          !r.ok && r.error.kind === 'invalid_schedule' && r.error.issues.map((i) => i.code),
+        ).toContain('self_dependency');
+        fc.pre(c.s.plan.steps.some((x) => x.appliance !== 'none'));
+        const bare = { ...c.s, kitchen: { burners: 0, ovens: 0, cooks: c.s.kitchen.cooks } };
+        const k = rebuild(bare, {}, c.now);
+        expect(!k.ok && k.error.kind === 'invalid_schedule' && k.error.reason).toBe('kitchen');
+        expect(
+          !k.ok && k.error.kind === 'invalid_schedule' && k.error.issues.every((i) => i.code === 'missing_appliance'),
+        ).toBe(true);
+      }),
+      fcParams(),
+    );
+    // now 1440 with nothing done runs past a day
+    fc.assert(
+      fc.property(arbCase(false), (c) => {
+        const r = rebuild(c.s, {}, SERVING_MAX);
+        const expected = oracleServing({ s: c.s, progress: {}, now: SERVING_MAX }, 0);
+        expect(expected).toBeGreaterThan(SERVING_MAX);
+        expect(r).toEqual({ ok: false, error: { kind: 'serving_out_of_range', servingMin: expected } });
+      }),
+      fcParams(),
+    );
+    // any value at all
+    fc.assert(
+      fc.property(fc.anything(), fc.anything(), fc.anything(), (a, b, n) => {
+        const before = [structuredClone(a), structuredClone(b), structuredClone(n)];
+        const r = rebuild(a as Schedule, b as Progress, n as number);
+        expect(typeof r.ok).toBe('boolean');
+        expect([a, b, n]).toEqual(before);
+      }),
+      fcParams(),
+    );
+    // a plausible schedule with a nonsense progress or now
+    fc.assert(
+      fc.property(arbCase(false), fc.anything(), fc.anything(), (c, progress, now) => {
+        const before = structuredClone(c.s);
+        const r = rebuild(c.s, progress as Progress, now as number);
+        expect(typeof r.ok).toBe('boolean');
+        expect(c.s).toEqual(before);
+      }),
+      fcParams(),
+    );
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'P-RB8 order-free: permuting progress keys, schedule rows and the arrays of the plan gives a deep-equal result',
+  () => {
+    for (const large of [false, true]) {
+      fc.assert(
+        fc.property(
+          arbCase(large).chain((c) =>
+            fc
+              .tuple(
+                arbShuffledPlan(c.s.plan),
+                fc.shuffledSubarray(c.s.steps, { minLength: c.s.steps.length }),
+                fc.shuffledSubarray(Object.entries(c.progress), {
+                  minLength: Object.keys(c.progress).length,
+                }),
+              )
+              .map(([plan, steps, entries]) => ({ c, plan, steps, entries })),
+          ),
+          ({ c, plan, steps, entries }) => {
+            const same = rebuild(c.s, c.progress, c.now);
+            const shuffled = rebuild(
+              { ...c.s, plan, steps } as Schedule,
+              Object.fromEntries(entries),
+              c.now,
+            );
+            expect(shuffled).toStrictEqual(same);
+          },
+        ),
+        fcParams(),
+      );
+    }
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'P-RB9 schema: the result parses as RebuiltSchema and survives a JSON round trip unchanged',
+  () => {
+    forEveryRun((_c, r) => {
+      expect(RebuiltSchema.parse(r)).toStrictEqual(r);
+      expect(RebuiltSchema.parse(JSON.parse(JSON.stringify(r)))).toStrictEqual(r);
+    }, [...IN_ORDER, ...REALITY]);
+  },
+  TIMEOUT_MS,
+);
+'''
+open(p,'w').write(s)
+EOF
+npx prettier --write test/core/rebuild.pbt.ts >/dev/null; time npx vitest run --project props test/core/rebuild.pbt.ts -t "^P-RB[789] " 2>&1 | grep -vE "^$" | head -60
+    … (22 earlier lines not shown)
+    - Expected
+    + Received
+      [
+        "done_ends_before_start",
+        {
+          "error": {
+    -       "kind": "done_ends_before_start",
+    -       "stepId": "a.a",
+    +       "kind": "invalid_progress",
+          },
+          "ok": false,
+        },
+      ]
+     ❯ test/core/rebuild.pbt.ts:539:29
+     ❯ Property.predicate node_modules/fast-check/lib/fast-check.js:1355:99
+     ❯ Property.run node_modules/fast-check/lib/fast-check.js:1324:24
+     ❯ propertyExecution node_modules/fast-check/lib/fast-check.js:2549:23
+     ❯ run node_modules/fast-check/lib/fast-check.js:2639:91
+     ❯ runIt node_modules/fast-check/lib/fast-check.js:2542:15
+     ❯ check node_modules/fast-check/lib/fast-check.js:2655:14
+     ❯ Module.assert node_modules/fast-check/lib/fast-check.js:2660:14
+     ❯ test/core/rebuild.pbt.ts:528:10
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+     Test Files  1 failed (1)
+          Tests  1 failed | 2 passed | 12 skipped (15)
+       Start at  15:17:58
+       Duration  6.77s (tests 99%, import 1%)
+    npx vitest run --project props test/core/rebuild.pbt.ts -t "^P-RB[789] " 2>&1  7.70s user 0.17s system 112% cpu 7.015 total
+    grep -vE "^$"  0.00s user 0.00s system 0% cpu 7.015 total
+    head -60  0.00s user 0.00s system 0% cpu 7.015 total
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/core/rebuild.pbt.ts'
+s=open(p).read()
+assert "'zz.nope': 0, " in s
+s=s.replace("'zz.nope': 0, ","")
+open(p,'w').write(s)
+EOF
+npx prettier --write test/core/rebuild.pbt.ts >/dev/null; npx vitest run --project props test/core/rebuild.pbt.ts -t "^P-RB[789] " 2>&1 | grep -vE "^$" | head -40
+    … (13 earlier lines not shown)
+     ❯ buildError node_modules/fast-check/lib/fast-check.js:2469:16
+     ❯ throwIfFailed node_modules/fast-check/lib/fast-check.js:2476:8
+     ❯ reportRunDetails node_modules/fast-check/lib/fast-check.js:2492:14
+     ❯ Module.assert node_modules/fast-check/lib/fast-check.js:2662:7
+     ❯ test/core/rebuild.pbt.ts:528:10
+        526|   () => {
+        527|     for (const [name, [breakIt, expected]] of Object.entries(BREAKERS)…
+        528|       fc.assert(
+           |          ^
+        529|         fc.property(arbCase(false), (c) => {
+        530|           const input = breakIt(c);
+    Caused by: AssertionError: expected [ 'done_ends_before_start', …(1) ] to deeply equal [ 'done_ends_before_start', …(1) ]
+    - Expected
+    + Received
+      [
+        "done_ends_before_start",
+        {
+          "error": {
+    -       "kind": "done_ends_before_start",
+    -       "stepId": "a.a",
+    +       "kind": "invalid_progress",
+          },
+          "ok": false,
+        },
+      ]
+     ❯ test/core/rebuild.pbt.ts:539:29
+     ❯ Property.predicate node_modules/fast-check/lib/fast-check.js:1355:99
+     ❯ Property.run node_modules/fast-check/lib/fast-check.js:1324:24
+     ❯ propertyExecution node_modules/fast-check/lib/fast-check.js:2549:23
+     ❯ run node_modules/fast-check/lib/fast-check.js:2639:91
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && grep -n "zz.nope" test/core/rebuild.pbt.ts; sed -n 440,470p test/core/rebuild.pbt.ts
+    … (4 earlier lines not shown)
+      },
+      TIMEOUT_MS,
+    );
+    
+    /** One broken input per error kind, built from a good case. */
+    type Breaker = (c: Case) => { schedule: unknown; progress: unknown; now: unknown } | null;
+    const BREAKERS: Record<string, [Breaker, (c: Case) => object]> = {
+      invalid_now: [
+        (c) => ({ schedule: c.s, progress: {}, now: 0.5 }),
+        () => ({ kind: 'invalid_now' }),
+      ],
+      invalid_progress: [
+        (c) => ({
+          schedule: c.s,
+          progress: { [c.s.plan.steps[0]?.id ?? '']: { state: 'done', startMin: c.now } },
+          now: c.now,
+        }),
+        () => ({ kind: 'invalid_progress' }),
+      ],
+      unknown_step: [
+        (c) => ({
+          schedule: c.s,
+          progress: { 'zz.nope': { state: 'done', startMin: c.now, endMin: c.now } },
+          now: c.now,
+        }),
+        () => ({ kind: 'unknown_step', stepId: 'zz.nope' }),
+      ],
+      done_ends_before_start: [
+        (c) =>
+          c.now <= AXIS_MIN
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -i '' "475d" test/core/rebuild.pbt.ts && sed -n 470,480p test/core/rebuild.pbt.ts && npx prettier --write test/core/rebuild.pbt.ts >/dev/null; npx vitest run --project props test/core/rebuild.pbt.ts -t "^P-RB[789] " 2>&1 | grep -vE "^$" | head -40
+          c.now <= AXIS_MIN
+            ? null
+            : {
+                schedule: c.s,
+                progress: {
+                  [firstId(c)]: { state: 'done', startMin: c.now, endMin: c.now - 1 },
+                },
+                now: c.now,
+              },
+        (c) => ({ kind: 'done_ends_before_start', stepId: firstId(c) }),
+      ],
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+     Test Files  1 passed (1)
+          Tests  3 passed | 12 skipped (15)
+       Start at  15:18:27
+       Duration  7.97s (tests 99%)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && mkdir -p /tmp/mut && cp src/core/rebuild.ts /tmp/mut/rebuild.ts && cp src/core/passes/forward-repair.ts /tmp/mut/fr.ts
+run() { npx vitest run --project props test/core/rebuild.pbt.ts 2>&1 | grep -E "^\s+(×|✓)|Tests " | head -20; }
+echo "== M1: forward repair ignores prev start"; sed -i '' 's/let lower = Math.max(prevOf(pick), nowMin);/let lower = nowMin;/' src/core/passes/forward-repair.ts; run; cp /tmp/mut/fr.ts src/core/passes/forward-repair.ts
+echo "== M2: serving ignores S_prev"; sed -i '' 's/let servingMin = servingPrev;/let servingMin = -100000;/' src/core/rebuild.ts; run; cp /tmp/mut/rebuild.ts src/core/rebuild.ts
+echo "== M4: forward repair ignores now"; sed -i '' 's/let lower = Math.max(prevOf(pick), nowMin);/let lower = prevOf(pick);/' src/core/passes/forward-repair.ts; run; cp /tmp/mut/fr.ts src/core/passes/forward-repair.ts
+git diff --stat src/core/passes/forward-repair.ts; diff /tmp/mut/rebuild.ts src/core/rebuild.ts && echo restored
+    == M1: forward repair ignores prev start
+       × R3 never earlier: every pending step starts at or after its previous start 51ms
+       × R4 no slip, no change: a cook who follows the schedule gets the same starts, serving 0 and no moves 24ms
+       × R5 serving time: servingMin is the larger of 0 and the latest end after forward repair, never earlier 461ms
+       × P-RB1 idempotent: rebuilding the output with the same progress and now returns it with an empty diff 44ms
+       × P-RB2 no slip twice: following the rebuilt schedule to a later now changes no start and not the serving minute 266ms
+       × P-RB3 slips twice: a second rebuild is valid, pinned, never earlier and never serves earlier than the first 1929ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+          Tests  6 failed | 9 passed (15)
+    == M2: serving ignores S_prev
+       × R5 serving time: servingMin is the larger of 0 and the latest end after forward repair, never earlier 168ms
+       × P-RB1 idempotent: rebuilding the output with the same progress and now returns it with an empty diff 175ms
+       × P-RB2 no slip twice: following the rebuilt schedule to a later now changes no start and not the serving minute 67ms
+       × P-RB3 slips twice: a second rebuild is valid, pinned, never earlier and never serves earlier than the first 151ms
+       × P-RB9 schema: the result parses as RebuiltSchema and survives a JSON round trip unchanged 1602ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+          Tests  5 failed | 10 passed (15)
+    == M4: forward repair ignores now
+       × R1 valid: capacity from now, precedence for pending successors and completeness hold 349ms
+       × R2 pinned: done and running steps keep their start (done also their end); pending start at or after now 251ms
+       × R5 serving time: servingMin is the larger of 0 and the latest end after forward repair, never earlier 996ms
+       × P-RB1 idempotent: rebuilding the output with the same progress and now returns it with an empty diff 1318ms
+       × P-RB3 slips twice: a second rebuild is valid, pinned, never earlier and never serves earlier than the first 635ms
+       × P-RB4 reality first: any facts give ok; no pending step sits where use is over capacity; pending successors and serving hold 207ms
+       × P-RB5 lanes: fields and ranges are right, shares only where pinned steps overfill, and a free input lane is kept 261ms
+       × P-RB6 readout: slack, critical, waits, warnings, span and chain equal the oracles 412ms
+       × P-RB7 errors: each broken input gives its exact error, any value gives ok or err without throwing, arguments stay equal 1301ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯
+          Tests  9 failed | 6 passed (15)
+    restored
+    exit 0

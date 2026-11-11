@@ -1113,3 +1113,27 @@ describe('RQ11.1 oracleForwardRepair searches upward, oracleRebuildWaits clamps'
     expect(waits['greens.toss']).toBe(7);
   });
 });
+
+describe('RQ7.2 an empty pinned interval occupies no minute, so it clashes with nothing', () => {
+  // RB-a with greens.boil recorded as done in zero time at minute 0 (start == end), on burner
+  // lane 1, inside gravy.simmer's [-2,8) on burner lane 1. Boil holds no burner minute.
+  const good = rebuiltStepsOf(RB_A_ROWS, H1_SCHEDULE);
+  const steps = good.map((x) =>
+    x.id === 'greens.boil'
+      ? { ...x, startMin: 0, endMin: 0, lanes: { burner: 1, oven: null, cook: null } }
+      : x,
+  );
+  it('the lane oracle reports no lane_clash for it', () => {
+    expect(
+      oracleRebuildLaneViolations(SUNDAY_ROAST, HOME_KITCHEN, ivOf(steps), ['greens.boil'], steps),
+    ).toEqual([]);
+  });
+  it('a non-empty step on the same lane is still a clash', () => {
+    const clash = steps.map((x) =>
+      x.id === 'greens.boil' ? { ...x, startMin: 0, endMin: 1 } : x,
+    );
+    expect(
+      oracleRebuildLaneViolations(SUNDAY_ROAST, HOME_KITCHEN, ivOf(clash), [], clash),
+    ).toEqual(['lane_clash:burner:1:gravy.simmer:greens.boil']);
+  });
+});

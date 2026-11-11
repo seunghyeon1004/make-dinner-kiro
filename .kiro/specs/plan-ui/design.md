@@ -306,8 +306,7 @@ from `parseKitchen(options.kitchen)` or `DEFAULT_KITCHEN` with `COPY.kitchenLine
 ```ts
 export const SHARE_VERSION = 1;
 export const SHARE_URL_MAX = 8_000;          // RFC 9110 §4.1 recommends supporting 8,000-octet URIs
-export const SHARE_PAYLOAD_MAX = 65_536;     // accepted on load
-export const SHARE_INFLATED_MAX = 262_144;   // bytes, guards against a deflate bomb
+export const SHARE_PAYLOAD_MAX = 65_536, SHARE_INFLATED_MAX = 262_144; // accepted on load; inflated bytes (deflate bomb)
 export interface SharedDinner { plan: Plan; kitchen: Kitchen; serve: ServeTime }
 export type ShareDecodeError =
   | { kind: 'bad_format' } | { kind: 'unknown_version'; version: number } | { kind: 'too_large' }
@@ -315,6 +314,7 @@ export type ShareDecodeError =
 export function encodeShare(d: SharedDinner): Promise<Result<string, 'invalid_plan'>>; // "1.<b64url>"
 export function decodeShare(version: number, payload: string): Promise<Result<SharedDinner, ShareDecodeError>>;
 export function shareUrl(base: string, encoded: string): string; // base = origin + pathname; + '#/share/' + encoded
+export function shareBody(plan: Plan, kitchen: Kitchen, serve: ServeTime): unknown[]; // the version 1 body, exported for tests
 ```
 
 Version 1 body, built from `canonicalPlan(plan)` (decided here):
@@ -406,7 +406,7 @@ Hand-worked H1 (`SUNDAY_ROAST` × `HOME_KITCHEN`, chosen serving Wed 2026-11-11 
 | Oven 1 | `chicken.roast 120/450 oven dashed yes ▲` |
 | Hands-free | `chicken.rest 570/120 plain dashed yes ▲` |
 
-`chicken.prep` is slack 0 and keeps: "Back to back", no `▲`. With serving Thu 00:30 the same plan
+`chicken.prep` is slack 0 and keeps: "No slack", no `▲`. With serving Thu 00:30 the same plan
 gives ticks `22:30` … `23:45`, `Thu 00:00`, `00:15`, `00:30`.
 
 ## Plan list items (`src/web/components/plan-list-items.ts`)
@@ -431,7 +431,7 @@ H1 at Wed 19:30 (titles and dish names from the fixture):
 
 | heading | range | title | dish | lanes | duration | status |
 | ------- | ----- | ----- | ---- | ----- | -------- | ------ |
-| 17:40 | 17:40–17:50 | Season and truss the chicken | Roast chicken | Cook 1 | 10 min | Back to back |
+| 17:40 | 17:40–17:50 | Season and truss the chicken | Roast chicken | Cook 1 | 10 min | No slack |
 | 17:50 | 17:50–19:05 | Roast the chicken | Roast chicken | Oven 1 | 1 h 15 min | ▲ Critical |
 | 17:50 | 17:50–17:55 | Shred the greens | Spring greens | Cook 1 | 5 min | Slack 1 h 15 min |
 | 19:05 | 19:05–19:25 | Rest the chicken under foil | Roast chicken | Hands-free | 20 min | ▲ Critical |
@@ -510,7 +510,7 @@ Durations by `formatDuration`, times by `formatClock`; `<x>` marks an argument.
 | Plan | h1 = plan title; h2 `Kitchen`, `Timeline`, `Plan list`, `Warnings`, `Take the plan with you`; `Burners`, `Ovens`, `Cooks`, `Fewer <x>` / `More <x>` (button names), `Serving time` |
 | summary | `Start at <time>`, `Serve at <time>` (+ ` <day>`), `Takes <duration>` |
 | timeline | `Skip to the plan list`; row labels; `Serve <time>` |
-| list | `▲ Critical`, `Back to back`, `Slack <duration>`, final item `Serve` |
+| list | `▲ Critical`, `No slack`, `Slack <duration>`, final item `Serve` |
 | export | `Dinnerfile`, `Share link`, `Print`; `Copy`, `Download`, `Copy link`, `Link to this dinner` |
 | make line | `Run make -n -f Dinnerfile dinner to see GNU Make print the steps in an order that works.` |
 
@@ -597,3 +597,18 @@ E2E (`e2e/`, both projects; `test.use({ locale: 'en-GB', timezoneId: 'Europe/Lon
 | `shell.spec.ts` | nav states per screen; reload keeps route and plan; Back/Forward; `#/plan` with no dinner → Menu; Start over needs two taps; theme Dark on a light system sets `data-theme` and `--color-bg` |
 | `a11y.spec.ts` | light and dark: Menu, Menu with an error, Steps with an editor open and issues, Plan, Plan with each panel open, missing appliance; 200% zoom (`deviceScaleFactor` unchanged, CSS `zoom` via viewport 195 px wide) with `expectNoPageScroll` |
 | `perf.spec.ts` | N2 on the phone project: sample tap to timeline visible < 1 s; stepper tap to list update < 200 ms (`performance.now` in the page) |
+
+## Review notes (by hand, 2026-11-11)
+
+- Q1: steering updated. The label for a slack-0 step whose result keeps is "No slack" (not
+  "Back to back", which would be wrong for a lone step); replaced throughout this spec.
+- Q2: the share link carries plan, kitchen and serving time only, as designed here. The line in
+  the rebuild design that mentions the share link concerns only persisted cook sessions.
+- Q3: short bars stay tappable; the plan list is the compliant alternative.
+- Q4: hard-stop `repeating-linear-gradient` for the oven hatch is a pattern, not a gradient in
+  the sense `ui.md` bans.
+- Q5: recordings are made by hand with the real key before the e2e tasks.
+- Q6: one sentence for "no key" and "model down" is enough.
+- Q7: add a tiny blocking `public/theme.js` (not inline, so a strict CSP still holds) that sets
+  `data-theme` from localStorage before first paint; fold it into the shell task.
+

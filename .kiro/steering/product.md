@@ -84,7 +84,10 @@ languages other than English. Halloween appears only as one sample menu.
 - **Wait**: the minutes a result actually waits. A wait longer than its hold is a warning.
 - **Slack**: minutes a step can start later, everything else fixed, without breaking
   capacity, precedence or completeness.
-- **Critical**: a step with slack 0. Shown with a mark and the word "Critical".
+- **Critical**: in the schedule data, a step with slack 0. On screen the mark and the word
+  "Critical" are reserved for slack 0 on a step whose result does not keep; a step whose result
+  keeps and has slack 0 reads "No slack" (prep steps are packed together and could move as a
+  block; decided in the plan-ui review, 2026-11-11).
 - **Lane**: one numbered unit of a resource (Burner 2, Oven 1, Cook 1). Timeline rows are lanes.
 - **Kitchen**: counts of burners, ovens and cooks.
 - **Serving time**: minute 0 on the scheduler's axis; earlier minutes are negative.

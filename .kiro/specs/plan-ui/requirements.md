@@ -147,7 +147,7 @@ Prerequisites: recipe-graph, scheduler, dinnerfile T1 to T4 and recipe-reader do
 - R6.5 THE SYSTEM SHALL style bars: oven hatched, burner solid, no appliance plain, dashed outline
   when not hands-on; the title as label on bars of at least 56 px, cut with an ellipsis.
 - R6.6 THE SYSTEM SHALL mark "Critical" with `▲` only a step with `critical` true and `holdMin` not
-  `null`; a critical step whose result keeps SHALL read "Back to back" (decided in review).
+  `null`; a critical step whose result keeps SHALL read "No slack" (decided in review).
 - R6.7 THE SYSTEM SHALL mark the timeline `aria-hidden="true"`, with nothing focusable in it, and
   precede it with a visible "Skip to the plan list" link.
 - R6.8 WHEN the cook taps a bar, THE SYSTEM SHALL scroll that step's plan list item into view and
@@ -163,7 +163,7 @@ Prerequisites: recipe-graph, scheduler, dinnerfile T1 to T4 and recipe-reader do
   start clock time, ending with the serving time, as headings and `<ol>` items always in the DOM,
   each item focusable by script (`tabindex="-1"`).
 - R7.2 THE SYSTEM SHALL give each item its time range, title, dish name, lanes ("Oven 1, Cook 1" or
-  "Hands-free"), duration, one of "▲ Critical", "Back to back" or "Slack <duration>" (R6.6), and the
+  "Hands-free"), duration, one of "▲ Critical", "No slack" or "Slack <duration>" (R6.6), and the
   `detail` when present.
 - R7.3 THE SYSTEM SHALL add `!`, "Warning", the wait and the hold to an item with `hold_exceeded`.
 - R7.4 WHEN start and serving fall on different local dates, THE SYSTEM SHALL prefix every heading

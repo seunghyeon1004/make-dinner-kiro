@@ -107,14 +107,14 @@ reported and need the user's decision, not a code change).
 
 ## T5. `rebuild`
 
-- [ ] T5.1 Example tests through `rebuild`: RB-a, RB-b, RB-b2 and RB-c in full (every column,
+- [x] T5.1 Example tests through `rebuild`: RB-a, RB-b, RB-b2 and RB-c in full (every column,
   lanes, warnings, `servingMin`, `spanMin`, `chainMin`, diff); E1 to E8; every error case of the
   design with its exact error; RB-a's output rebuilt with RB-a's progress and now equals RB-a's
   schedule with an empty diff; arguments unchanged after the call.
   Files: `test/core/rebuild.test.ts`, `src/core/rebuild.ts` (stub).
   Covers: RQ1.1–RQ1.3, RQ2.1–RQ2.4, RQ3.3, RQ5.1, RQ5.2, RQ6.2, RQ9.1–RQ9.3, RQ11.2.
   Command: `npx vitest run --project examples test/core/rebuild.test.ts`
-- [ ] T5.2 Implement `rebuild` (checks, pinned intervals, the passes, assembly, diff) until T5.1
+- [x] T5.2 Implement `rebuild` (checks, pinned intervals, the passes, assembly, diff) until T5.1
   passes.
   Files: `src/core/rebuild.ts`.
   Covers: RQ1.1–RQ1.3, RQ2, RQ3.3, RQ5, RQ6.2, RQ9.

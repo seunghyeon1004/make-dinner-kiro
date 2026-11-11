@@ -100,6 +100,8 @@ export function assignRebuildLanes(
       for (const u of assigned) {
         if (!resourcesOf(u).includes(r)) continue;
         const other = intervalOf(u.id);
+        // An empty interval (a step done in zero time) holds no minute, so it never clashes.
+        if (other.startMin >= other.endMin || here.startMin >= here.endMin) continue;
         if (other.startMin >= here.endMin || here.startMin >= other.endMin) continue;
         const lane = laneOf(u.id, r);
         if (lane !== null) busy.add(lane);
