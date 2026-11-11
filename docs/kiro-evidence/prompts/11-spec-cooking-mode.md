@@ -18,3 +18,5 @@ Design must fix: the cook-session state and its pure transition functions (actio
 Tests: unit tests and fast-check properties for the transition functions (P-CM ids: replaying any sequence of valid actions keeps every rebuild guarantee R1 to R3; undo after any action restores the previous state exactly; the derived view never shows a done step as due; a reload round trip through the persisted JSON gives the same derived view), and Playwright e2e with `page.clock` driving time: the whole sunday-roast sample cooked on time from first card to the end state; a +15 on the roast and the build log that results; "I'm behind"; reload mid-cook; wake lock requested (faked); axe on the screen in light and dark, phone and desktop.
 
 About 25 to 32 sub-tasks, ordered so that the pure state machine and its properties come first and the screen is built on top.
+
+Length: refer to plan-ui, rebuild and ui.md instead of repeating them. Aim for requirements.md under 200 lines, design.md under 450 lines and tasks.md under 260 lines. Do not run exploratory scripts beyond what you need to confirm two or three expected values.

@@ -119,7 +119,7 @@ export function rebuild(
     return err({ kind: 'serving_out_of_range', servingMin });
   const pinnedSet: ReadonlySet<string> = new Set(pinned.keys());
   const intervals =
-    repaired;
+    servingMin > servingPrev ? reAlign(plan, cap, repaired, pinnedSet, now, servingMin) : repaired;
 
   // 4. Lanes, readout, assembly, diff.
   const lanes = assignRebuildLanes(plan, cap, intervals, prevLanes);

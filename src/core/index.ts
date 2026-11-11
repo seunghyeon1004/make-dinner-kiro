@@ -13,11 +13,18 @@ export {
   KitchenSchema,
   LIMITS,
   PlanSchema,
+  ProgressEntrySchema,
+  ProgressSchema,
+  RebuildDiffSchema,
+  RebuiltScheduleSchema,
+  RebuiltSchema,
+  RebuiltStepSchema,
   ScheduledStepSchema,
   ScheduleSchema,
   STEP_ID_PATTERN,
   StepIdSchema,
   StepLanesSchema,
+  StepMoveSchema,
   StepSchema,
   WARNING_CODES,
 } from './schema.js';
@@ -30,10 +37,17 @@ export type {
   IssueCode,
   Kitchen,
   Plan,
+  Progress,
+  ProgressEntry,
+  RebuildDiff,
+  Rebuilt,
+  RebuiltSchedule,
+  RebuiltStep,
   Schedule,
   ScheduledStep,
   Step,
   StepLanes,
+  StepMove,
   WarningCode,
 } from './schema.js';
 
@@ -61,3 +75,6 @@ export { normaliseRecipeText } from './normalise.js';
 
 export { schedule } from './schedule.js';
 export type { ScheduleError } from './schedule.js';
+
+export { rebuild } from './rebuild.js';
+export type { RebuildError } from './rebuild.js';

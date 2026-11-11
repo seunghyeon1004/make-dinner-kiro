@@ -122,42 +122,54 @@ reported and need the user's decision, not a code change).
 
 ## T6. Properties
 
-- [ ] T6.1 Add `rebuild: ['R']` to `CLAIMS`; properties R1 valid and R2 pinned. The coverage
+- [x] T6.1 Add `rebuild: ['R']` to `CLAIMS`; properties R1 valid and R2 pinned. The coverage
   check in `test/meta/guarantees.test.ts` lists R3 to R6 as missing until T6.3; T7.1 runs it.
   Files: `test/meta/guarantee-claims.ts`, `test/core/rebuild.pbt.ts`.
   Covers: RQ10.1, RQ2.2, RQ3.3, RQ11.2.
   Command: `npx vitest run --project props test/core/rebuild.pbt.ts -t "^R[12] "`
-- [ ] T6.2 Properties R3 never earlier and R4 no slip.
+- [x] T6.2 Properties R3 never earlier and R4 no slip.
   Files: `test/core/rebuild.pbt.ts`.
   Covers: RQ4.2, RQ6.2, RQ6.3.
   Command: `npx vitest run --project props test/core/rebuild.pbt.ts -t "^R[34] "`
-- [ ] T6.3 Properties R5 serving time and R6 honest diff.
+- [x] T6.3 Properties R5 serving time and R6 honest diff.
   Files: `test/core/rebuild.pbt.ts`.
   Covers: RQ5.1, RQ9.1, RQ9.2.
   Command: `npx vitest run --project props test/core/rebuild.pbt.ts -t "^R[56] "`
-- [ ] T6.4 Properties P-RB1 idempotent, P-RB2 no slip twice and P-RB3 slips twice.
+- [x] T6.4 Properties P-RB1 idempotent, P-RB2 no slip twice and P-RB3 slips twice.
   Files: `test/core/rebuild.pbt.ts`.
   Covers: RQ9.3, RQ5.1, RQ10.1.
   Command: `npx vitest run --project props test/core/rebuild.pbt.ts -t "^P-RB[123] "`
-- [ ] T6.5 Properties P-RB4 reality first, P-RB5 lanes and P-RB6 readout.
+- [x] T6.5 Properties P-RB4 reality first, P-RB5 lanes and P-RB6 readout.
   Files: `test/core/rebuild.pbt.ts`.
   Covers: RQ2.1, RQ7, RQ8, RQ10.1.
   Command: `npx vitest run --project props test/core/rebuild.pbt.ts -t "^P-RB[456] "`
-- [ ] T6.6 Properties P-RB7 errors, P-RB8 order-free and P-RB9 schema.
+- [x] T6.6 Properties P-RB7 errors, P-RB8 order-free and P-RB9 schema.
   Files: `test/core/rebuild.pbt.ts`.
   Covers: RQ1, RQ3, RQ9.3.
   Command: `npx vitest run --project props test/core/rebuild.pbt.ts -t "^P-RB[789] "`
 
+- [ ] T6.9 (added by hand after T6: the mutation check in the T5 to T7 session showed that
+  removing the re-align pass failed no property) Property R7 re-aligned, as worded in
+  `scheduler-guarantees.md`: for rebuilds with `servingShiftMin > 0`, no pending step with
+  `holdMin !== null` has a valid later position (reuse `oracleLatestPosition`, extended to take
+  the serving minute and the pinned intervals, with one example test on RB-a). Show it can
+  fail: run it once with re-align skipped (a temporary local edit, restored afterwards) and
+  report the counterexample. Add R7 to the design's property table.
+  Files: `test/support/oracles.ts`, `test/meta/oracles.test.ts`, `test/core/rebuild.pbt.ts`,
+  `.kiro/specs/rebuild/design.md` (property table only).
+  Covers: R7.
+  Command: `npx vitest run --project props test/core/rebuild.pbt.ts -t "^R7 " && npm test`
+
 ## T7. Public surface and the whole suite
 
-- [ ] T7.1 Example test that `rebuild`, `RebuildError`, the new schemas and their types are
+- [x] T7.1 Example test that `rebuild`, `RebuildError`, the new schemas and their types are
   exported from `src/core/index.js` and that `forwardRepair`, `reAlign`, `assignRebuildLanes`,
   `rebuildReadout` and `timelineFrom` are not; add the exports. Then run the guarantee coverage
   check in full (R1 to R6 now required).
   Files: `test/core/index.test.ts`, `src/core/index.ts`.
   Covers: N2, RQ11.2.
   Command: `npx vitest run --project examples test/core/index.test.ts test/meta/guarantees.test.ts`
-- [ ] T7.2 Run the wider suite and fix what it finds, never by weakening a check; confirm no
+- [x] T7.2 Run the wider suite and fix what it finds, never by weakening a check; confirm no
   identifier, message or comment in the new files says "optimal" or "shortest".
   Files: none expected.
   Covers: N1–N3.

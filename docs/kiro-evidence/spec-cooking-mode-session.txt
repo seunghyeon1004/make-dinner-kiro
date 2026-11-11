@@ -1,0 +1,218 @@
+
+=== session 2026-11-11T06:21:43Z ===
+$ kiro-cli chat --output-format stream-json --v3 --mode spec --trust-all-tools --trust-workspace --model claude-opus-5.5 "$(cat docs/kiro-evidence/prompts/11-spec-cooking-mode.md)"
+--- prompt ---
+Write the spec `cooking-mode` in .kiro/specs/cooking-mode/: requirements.md, then design.md, then tasks.md. No code in this session.
+
+Cooking mode is the fourth screen: the phone stands on the counter, the cook has wet hands, and the screen says what to do right now. Read docs/BRIEF.md ("The product, end to end" item 4), the steering (ui.md: cooking-mode sizes, targets, reach, live regions, reduced motion, copy), and the specs rebuild (Progress, rebuild, the diff), scheduler (Schedule) and plan-ui (store shape, time mapping, routing, components to reuse; extend its store, do not fork it; if plan-ui lacks something you need, list it under "Needs from other specs"). Follow the format of the earlier specs ("(decided here)" marks; decisions and open questions at the end of your reply).
+
+Requirements to cover, each as a group with EARS criteria:
+1. Starting: "Start cooking" on the Plan screen begins a cook session against the current schedule and real time. If the scheduled start is in the future, the screen counts down to it and offers "Start now" (which moves the serving time earlier by the difference, said plainly); if it is in the past, the session opens with a rebuild at once, so the cook sees the true serving time before touching anything.
+2. The "right now" view, top to bottom: the clock and the serving time; "Do now" cards for hands-on steps that are due or running (title large, detail under it, dish, minutes, the primary action); "Running" cards for hands-free steps in progress with a countdown and the time they finish; "Up next" with the next two or three steps and when each starts ("in 6 min", clock time); a compact strip showing every dish's state. With several cooks, "Do now" shows a card per cook lane.
+3. Actions, all reachable with one thumb, all at least 64 px tall: "Start" (records the actual start), "Done" (records the actual end), "Needs more time" with +5, +10, +15 on a running step, "I'm behind" (rebuild from now), and "Undo" for the last action for a few seconds (a wet finger hits the wrong button). Starting a step whose prerequisites are not done is allowed after a confirmation (the cook is always right about reality).
+4. Timers: countdowns derive from recorded timestamps and the clock, never from accumulated ticks, so a sleeping tab or a reload shows the right time. When a hands-free step finishes: the card changes state, a polite live-region announcement is made, and, if the cook has turned them on, a short sound (Web Audio, no asset file) and a vibration (where supported). Sound is off until a user gesture enables it; say how the toggle explains itself.
+5. Slips and rebuilds: every action that changes the future (a step finished late or early by more than a threshold you choose, extra minutes, "I'm behind", a step overdue by more than a threshold) calls core `rebuild` in the browser and shows the result as a short build log in monospace: one line per moved step ("gravy.roux 18:40 -> 18:55"), a count of steps that did not move, and the serving time if it changed, with the full list of unchanged steps one tap away, each "up to date". New hold_exceeded warnings are shown with the dish named. The previous schedule is kept so "Undo" can restore it.
+6. Screen wake lock: requested on entering cooking mode, re-requested on visibilitychange, released on leaving; where unsupported or refused, a one-line note says the screen may sleep and suggests the device setting. Never an error.
+7. Persistence: the whole cook session (schedule, progress with real timestamps, the build log) survives a reload or a crashed tab via localStorage and resumes against the clock; a stale session (older than a threshold you choose) asks whether to resume or discard.
+8. Finishing: when every terminal step is done, a calm end state with when dinner was served against when it was planned, and "Start over".
+9. Accessibility and legibility: sizes from ui.md; cards are real headings and buttons; focus is managed after actions (it never jumps to the top); live regions do not announce every second; nothing by colour alone; reduced motion; works at 200% zoom and in landscape (a phone on its side on the counter).
+
+Design must fix: the cook-session state and its pure transition functions (action in, state out, clock passed as a parameter) and how they call `rebuild`; the mapping between real timestamps and scheduler minutes after the serving time has shifted; the thresholds; the selector that derives "do now / running / up next" from schedule, progress and now (pure, tested, including several cooks, nothing due, everything done, overdue steps); the wake-lock and sound wrappers behind small interfaces so tests can fake them; exact copy for every card, button, announcement and build-log line.
+
+Tests: unit tests and fast-check properties for the transition functions (P-CM ids: replaying any sequence of valid actions keeps every rebuild guarantee R1 to R3; undo after any action restores the previous state exactly; the derived view never shows a done step as due; a reload round trip through the persisted JSON gives the same derived view), and Playwright e2e with `page.clock` driving time: the whole sunday-roast sample cooked on time from first card to the end state; a +15 on the roast and the build log that results; "I'm behind"; reload mid-cook; wake lock requested (faked); axe on the screen in light and dark, phone and desktop.
+
+About 25 to 32 sub-tasks, ordered so that the pure state machine and its properties come first and the screen is built on top.
+
+Length: refer to plan-ui, rebuild and ui.md instead of repeating them. Aim for requirements.md under 200 lines, design.md under 450 lines and tasks.md under 260 lines. Do not run exploratory scripts beyond what you need to confirm two or three expected values.
+--- transcript (rendered from the event stream by scripts/kiro-render.mjs) ---
+[steering] {"steeringDocuments":["file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/kiro-conduct.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/product.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/scheduler-guarantees.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/structure.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/tech.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/testing.md"],"kind":"steering_inclusion"}
+[tool:execute] $ ls -R .kiro | head -80; wc -l .kiro/specs/*/*.md .kiro/steering/*.md docs/BRIEF.md
+    … (57 earlier lines not shown)
+    tech.md
+    testing.md
+    ui.md
+         820 .kiro/specs/dinnerfile/design.md
+         286 .kiro/specs/dinnerfile/requirements.md
+         158 .kiro/specs/dinnerfile/tasks.md
+         614 .kiro/specs/plan-ui/design.md
+         259 .kiro/specs/plan-ui/requirements.md
+         352 .kiro/specs/plan-ui/tasks.md
+         426 .kiro/specs/rebuild/design.md
+         158 .kiro/specs/rebuild/requirements.md
+         164 .kiro/specs/rebuild/tasks.md
+         518 .kiro/specs/recipe-graph/design.md
+         249 .kiro/specs/recipe-graph/requirements.md
+         257 .kiro/specs/recipe-graph/tasks.md
+        1009 .kiro/specs/recipe-reader/design.md
+         333 .kiro/specs/recipe-reader/requirements.md
+         229 .kiro/specs/recipe-reader/tasks.md
+         649 .kiro/specs/scheduler/design.md
+         220 .kiro/specs/scheduler/requirements.md
+         265 .kiro/specs/scheduler/tasks.md
+          68 .kiro/steering/kiro-conduct.md
+          99 .kiro/steering/product.md
+         114 .kiro/steering/scheduler-guarantees.md
+          99 .kiro/steering/structure.md
+         107 .kiro/steering/tech.md
+          84 .kiro/steering/testing.md
+          90 .kiro/steering/ui.md
+         237 docs/BRIEF.md
+        7864 total
+    exit 0
+[tool:read] Read File .kiro/steering/ui.md
+[tool:read] Read File docs/BRIEF.md
+[tool:read] Read File .kiro/specs/rebuild/requirements.md
+[tool:read] Read File .kiro/specs/rebuild/design.md
+[tool:read] Read File .kiro/specs/plan-ui/design.md
+[tool:read] Read File .kiro/specs/plan-ui/requirements.md
+[tool:read] Read File .kiro/specs/plan-ui/design.md
+[tool:read] Read File .kiro/specs/plan-ui/tasks.md
+[tool:execute] $ grep -n "Schedule\b\|ScheduledStepSchema\|ScheduleSchema\|HoldExceeded\|holdExceededMessage" .kiro/specs/scheduler/design.md | head -30; ls src/core src/web src/web/state 2>/dev/null; cat docs/kiro-evidence/prompts/11-spec-cooking-mode.md | head -5; ls .kiro/specs/*/; grep -n "SUNDAY_ROAST\b" -A3 .kiro/specs/scheduler/design.md | head -40
+    … (59 earlier lines not shown)
+    
+    .kiro/specs/scheduler/:
+    design.md
+    requirements.md
+    tasks.md
+    269:  after `chicken.roast` in `SUNDAY_ROAST`).
+    270-- **Several successors.** Deadline: the earliest successor start (needed for G2). Wait: the
+    271-  latest (the result is not used up until its last user starts). `chicken.roast` below.
+    272-- **A keeps step after a hot step.** Prep-forward puts it at or after the hot step's end, often
+    --
+    341:is shown where a later pass moved the step. Fixture definitions for `SUNDAY_ROAST`, `MEZZE` and
+    342-`TIGHT_OVEN` are in the recipe-graph design.
+    343-
+    344-New kitchens in `test/support/fixtures.ts` (decided here):
+    --
+    351:### H1. `SUNDAY_ROAST` × `HOME_KITCHEN` (4 burners, 1 oven, 1 cook)
+    352-
+    353-Pass 1, in placement order (key: deadline, then hold for terminal steps, then id):
+    354-carve (terminal, hold 5) `[-5,0)`; toss (hold 5, `chicken.carve` < `greens.toss`) cook busy, `[-6,-5)`;
+    --
+    383:### H2. `SUNDAY_ROAST` × `ONE_BURNER_KITCHEN` (1 burner, 1 oven, 1 cook)
+    384-
+    385-Pass 1 differs from H1 at simmer: with boil on the only burner over `[-10,-6)`, the latest
+    386-fitting end at or before −8 is −10, so simmer is `[-20,-10)`; roux then has deadline −20 and goes
+    --
+    572:  `ScheduleError` kind once (`SUNDAY_ROAST` with a self-dependency → `invalid_plan` with the one
+    573:  `self_dependency` issue; `HOME_KITCHEN` with `cooks: 0` → `invalid_kitchen`; `SUNDAY_ROAST` with
+    574-  `burners: 0` → `missing_appliance` with the three recipe-graph issues); a plan with only
+    575-  warnings schedules; `schedule` on `null`, `{}` and `42` returns `invalid_plan`.
+    576-- `test/core/timeline.test.ts`: `resourcesOf` for all six appliance/handsOn pairs; `lastFull`,
+    exit 0
+[tool:read] Read File .kiro/specs/scheduler/design.md
+[tool:read] Read File .kiro/specs/scheduler/design.md
+[tool:execute] $ grep -n "SUNDAY_ROAST" -A22 .kiro/specs/recipe-graph/design.md | sed -n '1,60p'; ls recordings test test/support 2>&1 | head; head -30 samples/sunday-roast.md; grep -n "servingTime\|sunday-roast" .kiro/specs/recipe-reader/design.md | head -20
+    … (68 earlier lines not shown)
+    test/support:
+    arbitraries.ts
+    ROAST CHICKEN WITH LEMON AND THYME
+    (1 chicken, about 1.6 kg, feeds four)
+    
+    Heat the oven to 200C, give it a good 15 minutes to come up. Meanwhile pat the bird dry, rub it all over with soft butter, salt and pepper, and push a halved lemon and a few thyme sprigs inside. That's about 10 minutes of work. Roast for 1 hour 15 minutes, until the juices run clear. Take it out and let it rest under foil for 20 minutes before carving (don't skip this, and it'll stay hot under the foil for half an hour anyway). Carving takes 5 minutes, do it right before it goes to the table.
+    
+    Crispy roast potatoes
+    
+    1. Peel 1 kg of floury potatoes and cut into big chunks - 10 min.
+    2. Boil in salted water for 10 minutes until the edges are soft. Drain, then shake the pan to rough them up (a couple of minutes).
+    3. Tip into a roasting tin with hot oil and roast at 200C for 50 minutes, turning once if you remember. They want to be eaten within 10 minutes of leaving the oven or they lose their crunch.
+    
+    Pan gravy
+    When the chicken comes out to rest, pour off most of the fat from the roasting tin. Put the tin on the hob, stir in 2 tbsp flour and cook for 2 minutes, then whisk in 500 ml stock bit by bit. Simmer gently for 10 minutes, stirring now and then (you don't need to stand over it). Strain into a jug - 2 minutes. Keeps warm for 15 minutes.
+    
+    Buttered greens
+    Shred half a savoy cabbage (5 min, can be done hours ahead). Boil the cabbage with a mug of frozen peas for 4 minutes, drain, toss with butter and pepper, 1 minute. Serve straight away - they go grey if they sit more than 5 minutes.
+    71:A JSON array in menu order (decided here). Each `servingTime` is a local clock time the UI
+    78:    "id": "sunday-roast",
+    83:    "servingTime": "13:30"
+    91:    "servingTime": "19:30"
+    99:    "servingTime": "19:00"
+    107:    "servingTime": "19:00"
+    115:    "servingTime": "19:00"
+    143:  servingTime: ServingTimeSchema,
+    205:| index schema | `samples/index.json: <path> is not valid.` (one per zod issue; path like `[2].servingTime`, root `index`) |
+    234:sample in order, `{ id, title, blurb, dishes, kitchen, servingTime, text, plan, issues }`
+    762:  { "id": "tiny-roast", "title": "Tiny roast", "blurb": "A hand-made test sample, not a real recording.", "dishes": ["Roast chicken", "Peas"], "kitchen": { "burners": 1, "ovens": 1, "cooks": 1 }, "servingTime": "13:00" },
+    763:  { "id": "tiny-salad", "title": "Tiny salad", "blurb": "A second hand-made test sample, with no appliances.", "dishes": ["Green salad"], "kitchen": { "burners": 0, "ovens": 0, "cooks": 1 }, "servingTime": "19:00" }
+    exit 0
+[tool:execute] $ grep -n "^export" src/core/index.ts | head -30; grep -n "H1_SCHEDULE\|TWO_COOK_KITCHEN\|HOME_KITCHEN =" test/support/fixtures.ts | head; ls test/support; ls src/web src/web/state 2>&1; cat vitest.config.ts | head -30
+    … (20 earlier lines not shown)
+    fc-params.ts
+    fixtures.ts
+    oracles.ts
+    ls: src/web/state: No such file or directory
+    src/web:
+    css.d.ts
+    main.tsx
+    styles
+    import { defineConfig } from 'vitest/config';
+    
+    export default defineConfig({
+      test: {
+        projects: [
+          {
+            test: {
+              name: 'examples',
+              include: ['test/**/*.test.ts'],
+              environment: 'node',
+            },
+          },
+          {
+            test: {
+              name: 'props',
+              include: ['test/**/*.pbt.ts'],
+              environment: 'node',
+            },
+          },
+        ],
+      },
+    });
+    exit 0
+[tool:execute] $ cat > /tmp/cm.ts <<'EOF'
+import { rebuild, schedule } from '~/hackathons-2026/kiroween/makedinner/src/core/index.ts';
+import { H1_SCHEDULE, SUNDAY_ROAST, TWO_COOK_KITCHEN } from '~/hackathons-2026/kiroween/makedinner/test/support/fixtures.ts';
+const show = (r: any) => { if (!r.ok) { console.log('ERR', JSON.stringify(r.error)); return; }
+  const s = r.value.schedule ?? r.value; console.log('serving', s.servingMin ?? 0, 'span', s.spanMin);
+  for (const t of s.steps) console.log(t.id, t.startMin, t.endMin, JSON.stringify(t.lanes), 'slack', t.slackMin, t.critical ? 'C' : '', 'wait', t.waitMin);
+  console.log('warn', JSON.stringify((s.warnings).map((w: any) => [w.stepId, w.message])));
+  if (r.value.diff) console.log('diff', JSON.stringify(r.value.diff)); };
+console.log('--- CM-b begin late, now -98'); show(rebuild(H1_SCHEDULE, {}, -98));
+console.log('--- behind on shred, now -97');
+show(rebuild(H1_SCHEDULE, { 'chicken.prep': { state: 'done', startMin: -110, endMin: -100 }, 'chicken.roast': { state: 'running', startMin: -100, extraMin: 0 } }, -97));
+console.log('--- two cooks'); show(schedule(SUNDAY_ROAST, TWO_COOK_KITCHEN));
+EOF
+npx tsx /tmp/cm.ts
+    … (11 earlier lines not shown)
+    greens.toss 4 5 {"burner":null,"oven":null,"cook":1} slack 0 C wait 7
+    warn [["chicken.roast","Step chicken.roast will be ready 6 minutes before the step that uses it and can wait only 5 minutes. More ovens, burners or cooks may help."],["greens.toss","Step greens.toss will be ready 7 minutes before serving and can wait only 5 minutes. More ovens, burners or cooks may help."]]
+    diff {"moved":[{"stepId":"chicken.carve","fromStartMin":-5,"toStartMin":7},{"stepId":"chicken.prep","fromStartMin":-110,"toStartMin":-98},{"stepId":"chicken.rest","fromStartMin":-25,"toStartMin":-13},{"stepId":"chicken.roast","fromStartMin":-100,"toStartMin":-88},{"stepId":"gravy.roux","fromStartMin":-20,"toStartMin":-7},{"stepId":"gravy.simmer","fromStartMin":-18,"toStartMin":-5},{"stepId":"gravy.strain","fromStartMin":-8,"toStartMin":5},{"stepId":"greens.boil","fromStartMin":-10,"toStartMin":0},{"stepId":"greens.shred","fromStartMin":-100,"toStartMin":-88},{"stepId":"greens.toss","fromStartMin":-6,"toStartMin":4}],"unchanged":[],"servingShiftMin":12}
+    --- behind on shred, now -97
+    serving 0 span 110
+    chicken.carve -5 0 {"burner":null,"oven":null,"cook":1} slack 0 C wait 0
+    chicken.prep -110 -100 {"burner":null,"oven":null,"cook":1} slack 0  wait null
+    chicken.rest -25 -5 {"burner":null,"oven":null,"cook":null} slack 0 C wait 0
+    chicken.roast -100 -25 {"burner":null,"oven":1,"cook":null} slack 0  wait 5
+    gravy.roux -20 -18 {"burner":1,"oven":null,"cook":1} slack 0 C wait 0
+    gravy.simmer -18 -8 {"burner":1,"oven":null,"cook":null} slack 0 C wait 0
+    gravy.strain -8 -6 {"burner":null,"oven":null,"cook":1} slack 0 C wait 6
+    greens.boil -10 -6 {"burner":2,"oven":null,"cook":null} slack 0 C wait 0
+    greens.shred -97 -92 {"burner":null,"oven":null,"cook":1} slack 72  wait null
+    greens.toss -6 -5 {"burner":null,"oven":null,"cook":1} slack 0 C wait 5
+    warn []
+    diff {"moved":[{"stepId":"greens.shred","fromStartMin":-100,"toStartMin":-97}],"unchanged":["chicken.carve","chicken.prep","chicken.rest","chicken.roast","gravy.roux","gravy.simmer","gravy.strain","greens.boil","greens.toss"],"servingShiftMin":0}
+    --- two cooks
+    serving 0 span 110
+    chicken.carve -5 0 {"burner":null,"oven":null,"cook":1} slack 0 C wait 0
+    chicken.prep -110 -100 {"burner":null,"oven":null,"cook":1} slack 0 C wait null
+    chicken.rest -25 -5 {"burner":null,"oven":null,"cook":null} slack 0 C wait 0
+    chicken.roast -100 -25 {"burner":null,"oven":1,"cook":null} slack 0 C wait 10
+    gravy.roux -15 -13 {"burner":1,"oven":null,"cook":1} slack 0 C wait 0
+    gravy.simmer -13 -3 {"burner":1,"oven":null,"cook":null} slack 0 C wait 0
+    gravy.strain -3 -1 {"burner":null,"oven":null,"cook":2} slack 0 C wait 1
+    greens.boil -5 -1 {"burner":2,"oven":null,"cook":null} slack 0 C wait 0
+    greens.shred -110 -105 {"burner":null,"oven":null,"cook":2} slack 100  wait null
+    greens.toss -1 0 {"burner":null,"oven":null,"cook":2} slack 0 C wait 0
+    warn [["chicken.roast","Step chicken.roast will be ready 10 minutes before the step that uses it and can wait only 5 minutes. More ovens, burners or cooks may help."]]
+    exit 0
+[tool:other] Update Session Information
+[tool:edit] Write File .kiro/specs/cooking-mode/requirements.md

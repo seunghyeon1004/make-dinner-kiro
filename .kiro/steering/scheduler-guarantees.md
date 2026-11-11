@@ -98,6 +98,12 @@ on the same axis, the new serving minute `S' >= 0`, and a diff.
 - **R6 honest diff.** `moved` lists exactly the steps whose start changed, each with correct
   `from` and `to`; `unchanged` lists exactly the rest; `servingShift = S' - S_prev`.
 
+- **R7 re-aligned.** When the serving minute moved (`S' > S_prev`), every pending step whose
+  result does not keep sits at its latest valid position against `S'`: with everything else
+  fixed, no delay `d >= 1` up to its deadline keeps R1 true. (Added by hand on 2026-11-11: the
+  rebuild implementation session's mutation check removed the re-align pass and no property
+  failed, the same gap G9 closed for the scheduler.)
+
 Wording of R1, R4, R5 and R6 changed by hand on 2026-11-11 after the rebuild spec found, with
 counterexamples, that the first wording was false for a second rebuild (its C1), for pinned
 steps that already exceed capacity (C2) and for steps done out of order (C3). See

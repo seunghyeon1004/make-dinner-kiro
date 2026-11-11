@@ -1129,11 +1129,9 @@ describe('RQ7.2 an empty pinned interval occupies no minute, so it clashes with 
     ).toEqual([]);
   });
   it('a non-empty step on the same lane is still a clash', () => {
-    const clash = steps.map((x) =>
-      x.id === 'greens.boil' ? { ...x, startMin: 0, endMin: 1 } : x,
+    const clash = steps.map((x) => (x.id === 'greens.boil' ? { ...x, startMin: 0, endMin: 1 } : x));
+    expect(oracleRebuildLaneViolations(SUNDAY_ROAST, HOME_KITCHEN, ivOf(clash), [], clash)).toEqual(
+      ['lane_clash:burner:1:gravy.simmer:greens.boil'],
     );
-    expect(
-      oracleRebuildLaneViolations(SUNDAY_ROAST, HOME_KITCHEN, ivOf(clash), [], clash),
-    ).toEqual(['lane_clash:burner:1:gravy.simmer:greens.boil']);
   });
 });

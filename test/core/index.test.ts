@@ -3,6 +3,7 @@ import * as core from '../../src/core/index.js';
 import * as graph from '../../src/core/graph.js';
 import * as normalise from '../../src/core/normalise.js';
 import * as result from '../../src/core/result.js';
+import * as rebuilder from '../../src/core/rebuild.js';
 import * as sanity from '../../src/core/sanity.js';
 import * as scheduler from '../../src/core/schedule.js';
 import * as schema from '../../src/core/schema.js';
@@ -44,6 +45,15 @@ const VALUES = {
   StepLanesSchema: [schema.StepLanesSchema, 'object'],
   ScheduledStepSchema: [schema.ScheduledStepSchema, 'object'],
   ScheduleSchema: [schema.ScheduleSchema, 'object'],
+  // The rebuild spec (N2): the entry point and the new schemas only.
+  rebuild: [rebuilder.rebuild, 'function'],
+  ProgressEntrySchema: [schema.ProgressEntrySchema, 'object'],
+  ProgressSchema: [schema.ProgressSchema, 'object'],
+  RebuiltStepSchema: [schema.RebuiltStepSchema, 'object'],
+  RebuiltScheduleSchema: [schema.RebuiltScheduleSchema, 'object'],
+  StepMoveSchema: [schema.StepMoveSchema, 'object'],
+  RebuildDiffSchema: [schema.RebuildDiffSchema, 'object'],
+  RebuiltSchema: [schema.RebuiltSchema, 'object'],
 } as const;
 
 describe('N4 the public surface of src/core/index.ts', () => {
@@ -78,6 +88,14 @@ describe('N4 the public surface of src/core/index.ts', () => {
     expectTypeOf<core.Schedule>().toEqualTypeOf<schema.Schedule>();
     expectTypeOf<core.HoldExceededIssue>().toEqualTypeOf<schema.HoldExceededIssue>();
     expectTypeOf<core.ScheduleError>().toEqualTypeOf<scheduler.ScheduleError>();
+    expectTypeOf<core.ProgressEntry>().toEqualTypeOf<schema.ProgressEntry>();
+    expectTypeOf<core.Progress>().toEqualTypeOf<schema.Progress>();
+    expectTypeOf<core.RebuiltStep>().toEqualTypeOf<schema.RebuiltStep>();
+    expectTypeOf<core.RebuiltSchedule>().toEqualTypeOf<schema.RebuiltSchedule>();
+    expectTypeOf<core.StepMove>().toEqualTypeOf<schema.StepMove>();
+    expectTypeOf<core.RebuildDiff>().toEqualTypeOf<schema.RebuildDiff>();
+    expectTypeOf<core.Rebuilt>().toEqualTypeOf<schema.Rebuilt>();
+    expectTypeOf<core.RebuildError>().toEqualTypeOf<rebuilder.RebuildError>();
     expectTypeOf<core.Result<number, string>>().toEqualTypeOf<result.Result<number, string>>();
   });
 
@@ -95,6 +113,11 @@ describe('N4 the public surface of src/core/index.ts', () => {
       'capacityOf',
       'resourcesOf',
       'RESOURCES',
+      'forwardRepair',
+      'reAlign',
+      'assignRebuildLanes',
+      'rebuildReadout',
+      'timelineFrom',
     ];
     expect(Object.keys(core).filter((name) => internal.includes(name))).toEqual([]);
   });
