@@ -13,8 +13,11 @@ export {
   KitchenSchema,
   LIMITS,
   PlanSchema,
+  ScheduledStepSchema,
+  ScheduleSchema,
   STEP_ID_PATTERN,
   StepIdSchema,
+  StepLanesSchema,
   StepSchema,
   WARNING_CODES,
 } from './schema.js';
@@ -22,11 +25,15 @@ export type {
   Appliance,
   Dish,
   ErrorCode,
+  HoldExceededIssue,
   Issue,
   IssueCode,
   Kitchen,
   Plan,
+  Schedule,
+  ScheduledStep,
   Step,
+  StepLanes,
   WarningCode,
 } from './schema.js';
 
@@ -51,3 +58,6 @@ export {
 export type { PlanCheck } from './sanity.js';
 
 export { normaliseRecipeText } from './normalise.js';
+
+export { schedule } from './schedule.js';
+export type { ScheduleError } from './schedule.js';

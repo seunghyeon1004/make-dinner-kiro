@@ -4020,3 +4020,1406 @@ The on-stop hook failed because of one test, and it is the failure I expected.
 The hook will stay red until T8 adds the G properties.
 
 --- run success (end_turn); credits reported by this session: 7.25 ---
+
+=== session 2026-11-11T05:36:01Z ===
+$ kiro-cli chat --output-format stream-json --v3 --agent sous-chef --trust-all-tools --trust-workspace --model auto "$(cat docs/kiro-evidence/prompts/13c-impl-scheduler.md)"
+--- prompt ---
+Spec: scheduler. Implement T8 (schedule and every guarantee property) and T9 (public surface and the whole suite), in that order, and nothing after. T1 to T7 are done. This completes the spec. When a property fails, keep the shrunk counterexample: add it as a named example test (testing.md) before fixing the scheduler.
+
+Read .kiro/specs/scheduler/requirements.md, design.md and tasks.md in full first, and the recipe-graph code they build on. The hand-worked tables H1 to H6 in the design are the expected results: if your implementation disagrees with a table, work the case by hand before deciding which is wrong; if the table is wrong, stop and report it with your working (do not change the expected values to match the code).
+
+Each sub-task: test first, see it fail on an assertion, implement, run the proving command the task names, tick the sub-task only when it passed in this session. Property tasks are real fast-check properties using `fcParams()`; never lower the run count in code; a failing property is a scheduler bug until shown otherwise (scheduler-guarantees.md).
+
+Working rule: when the design is ambiguous or slightly off in a way that touches no guarantee, no schema bound and no sanity rule, choose the reading closest to the requirement, write it under "Decisions I made", and continue. Stop and ask only when a requirement, a guarantee, a property or a hand-worked table would have to change.
+
+Keep example tests proportionate. Do not commit. End with the report kiro-conduct.md asks for, with the real counts from `npm test`, `npm run test:props`, `npm run typecheck`, `npm run lint` and `npx prettier --check .`.
+--- transcript (rendered from the event stream by scripts/kiro-render.mjs) ---
+[steering] {"steeringDocuments":["file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/kiro-conduct.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/product.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/scheduler-guarantees.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/structure.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/tech.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/testing.md"],"kind":"steering_inclusion"}
+
+I'll start by reading the spec files in full.
+
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/scheduler/requirements.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/scheduler/design.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/scheduler/tasks.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/scheduler/design.md
+[tool:search] List Directory ~/hackathons-2026/kiroween/makedinner
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && find src/core test -type f | xargs wc -l && cat src/core/index.ts && git status --short
+    … (66 earlier lines not shown)
+      IssueCode,
+      Kitchen,
+      Plan,
+      Step,
+      WarningCode,
+    } from './schema.js';
+    
+    export {
+      findCycles,
+      longestChainMinutes,
+      successors,
+      terminalSteps,
+      topologicalOrder,
+    } from './graph.js';
+    export type { CycleError } from './graph.js';
+    
+    export {
+      checkKitchen,
+      checkPlan,
+      hasErrors,
+      parseKitchen,
+      parsePlan,
+      sortIssues,
+      validatePlan,
+    } from './sanity.js';
+    export type { PlanCheck } from './sanity.js';
+    
+    export { normaliseRecipeText } from './normalise.js';
+     M docs/kiro-evidence/hook-fires.log
+     M docs/kiro-evidence/impl-scheduler-session.txt
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat src/core/passes/*.ts src/core/result.ts && sed -n 1,120p test/core/passes.test.ts && cat test/support/fc-params.ts && cat test/core/index.test.ts && cat package.json | head -40 && cat vitest.config.ts
+    … (526 earlier lines not shown)
+        "@axe-core/playwright": "4.14.0",
+        "@playwright/test": "1.60.0",
+        "@types/node": "22.20.5",
+        "@vitest/eslint-plugin": "1.6.28",
+        "esbuild": "0.28.2",
+        "eslint": "10.14.0",
+        "eslint-plugin-import-x": "4.18.1",
+        "fast-check": "4.10.2",
+    import { defineConfig } from 'vitest/config';
+    
+    export default defineConfig({
+      test: {
+        projects: [
+          {
+            test: {
+              name: 'examples',
+              include: ['test/**/*.test.ts'],
+              environment: 'node',
+            },
+          },
+          {
+            test: {
+              name: 'props',
+              include: ['test/**/*.pbt.ts'],
+              environment: 'node',
+            },
+          },
+        ],
+      },
+    });
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 120,217p src/core/schema.ts && grep -n "^export" src/core/sanity.ts src/core/graph.ts test/support/oracles.ts test/support/arbitraries.ts test/support/fixtures.ts && cat test/meta/guarantee-claims.ts && sed -n 1,60p test/core/sanity.pbt.ts
+    … (200 earlier lines not shown)
+      arbPlan,
+      arbPlanAndKitchen,
+      arbPlanLikeValue,
+      arbShuffledPlan,
+    } from '../support/arbitraries.js';
+    import { fcParams } from '../support/fc-params.js';
+    import { oracleWarnings } from '../support/oracles.js';
+    
+    /** The rules whose input still parses (design: "graph-rule arbBrokenPlan cases"). */
+    const GRAPH_RULES: readonly ErrorCode[] = [
+      'unknown_dependency',
+      'self_dependency',
+      'cycle',
+      'duplicate_step_id',
+      'duplicate_dish_id',
+      'unknown_dish',
+      'dish_without_steps',
+    ];
+    
+    const arbGraphRuleCase: fc.Arbitrary<{ plan: Plan; kitchen: Kitchen }> = fc
+      .constantFrom(...GRAPH_RULES)
+      .chain((rule) => arbBrokenPlan(rule))
+      .map((c) => ({ plan: PlanSchema.parse(c.input), kitchen: c.kitchen }));
+    
+    const errorCodes = (issues: readonly Issue[]): string[] =>
+      [...new Set(issues.filter((i) => i.severity === 'error').map((i) => i.code))].sort();
+    
+    const expectSchemaValid = (issues: readonly Issue[]): void => {
+      for (const issue of issues) expect(IssueSchema.safeParse(issue).success).toBe(true);
+    };
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 275,400p test/support/arbitraries.ts && sed -n 770,805p test/support/arbitraries.ts && sed -n 500,520p src/core/sanity.ts && sed -n 354,386p test/support/oracles.ts && sed -n 459,475p test/support/oracles.ts && sed -n 555,586p test/support/oracles.ts && sed -n 60,110p test/core/sanity.pbt.ts
+    … (281 earlier lines not shown)
+          const x = a[j] ?? '';
+          const y = b[j] ?? '';
+          order = x < y ? -1 : x > y ? 1 : 0;
+        }
+        expect(order).toBeLessThanOrEqual(0);
+      }
+    }
+    
+    describe('S1 total', () => {
+      it('S1 total: parsePlan and validatePlan never throw, agree, and return schema-valid issues', () => {
+        fc.assert(
+          fc.property(fc.oneof(fc.jsonValue(), arbPlanLikeValue()), arbKitchen(), (input, kitchen) => {
+            const parsed = parsePlan(input);
+            const checked = validatePlan(input);
+            if (parsed.ok) {
+              expect(checked.plan).toStrictEqual(parsed.value);
+              const issues = checkPlan(parsed.value);
+              expect(checked.issues).toStrictEqual(issues);
+              expectSchemaValid(issues);
+              expectSchemaValid(checkKitchen(parsed.value, kitchen));
+            } else {
+              expect(parsed.error.length).toBeGreaterThanOrEqual(1);
+              expect(hasErrors(parsed.error)).toBe(true);
+              expect(checked).toStrictEqual({ plan: null, issues: parsed.error });
+              expectSchemaValid(parsed.error);
+            }
+          }),
+          fcParams(),
+        );
+      });
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 275,300p src/core/sanity.ts && sed -n 60,82p src/core/sanity.ts && sed -n 40,110p src/core/graph.ts | head -30 && sed -n 130,153p src/core/graph.ts && sed -n 500,560p test/support/fixtures.ts
+    … (134 earlier lines not shown)
+          dish: 'a',
+          title: 'Chop the first pile',
+          minutes: 10,
+          appliance: 'none',
+          handsOn: true,
+          after: [],
+          holdMin: 5,
+        },
+      ],
+    };
+    
+    /**
+     * Eighty 480-minute hands-on steps for one cook (design H6, R9.4), written from `s80` down to
+     * `s01`. With BARE_KITCHEN: `feast.sNN` at [-480*N, -480*(N-1)), cook 1, slack 0, wait
+     * 480*(N-1); span 38400, chain 480; 79 hold_exceeded warnings (s02 to s80). The plan itself
+     * has 80 long_hands_on warnings, which do not block.
+     */
+    export const LONG_DAY: Plan = {
+      title: 'A very long day',
+      dishes: [{ id: 'feast', name: 'The feast' }],
+      steps: Array.from({ length: 80 }, (_unused, i) => {
+        const n = String(80 - i).padStart(2, '0');
+        return {
+          id: `feast.s${n}`,
+          dish: 'feast',
+          title: `Prepare batch ${n}`,
+          minutes: 480,
+          appliance: 'none' as const,
+          handsOn: true,
+          after: [],
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat > src/core/schedule.ts <<'EOF'
+import { err } from './result.js';
+import type { Result } from './result.js';
+import type { Issue, Kitchen, Plan, Schedule } from './schema.js';
+
+export type ScheduleError =
+  | { kind: 'invalid_plan'; issues: Issue[] }
+  | { kind: 'invalid_kitchen'; issues: Issue[] }
+  | { kind: 'missing_appliance'; issues: Issue[] };
+
+export function schedule(_plan: Plan, _kitchen: Kitchen): Result<Schedule, ScheduleError> {
+  return err({ kind: 'invalid_plan', issues: [] });
+}
+EOF
+cat > test/core/schedule.test.ts <<'EOF'
+import { describe, expect, it } from 'vitest';
+import { schedule } from '../../src/core/schedule.js';
+import type { ScheduleError } from '../../src/core/schedule.js';
+import { canonicalPlan } from '../../src/core/schema.js';
+import type { Kitchen, Plan, Schedule } from '../../src/core/schema.js';
+import {
+  BARE_KITCHEN,
+  BIG_KITCHEN,
+  BURNER_ONLY_KITCHEN,
+  COLD_SAUCE,
+  HANDS_FREE,
+  HOME_KITCHEN,
+  LONG_DAY,
+  MEZZE,
+  NO_BURNER_KITCHEN,
+  ONE_BURNER_KITCHEN,
+  PREP_AHEAD,
+  SOLO_BURNER,
+  SOLO_KEEPS,
+  SUNDAY_ROAST,
+  TIGHT_OVEN,
+  TWO_CHOPS,
+} from '../support/fixtures.js';
+
+/** id, startMin, endMin, burner, oven, cook, slackMin, waitMin: the columns of the design tables. */
+type Row = readonly [string, number, number, number | null, number | null, number | null, number, number | null];
+
+const scheduled = (plan: Plan, kitchen: Kitchen): Schedule => {
+  const result = schedule(plan, kitchen);
+  if (!result.ok) throw new Error(`expected ok, got ${JSON.stringify(result.error)}`);
+  return result.value;
+};
+
+const rowsOf = (s: Schedule): Row[] =>
+  s.steps.map((x) => [
+    x.id,
+    x.startMin,
+    x.endMin,
+    x.lanes.burner,
+    x.lanes.oven,
+    x.lanes.cook,
+    x.slackMin,
+    x.waitMin,
+  ]);
+
+const expectCritical = (s: Schedule): void => {
+  for (const x of s.steps) expect(x.critical).toBe(x.slackMin === 0);
+};
+
+const failure = (input: unknown, kitchen: unknown): ScheduleError => {
+  const result = schedule(input as Plan, kitchen as Kitchen);
+  if (result.ok) throw new Error('expected err');
+  return result.error;
+};
+
+describe('R10.6 hand-worked schedules (design H1 to H6)', () => {
+  it('H1: SUNDAY_ROAST x HOME_KITCHEN, every column, no warnings, span and chain 110', () => {
+    const s = scheduled(SUNDAY_ROAST, HOME_KITCHEN);
+    expect(rowsOf(s)).toEqual([
+      ['chicken.carve', -5, 0, null, null, 1, 0, 0],
+      ['chicken.prep', -110, -100, null, null, 1, 0, null],
+      ['chicken.rest', -25, -5, null, null, null, 0, 0],
+      ['chicken.roast', -100, -25, null, 1, null, 0, 5],
+      ['gravy.roux', -20, -18, 1, null, 1, 0, 0],
+      ['gravy.simmer', -18, -8, 1, null, null, 0, 0],
+      ['gravy.strain', -8, -6, null, null, 1, 0, 6],
+      ['greens.boil', -10, -6, 2, null, null, 0, 0],
+      ['greens.shred', -100, -95, null, null, 1, 75, null],
+      ['greens.toss', -6, -5, null, null, 1, 0, 5],
+    ]);
+    expectCritical(s);
+    expect(s.warnings).toEqual([]);
+    expect([s.spanMin, s.chainMin]).toEqual([110, 110]);
+    expect(s.kitchen).toEqual(HOME_KITCHEN);
+    expect(s.plan).toEqual(canonicalPlan(SUNDAY_ROAST));
+  });
+
+  it('H2: SUNDAY_ROAST x ONE_BURNER_KITCHEN', () => {
+    const s = scheduled(SUNDAY_ROAST, ONE_BURNER_KITCHEN);
+    expect(rowsOf(s)).toEqual([
+      ['chicken.carve', -5, 0, null, null, 1, 0, 0],
+      ['chicken.prep', -110, -100, null, null, 1, 0, null],
+      ['chicken.rest', -25, -5, null, null, null, 0, 0],
+      ['chicken.roast', -100, -25, null, 1, null, 0, 3],
+      ['gravy.roux', -22, -20, 1, null, 1, 0, 0],
+      ['gravy.simmer', -20, -10, 1, null, null, 0, 2],
+      ['gravy.strain', -8, -6, null, null, 1, 0, 6],
+      ['greens.boil', -10, -6, 1, null, null, 0, 0],
+      ['greens.shred', -100, -95, null, null, 1, 73, null],
+      ['greens.toss', -6, -5, null, null, 1, 0, 5],
+    ]);
+    expectCritical(s);
+    expect(s.warnings).toEqual([]);
+    expect([s.spanMin, s.chainMin]).toEqual([110, 110]);
+  });
+
+  it('H3: TIGHT_OVEN x HOME_KITCHEN, one hold_exceeded with the exact message', () => {
+    const s = scheduled(TIGHT_OVEN, HOME_KITCHEN);
+    expect(rowsOf(s)).toEqual([
+      ['pie.assemble', -85, -70, null, null, 1, 30, null],
+      ['pie.bake', -40, 0, null, 1, null, 0, 0],
+      ['potatoes.peel', -95, -85, null, null, 1, 0, null],
+      ['potatoes.roast', -85, -40, null, 1, null, 0, 40],
+    ]);
+    expectCritical(s);
+    expect(s.warnings).toEqual([
+      {
+        severity: 'warning',
+        code: 'hold_exceeded',
+        message:
+          'Step potatoes.roast will be ready 40 minutes before serving and can wait only 10 minutes. More ovens, burners or cooks may help.',
+        stepId: 'potatoes.roast',
+        waitMin: 40,
+        holdMin: 10,
+      },
+    ]);
+    expect([s.spanMin, s.chainMin]).toEqual([95, 55]);
+  });
+
+  it('H4: MEZZE x HOME_KITCHEN, made-ahead steps move to the front', () => {
+    const s = scheduled(MEZZE, HOME_KITCHEN);
+    expect(rowsOf(s)).toEqual([
+      ['flatbread.cook', -14, -2, 1, null, 1, 0, 2],
+      ['flatbread.mix', -84, -74, null, null, 1, 0, null],
+      ['flatbread.rise', -74, -14, null, null, null, 0, 0],
+      ['hummus.blend', -74, -64, null, null, 1, 0, null],
+      ['salad.chop', -64, -54, null, null, 1, 0, null],
+      ['salad.dressing', -54, -49, null, null, 1, 35, null],
+      ['salad.toss', -2, 0, null, null, 1, 0, 0],
+    ]);
+    expectCritical(s);
+    expect(s.warnings).toEqual([]);
+    expect([s.spanMin, s.chainMin]).toEqual([84, 82]);
+  });
+
+  it('H5: PREP_AHEAD x NO_BURNER_KITCHEN, right-justify shortens a wait; no burner lanes (R1.8)', () => {
+    const s = scheduled(PREP_AHEAD, NO_BURNER_KITCHEN);
+    expect(rowsOf(s)).toEqual([
+      ['bread.bake', -8, 0, null, 1, null, 0, 0],
+      ['bread.shape', -13, -8, null, null, 1, 0, 0],
+      ['jelly.set', -60, 0, null, null, null, 0, null],
+      ['salad.chop', -60, -50, null, null, 1, 37, null],
+      ['salad.toss', -2, 0, null, null, 1, 0, 0],
+    ]);
+    expectCritical(s);
+    expect(s.warnings).toEqual([]);
+    expect([s.spanMin, s.chainMin]).toEqual([60, 60]);
+  });
+
+  it('R9.1 H6: SOLO_BURNER is one hot step ending at 0', () => {
+    const s = scheduled(SOLO_BURNER, BURNER_ONLY_KITCHEN);
+    expect(rowsOf(s)).toEqual([['solo.sear', -30, 0, 1, null, 1, 0, 0]]);
+    expect(s.steps[0]?.critical).toBe(true);
+    expect([s.spanMin, s.chainMin, s.warnings]).toEqual([30, 30, []]);
+  });
+
+  it('R9.1 H6: SOLO_KEEPS is one keeps step ending at 0 with no lanes and wait null', () => {
+    const s = scheduled(SOLO_KEEPS, BURNER_ONLY_KITCHEN);
+    expect(rowsOf(s)).toEqual([['solo.chill', -30, 0, null, null, null, 0, null]]);
+    expect(s.steps[0]?.critical).toBe(true);
+    expect([s.spanMin, s.chainMin, s.warnings]).toEqual([30, 30, []]);
+  });
+
+  it('R9.2 H6: HANDS_FREE gives no cook lane, and 1 or 6 cooks differ only in kitchen', () => {
+    const one = scheduled(HANDS_FREE, BURNER_ONLY_KITCHEN);
+    const six = scheduled(HANDS_FREE, { ...BURNER_ONLY_KITCHEN, cooks: 6 });
+    expect(rowsOf(one)).toEqual([
+      ['jelly.set', -120, 0, null, null, null, 0, null],
+      ['stock.simmer', -60, 0, 1, null, null, 0, 0],
+    ]);
+    expect([one.spanMin, one.chainMin, one.warnings]).toEqual([120, 120, []]);
+    expect(six).toEqual({ ...one, kitchen: { ...BURNER_ONLY_KITCHEN, cooks: 6 } });
+  });
+
+  it('R9.3 H6: TWO_CHOPS x BARE_KITCHEN, the second chop waits 10 and warns', () => {
+    const s = scheduled(TWO_CHOPS, BARE_KITCHEN);
+    expect(rowsOf(s)).toEqual([
+      ['a.chop', -10, 0, null, null, 1, 0, 0],
+      ['b.chop', -20, -10, null, null, 1, 0, 10],
+    ]);
+    expect(s.warnings.map((w) => [w.stepId, w.waitMin, w.holdMin])).toEqual([['b.chop', 10, 5]]);
+    expect([s.spanMin, s.chainMin]).toEqual([20, 10]);
+  });
+
+  it('R9.3 H6: TWO_CHOPS x BIG_KITCHEN, cooks 1 and 2, no warnings', () => {
+    const s = scheduled(TWO_CHOPS, BIG_KITCHEN);
+    expect(rowsOf(s)).toEqual([
+      ['a.chop', -10, 0, null, null, 1, 0, 0],
+      ['b.chop', -10, 0, null, null, 2, 0, 0],
+    ]);
+    expect([s.spanMin, s.chainMin, s.warnings]).toEqual([10, 10, []]);
+  });
+
+  it('R9.5 H6: COLD_SAUCE, the keeps step starts at its hot prerequisite end', () => {
+    const s = scheduled(COLD_SAUCE, BURNER_ONLY_KITCHEN);
+    expect(rowsOf(s)).toEqual([
+      ['fish.fry', -8, 0, 1, null, 1, 0, 0],
+      ['sauce.reduce', -23, -13, 1, null, null, 0, 0],
+      ['sauce.whisk', -13, -8, null, null, 1, 0, null],
+    ]);
+    expect([s.spanMin, s.chainMin, s.warnings]).toEqual([23, 15, []]);
+  });
+
+  it('R9.4 H6: LONG_DAY schedules 80 steps of 480 minutes within the default timeout', () => {
+    const s = scheduled(LONG_DAY, BARE_KITCHEN);
+    expect(s.steps).toHaveLength(80);
+    s.steps.forEach((x, i) => {
+      const n = i + 1;
+      expect(x.id).toBe(`feast.s${String(n).padStart(2, '0')}`);
+      expect([x.startMin, x.endMin, x.lanes.cook, x.slackMin, x.waitMin]).toEqual([
+        -480 * n,
+        -480 * (n - 1),
+        1,
+        0,
+        480 * (n - 1),
+      ]);
+    });
+    expect([s.spanMin, s.chainMin, s.warnings.length]).toEqual([38400, 480, 79]);
+    expect(s.warnings.map((w) => w.stepId)).toEqual(s.steps.slice(1).map((x) => x.id));
+  });
+});
+
+describe('R1 entry point and input checks', () => {
+  it('R1.2 a self-dependency gives invalid_plan with exactly the error issues', () => {
+    const broken: Plan = {
+      ...SUNDAY_ROAST,
+      steps: SUNDAY_ROAST.steps.map((x) =>
+        x.id === 'gravy.roux' ? { ...x, after: [...x.after, 'gravy.roux'] } : x,
+      ),
+    };
+    const error = failure(broken, HOME_KITCHEN);
+    expect(error.kind).toBe('invalid_plan');
+    expect(error.issues.map((i) => [i.severity, i.code])).toEqual([['error', 'self_dependency']]);
+  });
+
+  it('R1.2 null, {} and 42 give invalid_plan and do not throw (R1.6)', () => {
+    for (const input of [null, {}, 42]) {
+      const error = failure(input, HOME_KITCHEN);
+      expect(error.kind).toBe('invalid_plan');
+      expect(error.issues.length).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('R1.3 a kitchen with zero cooks gives invalid_kitchen', () => {
+    const error = failure(SUNDAY_ROAST, { ...HOME_KITCHEN, cooks: 0 });
+    expect(error.kind).toBe('invalid_kitchen');
+    expect(error.issues.map((i) => i.code)).toEqual(['invalid_field']);
+  });
+
+  it('R1.3 a plan error is reported before a kitchen error', () => {
+    expect(failure(null, { burners: -1 }).kind).toBe('invalid_plan');
+  });
+
+  it('R1.4 no burners gives missing_appliance with one issue per burner step', () => {
+    const error = failure(SUNDAY_ROAST, { ...HOME_KITCHEN, burners: 0 });
+    expect(error.kind).toBe('missing_appliance');
+    expect(error.issues.map((i) => [i.code, 'stepId' in i ? i.stepId : null])).toEqual([
+      ['missing_appliance', 'gravy.roux'],
+      ['missing_appliance', 'gravy.simmer'],
+      ['missing_appliance', 'greens.boil'],
+    ]);
+  });
+
+  it('R1.5 a plan with only warnings schedules, and its warnings stay out of the schedule', () => {
+    const s = scheduled(LONG_DAY, BARE_KITCHEN);
+    expect(s.warnings.every((w) => w.code === 'hold_exceeded')).toBe(true);
+  });
+
+  it('R1.7 the arguments are not changed', () => {
+    const plan = structuredClone(MEZZE);
+    const kitchen = structuredClone(HOME_KITCHEN);
+    schedule(plan, kitchen);
+    expect(plan).toEqual(MEZZE);
+    expect(kitchen).toEqual(HOME_KITCHEN);
+  });
+
+  it('R2.3 plan is the canonical plan even when the input steps are shuffled', () => {
+    const shuffled: Plan = { ...TIGHT_OVEN, steps: [...TIGHT_OVEN.steps].reverse() };
+    expect(scheduled(shuffled, HOME_KITCHEN).plan).toEqual(canonicalPlan(TIGHT_OVEN));
+  });
+});
+EOF
+npx prettier --write test/core/schedule.test.ts src/core/schedule.ts >/dev/null; npx vitest run --project examples test/core/schedule.test.ts 2>&1 | grep -E "✓|×|FAIL|Tests|AssertionError|Error:" | head -40
+    … (10 earlier lines not shown)
+         × R9.5 H6: COLD_SAUCE, the keeps step starts at its hot prerequisite end 0ms
+         × R9.4 H6: LONG_DAY schedules 80 steps of 480 minutes within the default timeout 0ms
+         × R1.2 a self-dependency gives invalid_plan with exactly the error issues 2ms
+         × R1.2 null, {} and 42 give invalid_plan and do not throw (R1.6) 0ms
+         × R1.3 a kitchen with zero cooks gives invalid_kitchen 0ms
+         × R1.4 no burners gives missing_appliance with one issue per burner step 0ms
+         × R1.5 a plan with only warnings schedules, and its warnings stay out of the schedule 0ms
+         × R2.3 plan is the canonical plan even when the input steps are shuffled 0ms
+    ⎯⎯⎯⎯⎯⎯ Failed Tests 18 ⎯⎯⎯⎯⎯⎯⎯
+     FAIL  |examples| test/core/schedule.test.ts > R10.6 hand-worked schedules (design H1 to H6) > H1: SUNDAY_ROAST x HOME_KITCHEN, every column, no warnings, span and chain 110
+    Error: expected ok, got {"kind":"invalid_plan","issues":[]}
+     FAIL  |examples| test/core/schedule.test.ts > R10.6 hand-worked schedules (design H1 to H6) > H2: SUNDAY_ROAST x ONE_BURNER_KITCHEN
+    Error: expected ok, got {"kind":"invalid_plan","issues":[]}
+     FAIL  |examples| test/core/schedule.test.ts > R10.6 hand-worked schedules (design H1 to H6) > H3: TIGHT_OVEN x HOME_KITCHEN, one hold_exceeded with the exact message
+    Error: expected ok, got {"kind":"invalid_plan","issues":[]}
+     FAIL  |examples| test/core/schedule.test.ts > R10.6 hand-worked schedules (design H1 to H6) > H4: MEZZE x HOME_KITCHEN, made-ahead steps move to the front
+    Error: expected ok, got {"kind":"invalid_plan","issues":[]}
+     FAIL  |examples| test/core/schedule.test.ts > R10.6 hand-worked schedules (design H1 to H6) > H5: PREP_AHEAD x NO_BURNER_KITCHEN, right-justify shortens a wait; no burner lanes (R1.8)
+    Error: expected ok, got {"kind":"invalid_plan","issues":[]}
+     FAIL  |examples| test/core/schedule.test.ts > R10.6 hand-worked schedules (design H1 to H6) > R9.1 H6: SOLO_BURNER is one hot step ending at 0
+    Error: expected ok, got {"kind":"invalid_plan","issues":[]}
+     FAIL  |examples| test/core/schedule.test.ts > R10.6 hand-worked schedules (design H1 to H6) > R9.1 H6: SOLO_KEEPS is one keeps step ending at 0 with no lanes and wait null
+    Error: expected ok, got {"kind":"invalid_plan","issues":[]}
+     FAIL  |examples| test/core/schedule.test.ts > R10.6 hand-worked schedules (design H1 to H6) > R9.2 H6: HANDS_FREE gives no cook lane, and 1 or 6 cooks differ only in kitchen
+    Error: expected ok, got {"kind":"invalid_plan","issues":[]}
+     FAIL  |examples| test/core/schedule.test.ts > R10.6 hand-worked schedules (design H1 to H6) > R9.3 H6: TWO_CHOPS x BARE_KITCHEN, the second chop waits 10 and warns
+    Error: expected ok, got {"kind":"invalid_plan","issues":[]}
+     FAIL  |examples| test/core/schedule.test.ts > R10.6 hand-worked schedules (design H1 to H6) > R9.3 H6: TWO_CHOPS x BIG_KITCHEN, cooks 1 and 2, no warnings
+    Error: expected ok, got {"kind":"invalid_plan","issues":[]}
+     FAIL  |examples| test/core/schedule.test.ts > R10.6 hand-worked schedules (design H1 to H6) > R9.5 H6: COLD_SAUCE, the keeps step starts at its hot prerequisite end
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat > src/core/schedule.ts <<'EOF'
+import { longestChainMinutes } from './graph.js';
+import { backwardPass } from './passes/backward.js';
+import { assignLanes } from './passes/lanes.js';
+import { prepForwardPass } from './passes/prep-forward.js';
+import { readout } from './passes/readout.js';
+import { rightJustifyPass } from './passes/right-justify.js';
+import { err, ok } from './result.js';
+import type { Result } from './result.js';
+import { checkKitchen, hasErrors, parseKitchen, sortIssues, validatePlan } from './sanity.js';
+import { canonicalPlan } from './schema.js';
+import type { Issue, Kitchen, Plan, Schedule, ScheduledStep } from './schema.js';
+import { capacityOf } from './timeline.js';
+
+export type ScheduleError =
+  | { kind: 'invalid_plan'; issues: Issue[] } // errors only, sortIssues order
+  | { kind: 'invalid_kitchen'; issues: Issue[] } // from parseKitchen
+  | { kind: 'missing_appliance'; issues: Issue[] }; // from checkKitchen
+
+/**
+ * Checks its own inputs, then runs the passes: backward, prep-forward, right-justify, lanes and
+ * readout. The first failing check is returned alone. Never throws on any value; a throw from
+ * a pass means a bug. The arguments are not changed.
+ */
+export function schedule(plan: Plan, kitchen: Kitchen): Result<Schedule, ScheduleError> {
+  const checked = validatePlan(plan);
+  const planIssues = sortIssues(checked.issues.filter((i) => i.severity === 'error'));
+  if (checked.plan === null || hasErrors(planIssues)) {
+    return err({ kind: 'invalid_plan', issues: planIssues });
+  }
+  const parsedKitchen = parseKitchen(kitchen);
+  if (!parsedKitchen.ok) return err({ kind: 'invalid_kitchen', issues: parsedKitchen.error });
+  const kitchenIssues = checkKitchen(checked.plan, parsedKitchen.value);
+  if (hasErrors(kitchenIssues)) return err({ kind: 'missing_appliance', issues: kitchenIssues });
+
+  const canonical = canonicalPlan(checked.plan);
+  const cap = capacityOf(parsedKitchen.value);
+  const s1 = backwardPass(canonical, cap);
+  const s2 = prepForwardPass(canonical, cap, s1);
+  const s3 = rightJustifyPass(canonical, cap, s2);
+  const lanes = assignLanes(canonical, cap, s3);
+  const read = readout(canonical, cap, s3);
+  const chain = longestChainMinutes(canonical);
+  if (!chain.ok) throw new Error('schedule: the plan has a cycle after validation');
+
+  const steps = canonical.steps.map((step): ScheduledStep => {
+    const start = s3.get(step.id);
+    const stepLanes = lanes.get(step.id);
+    const slackMin = read.slackMin.get(step.id);
+    const waitMin = read.waitMin.get(step.id);
+    if (
+      start === undefined ||
+      stepLanes === undefined ||
+      slackMin === undefined ||
+      waitMin === undefined
+    ) {
+      throw new Error(`schedule: a pass left out ${step.id}`);
+    }
+    return {
+      id: step.id,
+      startMin: start,
+      endMin: start + step.minutes,
+      lanes: stepLanes,
+      slackMin,
+      critical: slackMin === 0,
+      waitMin,
+    };
+  });
+  return ok({
+    plan: canonical,
+    kitchen: parsedKitchen.value,
+    steps,
+    spanMin: -Math.min(...steps.map((s) => s.startMin)),
+    chainMin: chain.value,
+    warnings: read.warnings,
+  });
+}
+EOF
+npx prettier --write src/core/schedule.ts >/dev/null; npx vitest run --project examples test/core/schedule.test.ts 2>&1 | grep -vE "^\s*$" | head -60
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+     ❯ |examples| test/core/schedule.test.ts (20 tests | 1 failed) 204ms
+       ❯ R10.6 hand-worked schedules (design H1 to H6) (12)
+         × R9.4 H6: LONG_DAY schedules 80 steps of 480 minutes within the default timeout 99ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+     FAIL  |examples| test/core/schedule.test.ts > R10.6 hand-worked schedules (design H1 to H6) > R9.4 H6: LONG_DAY schedules 80 steps of 480 minutes within the default timeout
+    AssertionError: expected [ -480, +0, 1, +0, +0 ] to deeply equal [ -480, -0, 1, +0, +0 ]
+    - Expected
+    + Received
+      [
+        -480,
+    -   -0,
+    +   0,
+        1,
+        0,
+        0,
+      ]
+     ❯ test/core/schedule.test.ts:219:75
+        217|       const n = i + 1;
+        218|       expect(x.id).toBe(`feast.s${String(n).padStart(2, '0')}`);
+        219|       expect([x.startMin, x.endMin, x.lanes.cook, x.slackMin, x.waitMi…
+           |                                                                           ^
+        220|         -480 * n,
+        221|         -480 * (n - 1),
+     ❯ test/core/schedule.test.ts:216:13
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+     Test Files  1 failed (1)
+          Tests  1 failed | 19 passed (20)
+       Start at  14:37:25
+       Duration  311ms (tests 81%, import 12%, transform 7%, worker 1%)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -i 's/-480 \* (n - 1),/480 - 480 * n,/' test/core/schedule.test.ts && npx vitest run --project examples test/core/schedule.test.ts 2>&1 | grep -E "Tests|×" ; npm run typecheck 2>&1 | tail -5
+    sed: 2: "test/core/schedule.test ...": undefined label 'est/core/schedule.test.ts'
+    
+    > make-dinner@0.0.0 typecheck
+    > tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit
+    exit 0
+
+macOS sed needs different args; use the edit tool.
+
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/test/core/schedule.test.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx vitest run --project examples test/core/schedule.test.ts 2>&1 | grep -E "Tests|×|Duration"
+          Tests  20 passed (20)
+       Duration  313ms (tests 79%, import 12%, transform 8%, worker 1%)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 183,200p test/support/oracles.ts && sed -n 387,395p test/support/oracles.ts && sed -n 495,515p test/support/oracles.ts && sed -n 1,30p test/support/oracles.ts && ls test/core
+    … (61 earlier lines not shown)
+    }
+    
+    function sortedUnique(values: readonly string[]): string[] {
+      const out: string[] = [];
+      for (const v of values) {
+        if (!out.includes(v)) out.push(v);
+      }
+      // Array.prototype.sort without a comparator compares UTF-16 code units.
+      return out.sort();
+    }
+    
+    function nodes(plan: Plan): Node {
+      const ids = sortedUnique(plan.steps.map((s) => s.id));
+      const prereqs = new Map<string, string[]>();
+      const minutes = new Map<string, number>();
+      for (const id of ids) {
+        const collected: string[] = [];
+    graph.pbt.ts
+    graph.test.ts
+    index.test.ts
+    normalise.pbt.ts
+    normalise.test.ts
+    passes.test.ts
+    result.test.ts
+    sanity.pbt.ts
+    sanity.test.ts
+    schedule.test.ts
+    schema.pbt.ts
+    schema.test.ts
+    timeline.test.ts
+    exit 0
+
+Now the G property file.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat > test/core/schedule.pbt.ts <<'EOF'
+import fc from 'fast-check';
+import { expect, it } from 'vitest';
+import { schedule } from '../../src/core/schedule.js';
+import { PlanSchema } from '../../src/core/schema.js';
+import type { ErrorCode, Kitchen, Plan, Schedule } from '../../src/core/schema.js';
+import {
+  arbBrokenPlan,
+  arbHandsFreePair,
+  arbPlanAndKitchen,
+  arbShuffledPlan,
+  arbUnlimitedPair,
+} from '../support/arbitraries.js';
+import { fcParams } from '../support/fc-params.js';
+import {
+  oracleCapacityViolations,
+  oracleCompletenessViolations,
+  oracleHoldExceeded,
+  oracleLaneViolations,
+  oracleLongestChain,
+  oraclePrecedenceViolations,
+  oracleSlack,
+  oracleValid,
+  oracleWaits,
+  startsOf,
+} from '../support/oracles.js';
+
+// Each scheduler guarantee has its own property; titles start with the id and a space
+// (scheduler-guarantees.md). A scheduler run on 80 steps of 480 minutes is slow to check
+// by brute force, hence the longer timeout (design: Correctness properties).
+const TIMEOUT_MS = 60_000;
+
+interface Pair {
+  plan: Plan;
+  kitchen: Kitchen;
+}
+
+const mustSchedule = ({ plan, kitchen }: Pair): Schedule => {
+  const result = schedule(plan, kitchen);
+  if (!result.ok) throw new Error(`expected ok, got ${JSON.stringify(result.error)}`);
+  return result.value;
+};
+
+/** Runs `check` on default-sized and on large (12 dishes, 80 steps) valid pairs. */
+const forBothSizes = (check: (pair: Pair, s: Schedule) => void): void => {
+  for (const arb of [arbPlanAndKitchen(), arbPlanAndKitchen({ large: true })]) {
+    fc.assert(
+      fc.property(arb, (pair) => {
+        check(pair, mustSchedule(pair));
+      }),
+      fcParams(),
+    );
+  }
+};
+
+const terminalIds = (plan: Plan): string[] => {
+  const used = new Set(plan.steps.flatMap((s) => s.after));
+  return plan.steps.filter((s) => !used.has(s.id)).map((s) => s.id);
+};
+
+const minutesOf = (plan: Plan, id: string): number =>
+  plan.steps.find((s) => s.id === id)?.minutes ?? 0;
+
+it(
+  'G1 capacity: no minute has more active steps than burners, ovens or cooks',
+  () => {
+    forBothSizes(({ plan, kitchen }, s) => {
+      expect(oracleCapacityViolations(plan, kitchen, startsOf(s.steps))).toEqual([]);
+    });
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'G2 precedence: every step starts at or after the end of each prerequisite',
+  () => {
+    forBothSizes(({ plan }, s) => {
+      expect(oraclePrecedenceViolations(plan, startsOf(s.steps))).toEqual([]);
+    });
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'G3 completeness: every step once, exact minutes, integers, ends at or before 0, sorted by id',
+  () => {
+    forBothSizes(({ plan }, s) => {
+      expect(oracleCompletenessViolations(plan, s.steps)).toEqual([]);
+      const ids = s.steps.map((x) => x.id);
+      expect(ids).toEqual([...ids].sort());
+    });
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'G4.1 landing unlimited: with enough resources every hot terminal step ends at 0',
+  () => {
+    fc.assert(
+      fc.property(arbUnlimitedPair(), (pair) => {
+        const s = mustSchedule(pair);
+        for (const id of terminalIds(pair.plan)) {
+          const step = pair.plan.steps.find((x) => x.id === id);
+          if (step === undefined || step.holdMin === null) continue;
+          expect(s.steps.find((x) => x.id === id)?.endMin).toBe(0);
+        }
+      }),
+      fcParams(),
+    );
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'G4.2 landing bound: a hot terminal step ends no earlier than minus the other terminal minutes',
+  () => {
+    forBothSizes(({ plan }, s) => {
+      const terminals = terminalIds(plan);
+      for (const id of terminals) {
+        const step = plan.steps.find((x) => x.id === id);
+        if (step === undefined || step.holdMin === null) continue;
+        const others = terminals
+          .filter((t) => t !== id)
+          .reduce((sum, t) => sum + minutesOf(plan, t), 0);
+        expect(s.steps.find((x) => x.id === id)?.endMin).toBeGreaterThanOrEqual(-others);
+      }
+    });
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'G4.3 holds reported: one hold_exceeded per step that waits too long, waits match the oracle',
+  () => {
+    forBothSizes(({ plan }, s) => {
+      const starts = startsOf(s.steps);
+      expect(s.warnings.map((w) => ({ stepId: w.stepId, waitMin: w.waitMin, holdMin: w.holdMin }))).toEqual(
+        oracleHoldExceeded(plan, starts),
+      );
+      const waits = oracleWaits(plan, starts);
+      for (const x of s.steps) expect(x.waitMin).toBe(waits[x.id]);
+      for (const w of s.warnings) expect(w.code).toBe('hold_exceeded');
+    });
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'G5.1 hands-free: a step with handsOn false has no cook lane, and the cook count changes nothing on hands-free plans',
+  () => {
+    forBothSizes(({ plan }, s) => {
+      for (const step of plan.steps) {
+        const scheduled = s.steps.find((x) => x.id === step.id);
+        expect(scheduled?.lanes.cook === null).toBe(!step.handsOn);
+      }
+    });
+    fc.assert(
+      fc.property(arbHandsFreePair(), fc.integer({ min: 1, max: 6 }), (pair, cooks) => {
+        const base = mustSchedule(pair);
+        const other = mustSchedule({ plan: pair.plan, kitchen: { ...pair.kitchen, cooks } });
+        expect(other).toEqual({ ...base, kitchen: { ...pair.kitchen, cooks } });
+      }),
+      fcParams(),
+    );
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'G5.2 span bound: spanMin is minus the earliest start and at most the sum of all minutes',
+  () => {
+    forBothSizes(({ plan }, s) => {
+      expect(s.spanMin).toBe(-Math.min(...s.steps.map((x) => x.startMin)));
+      expect(s.spanMin).toBeLessThanOrEqual(plan.steps.reduce((sum, x) => sum + x.minutes, 0));
+    });
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'G5.3 chain bound: chainMin is the longest dependency path and spanMin is at least that',
+  () => {
+    forBothSizes(({ plan }, s) => {
+      expect(s.chainMin).toBe(oracleLongestChain(plan));
+      expect(s.spanMin).toBeGreaterThanOrEqual(s.chainMin);
+    });
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'G6 lanes: lane fields match the resources, are in range and never shared by overlapping steps',
+  () => {
+    forBothSizes(({ plan, kitchen }, s) => {
+      expect(oracleLaneViolations(plan, kitchen, s.steps)).toEqual([]);
+    });
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'G7.1 same input: two calls are deep-equal and the arguments are not changed',
+  () => {
+    fc.assert(
+      fc.property(arbPlanAndKitchen(), ({ plan, kitchen }) => {
+        const planBefore = structuredClone(plan);
+        const kitchenBefore = structuredClone(kitchen);
+        const first = schedule(plan, kitchen);
+        const second = schedule(plan, kitchen);
+        expect(second).toStrictEqual(first);
+        expect(plan).toStrictEqual(planBefore);
+        expect(kitchen).toStrictEqual(kitchenBefore);
+      }),
+      fcParams(),
+    );
+  },
+  TIMEOUT_MS,
+);
+
+/** The rules whose input still parses (as in sanity.pbt.ts). */
+const GRAPH_RULES: readonly ErrorCode[] = [
+  'unknown_dependency',
+  'self_dependency',
+  'cycle',
+  'duplicate_step_id',
+  'duplicate_dish_id',
+  'unknown_dish',
+  'dish_without_steps',
+];
+
+const arbGraphRuleCase: fc.Arbitrary<Pair> = fc
+  .constantFrom(...GRAPH_RULES)
+  .chain((rule) => arbBrokenPlan(rule))
+  .map((c) => ({ plan: PlanSchema.parse(c.input), kitchen: c.kitchen }));
+
+it(
+  'G7.2 order-free: permuting steps, dishes and after lists gives deep-equal results, errors included',
+  () => {
+    for (const arb of [arbPlanAndKitchen(), arbGraphRuleCase]) {
+      fc.assert(
+        fc.property(
+          arb.chain(({ plan, kitchen }) =>
+            arbShuffledPlan(plan).map((shuffled) => ({ plan, shuffled, kitchen })),
+          ),
+          ({ plan, shuffled, kitchen }) => {
+            expect(schedule(shuffled, kitchen)).toStrictEqual(schedule(plan, kitchen));
+          },
+        ),
+        fcParams(),
+      );
+    }
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'G8 slack: delaying by slackMin keeps G1 to G3, by one more breaks one; slackMin is the definition',
+  () => {
+    fc.assert(
+      fc.property(arbPlanAndKitchen(), ({ plan, kitchen }) => {
+        const s = mustSchedule({ plan, kitchen });
+        const starts = startsOf(s.steps);
+        for (const x of s.steps) {
+          expect(x.slackMin).toBe(oracleSlack(plan, kitchen, starts, x.id));
+          expect(x.critical).toBe(x.slackMin === 0);
+          const delayed = (d: number): boolean =>
+            oracleValid(plan, kitchen, { ...starts, [x.id]: x.startMin + d });
+          expect(delayed(x.slackMin)).toBe(true);
+          expect(delayed(x.slackMin + 1)).toBe(false);
+        }
+      }),
+      fcParams(),
+    );
+  },
+  TIMEOUT_MS,
+);
+EOF
+npx prettier --write test/core/schedule.pbt.ts >/dev/null; npx vitest run --project props test/core/schedule.pbt.ts 2>&1 | grep -vE "^\s*$" | head -80
+    … (7 earlier lines not shown)
+    Counterexample: [{"plan":{"title":"Sauté the onions","dishes":[{"id":"a","name":"!"}],"steps":[{"id":"a.a","dish":"a","title":"oven","minutes":2,"appliance":"none","handsOn":false,"after":[],"holdMin":0}]},"kitchen":{__proto__:null,"burners":0,"ovens":0,"cooks":1}}]
+    Shrunk 18 time(s)
+    Hint: Enable verbose mode in order to have the list of all failing values encountered during the run
+     ❯ buildError node_modules/fast-check/lib/fast-check.js:2469:16
+     ❯ throwIfFailed node_modules/fast-check/lib/fast-check.js:2476:8
+     ❯ reportRunDetails node_modules/fast-check/lib/fast-check.js:2492:14
+     ❯ Module.assert node_modules/fast-check/lib/fast-check.js:2662:7
+     ❯ test/core/schedule.pbt.ts:203:8
+        201|   'G7.1 same input: two calls are deep-equal and the arguments are not…
+        202|   () => {
+        203|     fc.assert(
+           |        ^
+        204|       fc.property(arbPlanAndKitchen(), ({ plan, kitchen }) => {
+        205|         const planBefore = structuredClone(plan);
+    Caused by: AssertionError: expected { burners: +0, ovens: +0, cooks: 1 } to strictly equal { burners: +0, ovens: +0, cooks: 1 }
+    Compared values have no visual difference.
+     ❯ test/core/schedule.pbt.ts:211:25
+     ❯ Property.predicate node_modules/fast-check/lib/fast-check.js:1355:99
+     ❯ Property.run node_modules/fast-check/lib/fast-check.js:1324:24
+     ❯ propertyExecution node_modules/fast-check/lib/fast-check.js:2549:23
+     ❯ run node_modules/fast-check/lib/fast-check.js:2639:91
+     ❯ runIt node_modules/fast-check/lib/fast-check.js:2542:15
+     ❯ check node_modules/fast-check/lib/fast-check.js:2655:14
+     ❯ Module.assert node_modules/fast-check/lib/fast-check.js:2660:14
+     ❯ test/core/schedule.pbt.ts:203:8
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+     Test Files  1 failed (1)
+          Tests  1 failed | 12 passed (13)
+       Start at  14:38:21
+       Duration  6.93s (tests 99%, import 1%)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/core/schedule.pbt.ts'
+s=open(p).read()
+s=s.replace("expect(plan).toStrictEqual(planBefore);\n        expect(kitchen).toStrictEqual(kitchenBefore);","// toEqual: structuredClone drops the null prototype some generated kitchens have.\n        expect(plan).toEqual(planBefore);\n        expect(kitchen).toEqual(kitchenBefore);")
+open(p,'w').write(s)
+EOF
+npx prettier --write test/core/schedule.pbt.ts >/dev/null; for id in G1 G2 G3 G4.1 G4.2 G4.3 G5.1 G5.2 G5.3 G6 G7.1 G7.2 G8; do echo "== $id"; npx vitest run --project props test/core/schedule.pbt.ts -t "^$id " 2>&1 | grep -E "Tests |×"; done
+    == G1
+          Tests  1 passed | 12 skipped (13)
+    == G2
+          Tests  1 passed | 12 skipped (13)
+    == G3
+          Tests  1 passed | 12 skipped (13)
+    == G4.1
+          Tests  1 passed | 12 skipped (13)
+    == G4.2
+          Tests  1 passed | 12 skipped (13)
+    == G4.3
+          Tests  1 passed | 12 skipped (13)
+    == G5.1
+          Tests  1 passed | 12 skipped (13)
+    == G5.2
+          Tests  1 passed | 12 skipped (13)
+    == G5.3
+          Tests  1 passed | 12 skipped (13)
+    == G6
+          Tests  1 passed | 12 skipped (13)
+    == G7.1
+          Tests  1 passed | 12 skipped (13)
+    == G7.2
+          Tests  1 passed | 12 skipped (13)
+    == G8
+          Tests  1 passed | 12 skipped (13)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cp src/core/schedule.ts /tmp/schedule.ts.bak && python3 - <<'EOF'
+p='src/core/schedule.ts'
+s=open(p).read()
+s=s.replace("      slackMin,\n      critical","      slackMin: slackMin + 1,\n      critical",1)
+s=s.replace("const s3 = rightJustifyPass(canonical, cap, s2);","const s3 = s2;",1)
+open(p,'w').write(s)
+EOF
+npx vitest run --project props test/core/schedule.pbt.ts 2>&1 | grep -E "Tests |×"; cp /tmp/schedule.ts.bak src/core/schedule.ts && rm /tmp/schedule.ts.bak && git diff --stat src/core/schedule.ts; npx vitest run --project props test/core/schedule.pbt.ts 2>&1 | grep -E "Tests |×"
+       × G8 slack: delaying by slackMin keeps G1 to G3, by one more breaks one; slackMin is the definition 7ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+          Tests  1 failed | 12 passed (13)
+          Tests  13 passed (13)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat > test/core/passes.pbt.ts <<'EOF'
+import fc from 'fast-check';
+import { expect, it } from 'vitest';
+import { backwardPass } from '../../src/core/passes/backward.js';
+import { prepForwardPass } from '../../src/core/passes/prep-forward.js';
+import { rightJustifyPass } from '../../src/core/passes/right-justify.js';
+import { schedule } from '../../src/core/schedule.js';
+import { checkKitchen, validatePlan } from '../../src/core/sanity.js';
+import { ERROR_CODES, KitchenSchema, ScheduleSchema, canonicalPlan } from '../../src/core/schema.js';
+import type { Kitchen, Plan, Schedule } from '../../src/core/schema.js';
+import { capacityOf } from '../../src/core/timeline.js';
+import {
+  arbBrokenPlan,
+  arbKitchen,
+  arbPlanAndKitchen,
+  arbPlanLikeValue,
+} from '../support/arbitraries.js';
+import { fcParams } from '../support/fc-params.js';
+import { oracleValid, startsOf } from '../support/oracles.js';
+import type { Starts } from '../support/oracles.js';
+
+const TIMEOUT_MS = 60_000;
+
+interface Pair {
+  plan: Plan;
+  kitchen: Kitchen;
+}
+
+const mustSchedule = ({ plan, kitchen }: Pair): Schedule => {
+  const result = schedule(plan, kitchen);
+  if (!result.ok) throw new Error(`expected ok, got ${JSON.stringify(result.error)}`);
+  return result.value;
+};
+
+const bothSizes = (): fc.Arbitrary<Pair>[] => [
+  arbPlanAndKitchen(),
+  arbPlanAndKitchen({ large: true }),
+];
+
+it(
+  'P-SC1 errors: every error rule gives err with the kind and exactly the error issues',
+  () => {
+    for (const rule of ERROR_CODES) {
+      fc.assert(
+        fc.property(arbBrokenPlan(rule), ({ input, kitchen }) => {
+          const result = schedule(input as Plan, kitchen);
+          if (result.ok) throw new Error(`rule ${rule}: expected err`);
+          const checked = validatePlan(input);
+          if (rule === 'missing_appliance') {
+            expect(checked.issues.filter((i) => i.severity === 'error')).toEqual([]);
+            expect(result.error.kind).toBe('missing_appliance');
+            const plan = checked.plan;
+            if (plan === null) throw new Error('missing_appliance case must parse');
+            expect(result.error.issues).toEqual(
+              checkKitchen(plan, kitchen).filter((i) => i.severity === 'error'),
+            );
+          } else {
+            expect(result.error.kind).toBe('invalid_plan');
+            expect(result.error.issues).toEqual(
+              checked.issues.filter((i) => i.severity === 'error'),
+            );
+            expect(result.error.issues.map((i) => i.code)).toContain(rule);
+          }
+        }),
+        fcParams(),
+      );
+    }
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'P-SC2 total: schedule never throws on any values; a bad kitchen on a valid plan is invalid_kitchen',
+  () => {
+    fc.assert(
+      fc.property(
+        fc.oneof(fc.jsonValue(), arbPlanLikeValue()),
+        fc.oneof(fc.jsonValue(), arbKitchen()),
+        (plan, kitchen) => {
+          const result = schedule(plan as Plan, kitchen as Kitchen);
+          if (!result.ok) {
+            expect(['invalid_plan', 'invalid_kitchen', 'missing_appliance']).toContain(
+              result.error.kind,
+            );
+          }
+        },
+      ),
+      fcParams(),
+    );
+    fc.assert(
+      fc.property(
+        arbPlanAndKitchen(),
+        fc.jsonValue().filter((k) => !KitchenSchema.safeParse(k).success),
+        ({ plan }, badKitchen) => {
+          const result = schedule(plan, badKitchen as Kitchen);
+          if (result.ok) throw new Error('expected err');
+          expect(result.error.kind).toBe('invalid_kitchen');
+        },
+      ),
+      fcParams(),
+    );
+  },
+  TIMEOUT_MS,
+);
+
+const asStarts = (m: ReadonlyMap<string, number>): Starts => Object.fromEntries(m);
+
+it(
+  'P-SC3 passes: G1 to G3 after each pass; prep-forward moves only keeps steps earlier, right-justify only hot steps later',
+  () => {
+    for (const arb of bothSizes()) {
+      fc.assert(
+        fc.property(arb, ({ plan, kitchen }) => {
+          const canonical = canonicalPlan(plan);
+          const cap = capacityOf(kitchen);
+          const p1 = backwardPass(canonical, cap);
+          const p2 = prepForwardPass(canonical, cap, p1);
+          const p3 = rightJustifyPass(canonical, cap, p2);
+          for (const p of [p1, p2, p3]) expect(oracleValid(canonical, kitchen, asStarts(p))).toBe(true);
+          const t0 = Math.min(...p1.values());
+          for (const step of canonical.steps) {
+            const a = p1.get(step.id) ?? NaN;
+            const b = p2.get(step.id) ?? NaN;
+            const c = p3.get(step.id) ?? NaN;
+            if (step.holdMin === null) {
+              expect(b).toBeLessThanOrEqual(a);
+              expect(b).toBeGreaterThanOrEqual(t0);
+              expect(c).toBe(b);
+            } else {
+              expect(b).toBe(a);
+              expect(c).toBeGreaterThanOrEqual(b);
+            }
+          }
+        }),
+        fcParams(),
+      );
+    }
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'P-SC4 schema: the schedule survives JSON and its plan is the canonical plan',
+  () => {
+    fc.assert(
+      fc.property(arbPlanAndKitchen(), (pair) => {
+        const s = mustSchedule(pair);
+        expect(ScheduleSchema.parse(JSON.parse(JSON.stringify(s)))).toStrictEqual(s);
+        expect(s.plan).toEqual(canonicalPlan(pair.plan));
+      }),
+      fcParams(),
+    );
+  },
+  TIMEOUT_MS,
+);
+
+const RESOURCES = ['burner', 'oven', 'cook'] as const;
+
+it(
+  'P-SC5 lane preference: a step takes the lane of the prerequisite that ended last when that lane is free',
+  () => {
+    for (const arb of bothSizes()) {
+      fc.assert(
+        fc.property(arb, (pair) => {
+          const s = mustSchedule(pair);
+          const starts = startsOf(s.steps);
+          const stepById = new Map(s.plan.steps.map((x) => [x.id, x]));
+          const scheduledById = new Map(s.steps.map((x) => [x.id, x]));
+          const uses = (id: string, r: (typeof RESOURCES)[number]): boolean => {
+            const step = stepById.get(id);
+            if (step === undefined) return false;
+            return r === 'cook' ? step.handsOn : step.appliance === r;
+          };
+          const endOf = (id: string): number => (starts[id] ?? 0) + (stepById.get(id)?.minutes ?? 0);
+          for (const step of s.plan.steps) {
+            const mine = starts[step.id] ?? 0;
+            for (const r of RESOURCES) {
+              if (!uses(step.id, r)) continue;
+              // Steps assigned before this one: started earlier, or at the same minute with a smaller id.
+              const held = new Set<number>();
+              for (const u of s.plan.steps) {
+                if (u.id === step.id || !uses(u.id, r)) continue;
+                const theirs = starts[u.id] ?? 0;
+                const before = theirs < mine || (theirs === mine && u.id < step.id);
+                if (before && endOf(u.id) > mine) {
+                  const lane = scheduledById.get(u.id)?.lanes[r];
+                  if (lane !== null && lane !== undefined) held.add(lane);
+                }
+              }
+              const candidates = step.after
+                .filter((p) => uses(p, r))
+                .sort((a, b) => endOf(b) - endOf(a) || (a < b ? -1 : a > b ? 1 : 0));
+              for (const p of candidates) {
+                const lane = scheduledById.get(p)?.lanes[r];
+                if (lane === null || lane === undefined || held.has(lane)) continue;
+                expect(scheduledById.get(step.id)?.lanes[r]).toBe(lane);
+                break;
+              }
+            }
+          }
+        }),
+        fcParams(),
+      );
+    }
+  },
+  TIMEOUT_MS,
+);
+EOF
+npx prettier --write test/core/passes.pbt.ts >/dev/null; npx vitest run --project props test/core/passes.pbt.ts 2>&1 | grep -vE "^\s*$" | head -60
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+     Test Files  1 passed (1)
+          Tests  5 passed (5)
+       Start at  14:39:42
+       Duration  2.67s (tests 98%, import 1%, transform 1%)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npm run typecheck 2>&1 | tail -15; npx eslint src/core test/core 2>&1 | tail -30
+    
+    > make-dinner@0.0.0 typecheck
+    > tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit
+    exit 0
+
+Clean. Run the task commands for T8.16–18, then tick T8.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx vitest run --project props test/core/passes.pbt.ts -t "^P-SC[12] " 2>&1 | grep -E "Tests "; npx vitest run --project props test/core/passes.pbt.ts -t "^P-SC3 " 2>&1 | grep -E "Tests "; npx vitest run --project props test/core/passes.pbt.ts -t "^P-SC[45] " 2>&1 | grep -E "Tests "; npx vitest run --project examples test/core/schedule.test.ts 2>&1 | grep -E "Tests "; grep -n "T8\.\|T9\." .kiro/specs/scheduler/tasks.md | head -3
+          Tests  2 passed | 3 skipped (5)
+          Tests  1 passed | 4 skipped (5)
+          Tests  2 passed | 3 skipped (5)
+          Tests  20 passed (20)
+    82:  is ticked when every check except coverage passes; T9.1 ticks coverage.
+    155:## T8. `schedule`
+    157:- [ ] T8.1 Example tests: H1 to H6 through `schedule`, every column, warnings, `spanMin`,
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+import re
+p='.kiro/specs/scheduler/tasks.md'
+s=open(p).read()
+s=re.sub(r'- \[ \] (T8\.(?:[1-9]|1[0-8])) ', r'- [x] \1 ', s)
+open(p,'w').write(s)
+EOF
+grep -n "\[ \]" .kiro/specs/scheduler/tasks.md
+    239:- [ ] T9.1 Example test that `schedule`, `ScheduleSchema`, `ScheduledStepSchema`,
+    246:- [ ] T9.2 Run the wider suite and fix what it finds (never by weakening a check); check that no
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/core/index.test.ts'
+s=open(p).read()
+s=s.replace("import * as sanity from '../../src/core/sanity.js';","import * as sanity from '../../src/core/sanity.js';\nimport * as scheduler from '../../src/core/schedule.js';",1)
+s=s.replace("  normaliseRecipeText: [normalise.normaliseRecipeText, 'function'],\n","  normaliseRecipeText: [normalise.normaliseRecipeText, 'function'],\n  // The scheduler spec (N4): the entry point and the schedule schemas only.\n  schedule: [scheduler.schedule, 'function'],\n  StepLanesSchema: [schema.StepLanesSchema, 'object'],\n  ScheduledStepSchema: [schema.ScheduledStepSchema, 'object'],\n  ScheduleSchema: [schema.ScheduleSchema, 'object'],\n",1)
+s=s.replace("    expectTypeOf<core.Result<number, string>>()","    expectTypeOf<core.StepLanes>().toEqualTypeOf<schema.StepLanes>();\n    expectTypeOf<core.ScheduledStep>().toEqualTypeOf<schema.ScheduledStep>();\n    expectTypeOf<core.Schedule>().toEqualTypeOf<schema.Schedule>();\n    expectTypeOf<core.HoldExceededIssue>().toEqualTypeOf<schema.HoldExceededIssue>();\n    expectTypeOf<core.ScheduleError>().toEqualTypeOf<scheduler.ScheduleError>();\n    expectTypeOf<core.Result<number, string>>()",1)
+s=s.rstrip()
+assert s.endswith("});")
+s=s[:-3]+"""
+  it('N4 exports no pass or timeline name', () => {
+    const internal = [
+      'backwardPass',
+      'prepForwardPass',
+      'rightJustifyPass',
+      'assignLanes',
+      'readout',
+      'holdExceededMessage',
+      'createTimeline',
+      'latestFit',
+      'earliestFit',
+      'capacityOf',
+      'resourcesOf',
+      'RESOURCES',
+    ];
+    expect(Object.keys(core).filter((name) => internal.includes(name))).toEqual([]);
+  });
+});
+"""
+open(p,'w').write(s)
+p='src/core/index.ts'
+s=open(p).read()
+s=s.replace("  PlanSchema,\n  STEP_ID_PATTERN,\n  StepIdSchema,\n  StepSchema,\n","  PlanSchema,\n  ScheduledStepSchema,\n  ScheduleSchema,\n  STEP_ID_PATTERN,\n  StepIdSchema,\n  StepLanesSchema,\n  StepSchema,\n",1)
+s=s.replace("  Dish,\n  ErrorCode,\n  Issue,","  Dish,\n  ErrorCode,\n  HoldExceededIssue,\n  Issue,",1)
+s=s.replace("  Plan,\n  Step,\n  WarningCode,\n} from './schema.js';","  Plan,\n  Schedule,\n  ScheduledStep,\n  Step,\n  StepLanes,\n  WarningCode,\n} from './schema.js';",1)
+s=s.rstrip()+"\n\nexport { schedule } from './schedule.js';\nexport type { ScheduleError } from './schedule.js';\n"
+open(p,'w').write(s)
+EOF
+git stash -q -- src/core/index.ts && npx vitest run --project examples test/core/index.test.ts 2>&1 | grep -E "Tests |AssertionError" ; git stash pop -q && npx prettier --write src/core/index.ts test/core/index.test.ts >/dev/null && npx vitest run --project examples test/core/index.test.ts test/meta/guarantees.test.ts 2>&1 | grep -E "Tests |×|Error"
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+    AssertionError: expected [ 'ApplianceSchema', …(29) ] to deeply equal [ 'ApplianceSchema', …(33) ]
+    AssertionError: expected 'undefined' to be 'function' // Object.is equality
+    AssertionError: expected 'undefined' to be 'object' // Object.is equality
+          Tests  5 failed | 32 passed (37)
+          Tests  56 passed (56)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && grep -rniE "optimal|shortest" src/core; echo "--grep done"; (unset ANTHROPIC_API_KEY; npm test 2>&1 | grep -E "Test Files|Tests |×|FAIL"; npm run test:props 2>&1 | grep -E "Test Files|Tests |×|FAIL"; npm run typecheck >/dev/null 2>&1; echo typecheck=$?; npm run lint 2>&1 | tail -15; echo lint=$?; npx prettier --check . 2>&1 | tail -8)
+    src/core/graph.ts:83:    // Shortest cycle through m: BFS inside the group, successors in id order, first parent kept.
+    --grep done
+     Test Files  19 passed (19)
+          Tests  773 passed (773)
+     Test Files  6 passed (6)
+          Tests  50 passed (50)
+    typecheck=0
+    
+    > make-dinner@0.0.0 lint
+    > eslint .
+    
+    lint=0
+    Checking formatting...
+    All matched files use Prettier code style!
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npm run lint >/dev/null 2>&1; echo lint=$? && python3 - <<'EOF'
+import re
+p='.kiro/specs/scheduler/tasks.md'
+s=open(p).read()
+s=re.sub(r'- \[ \] (T9\.[12]) ', r'- [x] \1 ', s)
+open(p,'w').write(s)
+EOF
+grep -c "\[ \]" .kiro/specs/scheduler/tasks.md; git status --short
+    lint=0
+    0
+     M .kiro/specs/rebuild/design.md
+     M .kiro/specs/scheduler/tasks.md
+     M docs/kiro-evidence/hook-fires.log
+     M docs/kiro-evidence/impl-scheduler-session.txt
+     M src/core/index.ts
+     M test/core/index.test.ts
+    ?? .kiro/specs/rebuild/tasks.md
+    ?? src/core/schedule.ts
+    ?? test/core/passes.pbt.ts
+    ?? test/core/schedule.pbt.ts
+    ?? test/core/schedule.test.ts
+    exit 0
+
+T8 and T9 are done, and every task in `.kiro/specs/scheduler/tasks.md` is now ticked. `schedule(plan, kitchen)` is implemented. Every table H1 to H6 came out exactly as the design states, so no working-out or stop was needed. No property failed on the scheduler, so I added no counterexample tests.
+
+I did not touch `.kiro/specs/rebuild/design.md` or `.kiro/specs/rebuild/tasks.md`, which show as modified or untracked. I did not commit.
+
+## Files changed
+- New: `src/core/schedule.ts` (`schedule`, `ScheduleError`).
+- New tests:
+  - `test/core/schedule.test.ts` (20 example tests: H1 to H6, the three error kinds, non-object inputs, argument immutability).
+  - `test/core/schedule.pbt.ts` (G1, G2, G3, G4.1, G4.2, G4.3, G5.1, G5.2, G5.3, G6, G7.1, G7.2, G8).
+  - `test/core/passes.pbt.ts` (P-SC1 to P-SC5).
+- Edited:
+  - `src/core/index.ts` now exports `schedule`, `ScheduleError`, the three schedule schemas and their types, and `HoldExceededIssue`. No pass or timeline name is exported.
+  - `test/core/index.test.ts` was extended for the new exports and now also checks that no pass or timeline name is exported.
+  - `.kiro/specs/scheduler/tasks.md` is ticked.
+
+## Checks run
+- `npm test`: 19 files, 773 passed, 0 failed, 0 skipped.
+- `npm run test:props`: 6 files, 50 passed, 0 failed, 0 skipped.
+- `npm run typecheck`: exit 0.
+- `npm run lint`: exit 0.
+- `npx prettier --check .`: all files match.
+- Per-task commands: `schedule.test.ts` 20/20, each `-t "^G… "` property 1/1, P-SC1 and P-SC2 together 2/2, P-SC3 1/1, P-SC4 and P-SC5 together 2/2, and `index.test.ts` with `guarantees.test.ts` 56/56.
+- The `index.test.ts` extension failed with 5 failures on the old `index.ts` (export-list assertions) before I added the exports.
+- Mutation check: I temporarily made `slackMin` one too large and skipped pass 3. Only G8 failed. The pass 3 skip was not caught by any property, because it changes quality, not validity. I restored `schedule.ts` afterwards.
+- The G and P-SC properties went from the stub (which made `mustSchedule` throw) straight to the real code. I did not watch each fail on a wrong-valued assertion.
+
+## Decisions I made
+- **G7.1 argument check:** the generator makes kitchens with a null prototype, which `structuredClone` drops. The "arguments unchanged" check uses `toEqual`, not `toStrictEqual`. The scheduler was not at fault.
+- **P-SC5:** "held by no other step active at the step's start" counts only steps assigned earlier, meaning those that started earlier or started at the same minute with a smaller id. Otherwise a later step at the same minute would wrongly disqualify the preferred lane.
+- **Example test arithmetic:** I wrote the expected `endMin` for `LONG_DAY` as `480 - 480*n`, to avoid `-0` in the comparison.
+
+## Not verified
+- `npm run test:e2e` and the `D2` Make-based checks were not run. They are outside this spec.
+- I did not run the properties with higher `FC_NUM_RUNS`; they ran at the default 200.
+
+## Notes and open questions
+- The "optimal/shortest" grep over `src/core` finds one hit, a comment in `graph.ts:83` about the shortest *cycle*. That is unrelated to schedules, so I left it.
+- The design's open question about packed prep steps showing as Critical stands. `salad.chop` and the hummus step in H4 show slack 0, as the table says. You may want a product decision on how to show that.
+- C1 (G4.1 is vacuous for large plans) and C2 (the G8 endpoint check is weaker than its definition) from the design are handled as it proposes. G4.1 runs on `arbUnlimitedPair`, and G8 also asserts `slackMin === oracleSlack`. I did not edit the steering file.
+
+--- run success (end_turn); credits reported by this session: 9.84 ---

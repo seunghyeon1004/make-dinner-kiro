@@ -154,78 +154,78 @@ A task is ticked only after its command passed in the same session. Commands run
 
 ## T8. `schedule`
 
-- [ ] T8.1 Example tests: H1 to H6 through `schedule`, every column, warnings, `spanMin`,
+- [x] T8.1 Example tests: H1 to H6 through `schedule`, every column, warnings, `spanMin`,
   `chainMin`, `plan` equal to the fixture in id order and `kitchen`; the three `ScheduleError`
   kinds and the non-object inputs from the design outline; a warnings-only plan schedules;
   `HANDS_FREE` with 1 and 6 cooks differs only in `kitchen`; `LONG_DAY` within the default timeout.
   Files: `test/core/schedule.test.ts`, `src/core/schedule.ts` (stub).
   Covers: R1.1–R1.8, R2.2–R2.5, R9.1–R9.6, R10.6.
   Command: `npx vitest run --project examples test/core/schedule.test.ts`
-- [ ] T8.2 Implement `schedule` until T8.1 passes.
+- [x] T8.2 Implement `schedule` until T8.1 passes.
   Files: `src/core/schedule.ts`.
   Covers: R1.1–R1.8, R2.2–R2.5.
   Command: `npx vitest run --project examples test/core/schedule.test.ts`
-- [ ] T8.3 Property G1 capacity.
+- [x] T8.3 Property G1 capacity.
   Files: `test/core/schedule.pbt.ts`.
   Covers: R8.1, R3.4.
   Command: `npx vitest run --project props test/core/schedule.pbt.ts -t "^G1 "`
-- [ ] T8.4 Property G2 precedence.
+- [x] T8.4 Property G2 precedence.
   Files: `test/core/schedule.pbt.ts`.
   Covers: R8.1.
   Command: `npx vitest run --project props test/core/schedule.pbt.ts -t "^G2 "`
-- [ ] T8.5 Property G3 completeness.
+- [x] T8.5 Property G3 completeness.
   Files: `test/core/schedule.pbt.ts`.
   Covers: R8.1, R2.4.
   Command: `npx vitest run --project props test/core/schedule.pbt.ts -t "^G3 "`
-- [ ] T8.6 Property G4.1 landing unlimited.
+- [x] T8.6 Property G4.1 landing unlimited.
   Files: `test/core/schedule.pbt.ts`.
   Covers: R8.1.
   Command: `npx vitest run --project props test/core/schedule.pbt.ts -t "^G4.1 "`
-- [ ] T8.7 Property G4.2 landing bound.
+- [x] T8.7 Property G4.2 landing bound.
   Files: `test/core/schedule.pbt.ts`.
   Covers: R8.1.
   Command: `npx vitest run --project props test/core/schedule.pbt.ts -t "^G4.2 "`
-- [ ] T8.8 Property G4.3 holds reported.
+- [x] T8.8 Property G4.3 holds reported.
   Files: `test/core/schedule.pbt.ts`.
   Covers: R2.7, R7.3, R7.4.
   Command: `npx vitest run --project props test/core/schedule.pbt.ts -t "^G4.3 "`
-- [ ] T8.9 Property G5.1 hands-free.
+- [x] T8.9 Property G5.1 hands-free.
   Files: `test/core/schedule.pbt.ts`.
   Covers: R2.6, R9.2.
   Command: `npx vitest run --project props test/core/schedule.pbt.ts -t "^G5.1 "`
-- [ ] T8.10 Property G5.2 span bound.
+- [x] T8.10 Property G5.2 span bound.
   Files: `test/core/schedule.pbt.ts`.
   Covers: R2.5.
   Command: `npx vitest run --project props test/core/schedule.pbt.ts -t "^G5.2 "`
-- [ ] T8.11 Property G5.3 chain bound.
+- [x] T8.11 Property G5.3 chain bound.
   Files: `test/core/schedule.pbt.ts`.
   Covers: R2.5.
   Command: `npx vitest run --project props test/core/schedule.pbt.ts -t "^G5.3 "`
-- [ ] T8.12 Property G6 lanes.
+- [x] T8.12 Property G6 lanes.
   Files: `test/core/schedule.pbt.ts`.
   Covers: R6.1.
   Command: `npx vitest run --project props test/core/schedule.pbt.ts -t "^G6 "`
-- [ ] T8.13 Property G7.1 same input.
+- [x] T8.13 Property G7.1 same input.
   Files: `test/core/schedule.pbt.ts`.
   Covers: R1.7.
   Command: `npx vitest run --project props test/core/schedule.pbt.ts -t "^G7.1 "`
-- [ ] T8.14 Property G7.2 order-free.
+- [x] T8.14 Property G7.2 order-free.
   Files: `test/core/schedule.pbt.ts`.
   Covers: R8.3, R9.7.
   Command: `npx vitest run --project props test/core/schedule.pbt.ts -t "^G7.2 "`
-- [ ] T8.15 Property G8 slack.
+- [x] T8.15 Property G8 slack.
   Files: `test/core/schedule.pbt.ts`.
   Covers: R7.1, R7.2.
   Command: `npx vitest run --project props test/core/schedule.pbt.ts -t "^G8 "`
-- [ ] T8.16 Properties P-SC1 errors and P-SC2 total.
+- [x] T8.16 Properties P-SC1 errors and P-SC2 total.
   Files: `test/core/passes.pbt.ts`.
   Covers: R1.2–R1.4, R1.6.
   Command: `npx vitest run --project props test/core/passes.pbt.ts -t "^P-SC[12] "`
-- [ ] T8.17 Property P-SC3 passes.
+- [x] T8.17 Property P-SC3 passes.
   Files: `test/core/passes.pbt.ts`.
   Covers: R4.2, R4.3, R5.1, R5.2, R8.2.
   Command: `npx vitest run --project props test/core/passes.pbt.ts -t "^P-SC3 "`
-- [ ] T8.18 Properties P-SC4 schema and P-SC5 lane preference.
+- [x] T8.18 Properties P-SC4 schema and P-SC5 lane preference.
   Files: `test/core/passes.pbt.ts`.
   Covers: R2.1, R2.3, R6.2.
   Command: `npx vitest run --project props test/core/passes.pbt.ts -t "^P-SC[45] "`
@@ -236,14 +236,14 @@ example test in `test/core/schedule.test.ts` with the seed in a comment before t
 
 ## T9. Public surface and the whole suite
 
-- [ ] T9.1 Example test that `schedule`, `ScheduleSchema`, `ScheduledStepSchema`,
+- [x] T9.1 Example test that `schedule`, `ScheduleSchema`, `ScheduledStepSchema`,
   `StepLanesSchema` and the types `Schedule`, `ScheduledStep`, `StepLanes`, `ScheduleError`,
   `HoldExceededIssue` are exported from `src/core/index.js`, and that no pass or timeline name is;
   add the exports. Then run the guarantee coverage check in full.
   Files: `test/core/index.test.ts`, `src/core/index.ts`.
   Covers: N4, R10.4, R10.5.
   Command: `npx vitest run --project examples test/core/index.test.ts test/meta/guarantees.test.ts`
-- [ ] T9.2 Run the wider suite and fix what it finds (never by weakening a check); check that no
+- [x] T9.2 Run the wider suite and fix what it finds (never by weakening a check); check that no
   identifier, message or comment in `src/core` says "optimal" or "shortest".
   Files: none expected.
   Covers: N1–N6.

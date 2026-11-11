@@ -4,6 +4,7 @@ import * as graph from '../../src/core/graph.js';
 import * as normalise from '../../src/core/normalise.js';
 import * as result from '../../src/core/result.js';
 import * as sanity from '../../src/core/sanity.js';
+import * as scheduler from '../../src/core/schedule.js';
 import * as schema from '../../src/core/schema.js';
 
 // The names listed in the recipe-graph design, section `src/core/index.ts` (N4).
@@ -38,6 +39,11 @@ const VALUES = {
   sortIssues: [sanity.sortIssues, 'function'],
   hasErrors: [sanity.hasErrors, 'function'],
   normaliseRecipeText: [normalise.normaliseRecipeText, 'function'],
+  // The scheduler spec (N4): the entry point and the schedule schemas only.
+  schedule: [scheduler.schedule, 'function'],
+  StepLanesSchema: [schema.StepLanesSchema, 'object'],
+  ScheduledStepSchema: [schema.ScheduledStepSchema, 'object'],
+  ScheduleSchema: [schema.ScheduleSchema, 'object'],
 } as const;
 
 describe('N4 the public surface of src/core/index.ts', () => {
@@ -67,6 +73,29 @@ describe('N4 the public surface of src/core/index.ts', () => {
     expectTypeOf<core.WarningCode>().toEqualTypeOf<schema.WarningCode>();
     expectTypeOf<core.CycleError>().toEqualTypeOf<graph.CycleError>();
     expectTypeOf<core.PlanCheck>().toEqualTypeOf<sanity.PlanCheck>();
+    expectTypeOf<core.StepLanes>().toEqualTypeOf<schema.StepLanes>();
+    expectTypeOf<core.ScheduledStep>().toEqualTypeOf<schema.ScheduledStep>();
+    expectTypeOf<core.Schedule>().toEqualTypeOf<schema.Schedule>();
+    expectTypeOf<core.HoldExceededIssue>().toEqualTypeOf<schema.HoldExceededIssue>();
+    expectTypeOf<core.ScheduleError>().toEqualTypeOf<scheduler.ScheduleError>();
     expectTypeOf<core.Result<number, string>>().toEqualTypeOf<result.Result<number, string>>();
+  });
+
+  it('N4 exports no pass or timeline name', () => {
+    const internal = [
+      'backwardPass',
+      'prepForwardPass',
+      'rightJustifyPass',
+      'assignLanes',
+      'readout',
+      'holdExceededMessage',
+      'createTimeline',
+      'latestFit',
+      'earliestFit',
+      'capacityOf',
+      'resourcesOf',
+      'RESOURCES',
+    ];
+    expect(Object.keys(core).filter((name) => internal.includes(name))).toEqual([]);
   });
 });

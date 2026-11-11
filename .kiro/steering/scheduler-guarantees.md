@@ -73,19 +73,29 @@ Inputs (decided here): the previous schedule; `progress` per step: `done {startM
 A running step's expected end is `max(startMin + minutes + extraMin, now)`. Output: new starts
 on the same axis, the new serving minute `S' >= 0`, and a diff.
 
-- **R1 valid.** Against serving minute `S'`: G1 holds for every minute `t >= now`; G2 holds for
-  every edge whose successor is pending; G3 holds with pending steps lasting exactly `minutes`,
-  pinned steps keeping their actual or expected times, and every end `<= S'`.
+- **R1 valid.** Against serving minute `S'`: G1 holds at every minute `t >= now` where the
+  pinned steps alone are within capacity, and no pending step is placed in a minute where they
+  are not; G2 holds for every edge whose successor is pending; G3 holds with pending steps
+  lasting exactly `minutes`, pinned steps keeping their actual or expected times, and every end
+  `<= S'`.
 - **R2 pinned.** Done and running steps keep their start (done steps also their end). Every
   pending step has `start >= now`.
 - **R3 never earlier.** Every pending step's new start `>=` its previous start. (Pinned steps
   are covered by R2: a cook may start a step early, and its actual start is kept; decided here.)
 - **R4 no slip, no change.** If every done step ran exactly as planned, every running step
   started as planned with `extraMin = 0` and planned end `>= now`, and every pending step's
-  planned start `>= now`, then every start is unchanged, `S' = 0` and the diff lists no moves.
-- **R5 serving time.** `S' = max(0, latest terminal end after forward repair)`; never `< 0`.
+  planned start `>= now`, then every start is unchanged, `S' = S_prev` and the diff lists no
+  moves.
+- **R5 serving time.** `S' = max(S_prev, latest end of any step after forward repair)`; it
+  never moves earlier. `S_prev` is the previous schedule's serving minute (0 for a schedule
+  that has never been rebuilt).
 - **R6 honest diff.** `moved` lists exactly the steps whose start changed, each with correct
-  `from` and `to`; `unchanged` lists exactly the rest; `servingShift = S'`.
+  `from` and `to`; `unchanged` lists exactly the rest; `servingShift = S' - S_prev`.
+
+Wording of R1, R4, R5 and R6 changed by hand on 2026-11-11 after the rebuild spec found, with
+counterexamples, that the first wording was false for a second rebuild (its C1), for pinned
+steps that already exceed capacity (C2) and for steps done out of order (C3). See
+`.kiro/specs/rebuild/design.md`, "Conflicts found".
 
 ## Other properties (decided here)
 

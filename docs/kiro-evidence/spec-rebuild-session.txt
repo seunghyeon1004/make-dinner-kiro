@@ -124,3 +124,4 @@ Length: this spec builds on two others, so refer to them instead of repeating th
     515-  return { plan: parsed.value, issues: checkPlan(parsed.value) };
     516-}
     exit 0
+--- transcript ends here: the runner's output pipe closed before the session's final message; the three spec files were written (see .kiro/specs/rebuild) ---
