@@ -1,0 +1,13 @@
+node_modules/
+dist/
+public/assets/
+.env
+.env.*
+!.env.example
+*.log
+!docs/kiro-evidence/*.log
+.DS_Store
+test-results/
+playwright-report/
+coverage/
+# NOTE: never ignore .kiro/ (hackathon requirement: specs, hooks and steering must be committed)

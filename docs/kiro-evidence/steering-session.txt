@@ -1,0 +1,181 @@
+
+=== session 2026-11-11T03:44:31Z ===
+$ kiro-cli chat --no-interactive --v3 --trust-all-tools --trust-workspace --model claude-opus-5.5 "$(cat docs/kiro-evidence/prompts/01-steering.md)"
+--- prompt ---
+This repository is empty except for docs/BRIEF.md (read it fully first), LICENSE, .gitignore and scripts/kiro-run.sh. Your job in this session is to write the steering files that every later Kiro session in this project will load. Write no application code and no specs.
+
+Create these files in .kiro/steering/, each with the right front matter (`inclusion: always`, or `inclusion: fileMatch` with a `fileMatchPattern`), each short enough to be read in full every time (aim for 60 to 120 lines), concrete, and free of filler:
+
+1. product.md (always): what Make Dinner is, who it is for, the three stitched technologies and what each is and is not allowed to do, the end-to-end flow, and what is out of scope. Include a short glossary (step, dish, terminal step, hold, slack, critical, lane, rebuild, Dinnerfile) so the same words are used everywhere.
+
+2. tech.md (always): stack and versions policy (pin exact versions in package.json), commands (`npm test`, `npm run test:props`, `npm run test:e2e`, `npm run typecheck`, `npm run lint`, `npm run format`, `npm run build`, `npm run dev`, `npm start`), TypeScript rules (strict, noUncheckedIndexedAccess, exactOptionalPropertyTypes, ES modules with .js import suffixes on the server side), error-handling conventions (core returns typed results, never throws on bad input; the server maps them to JSON `{ error: { code, message } }`), environment variables, and the rule that the Anthropic key is never logged, returned, or bundled.
+
+3. structure.md (always): the directory layout you propose for the brief's architecture (src/core pure and isomorphic; src/server; src/web for the Preact front end bundled into public/assets; src/mcp; samples/; recordings/; test/ mirroring src with `*.test.ts` for examples and `*.pbt.ts` for properties; e2e/; docs/kiro-evidence/), naming conventions, and the import rules (core imports nothing but zod; web and server import core, never each other).
+
+4. scheduler-guarantees.md (always): the guarantees G1 to G8 and R1 to R6 from the brief, restated precisely enough to be turned into fast-check properties, with stable ids. State plainly that these are the product's promise: an implementation change may never weaken, delete, skip or narrow a property test to make it pass; a failing property means the scheduler is wrong (or the guarantee is, in which case stop and report). Also state that scheduling, rebuild, export and cooking mode never call a model.
+
+5. testing.md (always): how tests are written here. Test first. A test must be able to fail: never mock the unit under test, never assert on a value the test itself constructed. Properties use fast-check with generators for valid plans and kitchens living in test/support/; each property names the guarantee id it proves. Recorded model output lives in recordings/ and is never hand-edited. No `.skip`, `.only`, `.todo` left behind. Report only test runs you actually executed, with the real counts.
+
+6. ui.md (fileMatch: src/web/**, public/**, e2e/**): the design direction from the brief turned into rules: the kitchen-meets-terminal identity, design tokens to define (propose names and values for a light and a dark theme, warm paper and cast-iron tones, one accent), the two typefaces (use system font stacks, no web font downloads), counter-distance legibility (base size, minimum target 48px), one-handed reach, accessibility rules (the timeline has a text alternative that carries the same information; nothing by colour alone; visible focus; reduced motion; WCAG AA contrast, checked by a script), and copy rules (plain, short, imperative; no exclamation marks; no jokes in instructions).
+
+7. kiro-conduct.md (always): rules for any agent working in this repo. Read the spec's three files before touching code. Implement only the task named. Never tick a task in tasks.md unless you ran the check that proves it in this session and it passed; when a task is partly done, leave it unticked and say what is missing. Never weaken a zod schema, a sanity rule or a property to make something pass. Never commit, push, or edit files under docs/kiro-evidence/ or .kiro/steering/ unless asked. Never print or log secrets. If the spec and the code disagree, stop and report rather than guessing.
+
+Decide details the brief leaves open, but do not contradict it; where you make a decision the brief did not, mark it with "(decided here)". When done, print a list of the files written with a one-line summary each, and a list of every "(decided here)" decision so I can review them.
+--- output ---
+[INFO] [KRS] <-- GenerateAssistantResponseCommand done totalEvents=8
+[tool] Read File
+[tool] status: InProgress
+[tool] status: Completed
+[tool] List Directory
+[tool] status: InProgress
+[tool] status: Completed
+[tool] Read File
+[tool] status: InProgress
+[tool] status: Completed
+[tool] Read File
+[tool] status: InProgress
+[tool] status: Completed
+[tool] Fetch URL
+[tool] status: InProgress
+[tool] List Directory
+[tool] status: InProgress
+[tool] status: Completed
+[tool] status: Completed
+[tool] Write File
+[tool] status: Pending
+[tool] status: Completed
+[tool] Write File
+[tool] status: Pending
+[tool] status: Completed
+[tool] Write File
+[tool] status: Pending
+[tool] status: Completed
+[tool] Write File
+[tool] status: Pending
+[tool] status: Completed
+[tool] Replace in File
+[tool] status: Pending
+[tool] Replace in File
+[tool] status: Completed
+[tool] status: Pending
+[tool] status: Completed
+[tool] Replace in File
+[tool] status: Pending
+[tool] status: Completed
+Now testing.md.
+[tool] Write File
+[tool] status: Pending
+[tool] status: Completed
+[tool] Replace in File
+[tool] status: Pending
+[tool] status: Completed
+[tool] Write File
+[tool] status: Pending
+[tool] status: Completed
+[tool] Check proposed token contrast ratios
+[tool] status: InProgress
+[tool] status: InProgress
+[tool] status: Completed
+[tool] Find a light accent passing contrast
+[tool] status: InProgress
+[tool] status: InProgress
+[tool] status: Completed
+[tool] Replace in File
+[tool] status: Pending
+[tool] status: Completed
+[tool] Write File
+[tool] status: Pending
+[tool] status: Completed
+[tool] Check line counts and edits
+[tool] status: InProgress
+[tool] status: InProgress
+[tool] status: Completed
+[tool] Grep Search
+[tool] status: InProgress
+[tool] status: Completed
+I wrote the seven steering files in `.kiro/steering/`. Each is between 68 and 106 lines and has the front matter you asked for. I wrote no application code and no specs. The only check I ran was a contrast check on the proposed colour tokens. It found one failing pair, light accent on `--color-raised` at 4.14:1, so I darkened the light accent to `#B23A0A`; every pair now passes.
+
+## Files written
+
+| file | inclusion | summary |
+|---|---|---|
+| `product.md` | always | What Make Dinner is and who it is for, what each of the three technologies may and may not do, the four-screen flow, the Dinnerfile format, what is out of scope, and the glossary. |
+| `tech.md` | always | Stack, exact-version policy, the command table, TypeScript rules, the `Result` type and the JSON error codes, the parse pipeline order, environment variables, and the API key rules. |
+| `structure.md` | always | Directory tree, sample ids, import rules enforced by eslint, naming conventions, id patterns, and where new code goes. |
+| `scheduler-guarantees.md` | always | G1–G8 and R1–R6 written as testable statements with stable ids, plus the rule that a property may never be weakened and that the scheduler never calls a model. |
+| `testing.md` | always | Test-first order, what makes a test able to fail, the fast-check generators in `test/support/`, recordings, e2e/axe setup, and how to report test runs. |
+| `ui.md` | fileMatch `src/web/**`, `public/**`, `e2e/**` | The kitchen-meets-terminal look, a light and dark token table, system font stacks, sizes and targets, accessibility rules, and copy rules. |
+| `kiro-conduct.md` | always | Read the spec first, do only the named task, tick a task only after a passing check, never weaken checks, git and file limits, secrets, and reporting. |
+
+## Decisions for you to review
+
+Most are marked "(decided here)" in the files. Items 2, 3, 22, 23, 27, 28 and 33 are decisions I did not tag in the text. Tell me if you want tags added.
+
+**These two change how the brief reads, so check them first:**
+
+1. **Prep-forward never moves terminal steps.** As the brief is written, the prep-forward pass would move a terminal step whose result keeps (a chilled dessert). That breaks G4.1, which says every terminal step ends at minute 0 when resources are unlimited. Right-justify may still move terminal steps.
+2. **R3 applies only to pending steps.** A cook may start a step early, and R2 keeps that actual start, so "no step moves earlier than it was" cannot hold for pinned steps.
+
+**Product and data**
+
+3. Dinnerfile format: one target per step, `# step …`, `# dish …` and `# plan …` comment lines, a `dinner` target, and every target `.PHONY`.
+4. Samples: `sunday-roast`, `halloween-party`, `weeknight-curry`, `vegetarian-feast`.
+5. Id patterns: dish ids are kebab-case; step ids are `<dish-id>.<slug>` (for example `chicken.roast`), which keeps them safe as Make target names.
+6. Directory layout and file names in `structure.md`.
+7. The MCP server uses stdio and only exposes the deterministic core: `check_plan`, `schedule_plan`, `rebuild_plan`, `export_dinnerfile`, `import_dinnerfile`.
+
+**Scheduler and rebuild definitions**
+
+8. A step's wait is measured to the start of its latest-starting successor.
+9. G7.2 also covers permuting the order inside each `after` list.
+10. Output step arrays are sorted by step id.
+11. Slack is the largest k such that every delay from 1 to k is valid. Lanes and holds are ignored.
+12. Rebuild inputs: the previous schedule, progress per step (`done`, `running` with `extraMin`, or pending), and `now`. A running step's expected end is `max(planned end + extra, now)`.
+13. R1 checks capacity only from `now` onward, and checks precedence only on edges into pending steps.
+14. R4 defines "no slip" precisely.
+15. R5 is written as `S' = max(0, latest terminal end after forward repair)`.
+16. Extra property ids: S1 (`checkPlan` never throws), S2 (sanity rules fire when they should), D1 (Dinnerfile round trip), D2 (GNU Make's order agrees; the test fails rather than skips if `make` is missing).
+
+**Tech**
+
+17. Node `>=22 <23` with an `.nvmrc`.
+18. Plain CSS with custom properties.
+19. eslint (typescript-eslint, `import/no-cycle`, the vitest plugin), prettier and tsx.
+20. `.npmrc` sets `save-exact=true`.
+21. No default exports and no enums.
+22. Extra tsconfig flags beyond the three you named: `noImplicitOverride`, `noFallthroughCasesInSwitch`, `verbatimModuleSyntax`, `isolatedModules`.
+23. Web code also uses `.js` import suffixes.
+24. Core compiles with `lib: ES2023` and `types: []`. Lint bans `Date`, `Math.random`, timers, `crypto` and `process` there.
+25. Error codes and HTTP statuses: `bad_request` 400 through `internal` 500.
+26. Text normalisation rules for matching samples: NFC, LF line endings, trailing whitespace stripped, blank-line runs collapsed, trimmed.
+27. Parse pipeline order: the recording match comes before any limit is consumed.
+28. Two extra commands: `npm run check:contrast` and `npm run record`.
+29. Environment variables `PARSE_RATE_PER_IP` (5), `PARSE_RATE_WINDOW_SEC` (600), `PARSE_DAILY_CAP` (200), `TRUST_PROXY` and `LOG_LEVEL`.
+30. The build fails if `ANTHROPIC` or `sk-ant-` appears in `public/assets/`.
+
+**Testing**
+
+31. No snapshot tests for scheduler output.
+32. Lint rejects disabled and focused tests.
+33. Generator names (`arbPlan`, `arbKitchen` and so on), default sizes, and a `large` option.
+34. 200 runs per property by default, overridable with `FC_NUM_RUNS`.
+35. Each counterexample a property finds becomes a named example test before the fix.
+36. `test/meta/guarantees.test.ts` fails if any guarantee id has no property.
+37. E2E runs at a 390×844 phone viewport plus a desktop viewport, in both themes.
+
+**UI**
+
+38. All token names and hex values.
+39. The theme toggle is stored in localStorage.
+40. Base text 18px; cooking mode uses 32px instructions and a 56px countdown.
+41. Cooking-mode primary buttons are at least 64px tall and full width; destructive actions need a second tap.
+42. Marks: `▲` "Critical", `!` "Warning", `✓` "Done". Bars: hatched for ovens, solid for burners, dashed outline for hands-free steps.
+43. The timeline graphic is `aria-hidden`, and the plan list carries the same information.
+44. Sentence case for labels and headings.
+
+**Conduct**
+
+45. Agents may not edit `docs/BRIEF.md` or `LICENSE` unless asked.
+
+`.kiro/agents/` is empty. If you later run sessions with a custom agent through `scripts/kiro-run.sh`, that agent does not load steering automatically. Its config needs `"resources": ["file://.kiro/steering/**/*.md"]`.
+--- exit 0; credit meter 648.45 -> 709.26 ---
