@@ -42,7 +42,8 @@ export const LIMITS = {
 export const DISH_ID_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 export const STEP_ID_PATTERN = /^[a-z0-9-]+\.[a-z0-9-]+$/;
 
-/** Non-blank text of 1..max UTF-16 code units. */
+/** Non-blank text of 1..max Unicode code points (what zod's `max` counts; changed by hand
+ * from UTF-16 code units after the first implementation session found the mismatch). */
 const text = (max: number) => z.string().max(max).regex(/\S/);
 
 export const DishIdSchema = z.string().max(LIMITS.dishIdMax).regex(DISH_ID_PATTERN);

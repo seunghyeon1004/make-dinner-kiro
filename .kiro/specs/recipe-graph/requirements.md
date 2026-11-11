@@ -45,8 +45,8 @@ so that every package agrees on what a valid plan and kitchen look like.
   has at most 40 characters, and a step id, a step's `dish` and every `after` entry only if
   they match the patterns in `structure.md` (step id at most 80 characters) (lengths
   decided here).
-- R1.5 THE SYSTEM SHALL accept text fields only within these lengths, counted in UTF-16 code
-  units, and only if they contain at least one non-white-space character (decided here):
+- R1.5 THE SYSTEM SHALL accept text fields only within these lengths, counted in Unicode code
+  points (as zod `max` counts them), and only if they contain at least one non-white-space character (decided here):
   plan title 1..120, dish name 1..80, step title 1..120, step detail 1..1000 when present.
 - R1.6 THE SYSTEM SHALL accept a plan with 1 to 12 dishes and 1 to 80 steps, and an `after`
   list with at most 80 entries (the `after` bound decided here).

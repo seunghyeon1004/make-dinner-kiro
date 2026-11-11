@@ -1,0 +1,104 @@
+
+=== session 2026-11-11T04:33:23Z ===
+$ kiro-cli chat --output-format stream-json --v3 --mode spec --trust-all-tools --trust-workspace --model claude-opus-5.5 "$(cat docs/kiro-evidence/prompts/04-spec-scheduler.md)"
+--- prompt ---
+Write the spec `scheduler` in .kiro/specs/scheduler/: requirements.md, then design.md, then tasks.md. No code in this session.
+
+This is the heart of the product: `schedule(plan, kitchen)` in src/core. Read docs/BRIEF.md (section "The scheduler"), .kiro/steering/scheduler-guarantees.md (G1 to G8 and the reviewed algorithm note: prep-forward moves every step whose result keeps, terminal or not; right-justify moves only steps whose result does not keep) and the recipe-graph spec in .kiro/specs/recipe-graph/ (this spec builds on its types, graph helpers, canonical form, generators and fixtures; do not redefine them).
+
+Scope of this spec:
+- The four passes (backward, prep-forward, right-justify, lanes) and the readout (slack, critical, waits, hold_exceeded warnings), in src/core/passes/ and src/core/schedule.ts, with a shared resource-usage helper in src/core/timeline.ts.
+- The exact Schedule type: per step startMin, endMin, lanes, slackMin, critical, waitMin; plus spanMin, chainMin (the longest dependency chain, a lower bound shown to the cook), warnings, and the kitchen it was computed for. Arrays sorted by step id (G7.2).
+- Errors as a typed Result: the plan fails the sanity error rules, or the kitchen lacks an appliance a step needs. The scheduler re-checks; it never trusts its caller.
+- Deterministic tie-breaking stated precisely in the design, so two implementations of the design would give the same schedule.
+- test/support/oracles.ts: the independent brute-force checkers the properties use (capacity per minute, precedence, completeness, waits, lanes, slack by trial), written without importing any scheduling code from src/.
+- One property per guarantee id G1 to G8 (sub-ids G4.1, G4.2, G4.3, G5.1, G5.2, G5.3, G7.1, G7.2 each get their own property), and test/meta/guarantees.test.ts, which reads scheduler-guarantees.md and fails if any G id has no property whose title starts with it (it must tolerate R, S and D ids being covered by other specs: make it check the ids each spec has claimed so far, in a way the later specs extend rather than weaken; say how).
+- Hand-worked example tests on the fixtures: for the small sunday-roast fixture, work the expected schedule out by hand in the design (a table of step, start, end, lane) for a kitchen of 4 burners, 1 oven, 1 cook, and for a second kitchen where a resource is scarce (1 burner) so that the passes visibly do something. The implementation must reproduce those tables exactly.
+- A complexity note: the plan sizes are small (80 steps), so prefer the obviously correct loop over the clever one; state the worst case.
+
+Think hard about the corner cases before writing requirements, and write a requirement or a design note for each: zero-capacity resources that no step needs; a single step; all steps hands-free; more cooks than steps; steps of 480 minutes; a prerequisite in another dish; a step with several successors (which one defines its deadline, which its wait); a keeps-step whose prerequisite does not keep; a keeps-step that is terminal; why the right-justify pass cannot break precedence or capacity; why the passes terminate; why the result does not depend on input order.
+
+Check the guarantees against the algorithm while you write the design. If you find a guarantee the algorithm as described cannot satisfy (construct the counterexample), do not quietly change either: write it in a section "Conflicts found" in design.md with the counterexample and your proposed resolution, and list it at the end of your reply.
+
+Format: the same as the recipe-graph spec (requirements with EARS criteria and ids; design with real paths, exact signatures, algorithms, correctness properties with ids and generators; tasks as a test-first checklist where each item names files, requirement ids and the proving command, with property tasks as separate items). Mark anything you decide beyond the brief and steering "(decided here)" and list those decisions and open questions at the end of your reply.
+--- transcript (rendered from the event stream by scripts/kiro-render.mjs) ---
+[steering] {"steeringDocuments":["file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/kiro-conduct.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/product.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/scheduler-guarantees.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/structure.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/tech.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/testing.md"],"kind":"steering_inclusion"}
+[tool:other] Update Session Information
+[tool:execute] $ ls -R .kiro | head -50; ls -R test src samples; cat package.json vitest.config.ts; git status --short; git log --oneline | head -20
+    … (141 earlier lines not shown)
+    
+    export default defineConfig({
+      test: {
+        projects: [
+          {
+            test: {
+              name: 'examples',
+              include: ['test/**/*.test.ts'],
+              environment: 'node',
+            },
+          },
+          {
+            test: {
+              name: 'props',
+              include: ['test/**/*.pbt.ts'],
+              environment: 'node',
+            },
+          },
+        ],
+      },
+    });
+     M docs/kiro-evidence/hook-fires.log
+    ?? docs/kiro-evidence/impl-recipe-graph-session.txt
+    ?? docs/kiro-evidence/prompts/06-impl-recipe-graph-a.md
+    ?? docs/kiro-evidence/spec-scheduler-session.txt
+    2720414 Custom agents sous-chef and expediter, workspace hooks and hook scripts (Kiro session, auto)
+    75f0a5c Spec recipe-graph (Kiro spec mode, opus); runner keeps stderr apart; S1 reworded
+    b5a3d55 Keep sample recipe text byte-exact
+    3aafe5d Scaffold: tooling, health route, web shell, contrast check (Kiro session 2); sample recipes by hand
+    6b53b3f Brief, Kiro runner and steering files written by Kiro (session 1)
+    exit 0
+[tool:read] Read File docs/BRIEF.md
+[tool:read] Read File .kiro/specs/recipe-graph/requirements.md
+[tool:read] Read File .kiro/specs/recipe-graph/design.md
+[tool:read] Read File .kiro/specs/recipe-graph/tasks.md
+[tool:read] Read File .kiro/specs/recipe-graph/design.md
+[tool:read] Read File .kiro/steering/scheduler-guarantees.md
+[tool:read] Read File docs/kiro-evidence/prompts/04-spec-scheduler.md
+[tool:read] Read File src/core/result.ts
+[tool:read] Read File src/core/index.ts
+[tool:execute] $ cat scripts/hooks/tasks-lint.sh; cat .kiro/hooks/tasks-lint-on-save.json; wc -c docs/kiro-evidence/spec-scheduler-session.txt; head -c 1500 docs/kiro-evidence/spec-scheduler-session.txt; cat test/support/fakes.ts | head -30
+    … (119 earlier lines not shown)
+    
+    Scope of this spec:
+    - The four passes (backward, prep-forward, right-justify, lanes) and the readout (slack, critical, waits, hold_exceeded warnings), in src/core/passes/ and src/core/schedule.ts, with a shared resource-usage helper in src/core/timeline.ts.
+    - The exact Schedule type: per step startMin, endMin, lanes, slackMin, critical, waitMin; plus spanMin, chainMin (the longest dependency chain, a lower bound shown to the cook), warnings, and the kitchen it was computed for. Arrays sorted by step id (G7.2).
+    - Errors as a typed Result: the plan fails the sanity error rules, or the kitchen lacks an appliance a step needs. The scheduler reimport type { LogFields, Logger, LogLevel } from '../../src/server/log.js';
+    
+    export interface LogCall {
+      level: LogLevel;
+      msg: string;
+      fields: LogFields | undefined;
+    }
+    
+    /** A logger that records what it was asked to log. Fakes a collaborator of the server. */
+    export function fakeLogger(): { logger: Logger; calls: LogCall[] } {
+      const calls: LogCall[] = [];
+      const record =
+        (level: LogLevel) =>
+        (msg: string, fields?: LogFields): void => {
+          calls.push({ level, msg, fields });
+        };
+      return {
+        logger: {
+          debug: record('debug'),
+          info: record('info'),
+          warn: record('warn'),
+          error: record('error'),
+        },
+        calls,
+      };
+    }
+    exit 0
+[tool:edit] Write File .kiro/specs/scheduler/requirements.md
+[tool:edit] Write File .kiro/specs/scheduler/design.md
+[tool:edit] Replace in File .kiro/specs/scheduler/design.md

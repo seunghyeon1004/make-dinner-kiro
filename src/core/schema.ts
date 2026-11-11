@@ -1,0 +1,149 @@
+import { z } from 'zod';
+
+export const LIMITS = {
+  minutesMin: 1,
+  minutesMax: 480,
+  holdMin: 0,
+  holdMax: 480,
+  dishesMax: 12,
+  stepsMax: 80,
+  afterMax: 80,
+  burnersMax: 8,
+  ovensMax: 4,
+  cooksMin: 1,
+  cooksMax: 6,
+  planTitleMax: 120,
+  dishNameMax: 80,
+  stepTitleMax: 120,
+  detailMax: 1000,
+  dishIdMax: 40,
+  stepIdMax: 80,
+  handsOnWarnOverMin: 45,
+  handsFreeWarnUnderMin: 2,
+} as const;
+
+export const DISH_ID_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+export const STEP_ID_PATTERN = /^[a-z0-9-]+\.[a-z0-9-]+$/;
+
+/** Non-blank text of 1..max Unicode code points (what zod max counts). */
+const text = (max: number) => z.string().max(max).regex(/\S/);
+
+export const DishIdSchema = z.string().max(LIMITS.dishIdMax).regex(DISH_ID_PATTERN);
+export const StepIdSchema = z.string().max(LIMITS.stepIdMax).regex(STEP_ID_PATTERN);
+export const ApplianceSchema = z.enum(['burner', 'oven', 'none']);
+
+export const StepSchema = z.strictObject({
+  id: StepIdSchema,
+  dish: DishIdSchema,
+  title: text(LIMITS.stepTitleMax),
+  detail: text(LIMITS.detailMax).optional(),
+  minutes: z.int().min(LIMITS.minutesMin).max(LIMITS.minutesMax),
+  appliance: ApplianceSchema,
+  handsOn: z.boolean(),
+  after: z.array(StepIdSchema).max(LIMITS.afterMax),
+  holdMin: z.int().min(LIMITS.holdMin).max(LIMITS.holdMax).nullable(),
+});
+
+export const DishSchema = z.strictObject({
+  id: DishIdSchema,
+  name: text(LIMITS.dishNameMax),
+});
+
+export const PlanSchema = z.strictObject({
+  title: text(LIMITS.planTitleMax),
+  dishes: z.array(DishSchema).min(1).max(LIMITS.dishesMax),
+  steps: z.array(StepSchema).min(1).max(LIMITS.stepsMax),
+});
+
+export const KitchenSchema = z.strictObject({
+  burners: z.int().min(0).max(LIMITS.burnersMax),
+  ovens: z.int().min(0).max(LIMITS.ovensMax),
+  cooks: z.int().min(LIMITS.cooksMin).max(LIMITS.cooksMax),
+});
+
+export type Appliance = z.infer<typeof ApplianceSchema>;
+export type Step = z.infer<typeof StepSchema>;
+export type Dish = z.infer<typeof DishSchema>;
+export type Plan = z.infer<typeof PlanSchema>;
+export type Kitchen = z.infer<typeof KitchenSchema>;
+
+const message = z.string().min(1);
+
+/** One issue variant: fixed severity and code, plus the extra fields of its code. */
+const variant = <S extends 'error' | 'warning', C extends string, F extends z.ZodRawShape>(
+  severity: S,
+  code: C,
+  fields: F,
+) =>
+  z.strictObject({
+    severity: z.literal(severity),
+    code: z.literal(code),
+    message,
+    ...fields,
+  });
+
+export const IssueSchema = z.discriminatedUnion('code', [
+  variant('error', 'invalid_field', {
+    field: z.string().min(1),
+    stepId: StepIdSchema.optional(),
+    dishId: DishIdSchema.optional(),
+  }),
+  variant('error', 'minutes_out_of_range', {
+    field: z.string().min(1),
+    stepId: StepIdSchema.optional(),
+  }),
+  variant('error', 'empty_plan', {}),
+  variant('error', 'too_many_dishes', {
+    count: z.int().min(LIMITS.dishesMax + 1),
+    limit: z.literal(LIMITS.dishesMax),
+  }),
+  variant('error', 'too_many_steps', {
+    count: z.int().min(LIMITS.stepsMax + 1),
+    limit: z.literal(LIMITS.stepsMax),
+  }),
+  variant('error', 'unknown_dependency', { stepId: StepIdSchema, ref: StepIdSchema }),
+  variant('error', 'self_dependency', { stepId: StepIdSchema }),
+  variant('error', 'cycle', { stepId: StepIdSchema, path: z.array(StepIdSchema).min(2) }),
+  variant('error', 'duplicate_step_id', { stepId: StepIdSchema, count: z.int().min(2) }),
+  variant('error', 'duplicate_dish_id', { dishId: DishIdSchema, count: z.int().min(2) }),
+  variant('error', 'unknown_dish', { stepId: StepIdSchema, dishId: DishIdSchema }),
+  variant('error', 'dish_without_steps', { dishId: DishIdSchema }),
+  variant('error', 'missing_appliance', {
+    stepId: StepIdSchema,
+    appliance: z.enum(['burner', 'oven']),
+  }),
+  variant('warning', 'appliance_mismatch', {
+    stepId: StepIdSchema,
+    word: z.string().min(1),
+    suggested: z.enum(['burner', 'oven']),
+  }),
+  variant('warning', 'long_hands_on', { stepId: StepIdSchema, minutes: z.int() }),
+  variant('warning', 'short_hands_free', { stepId: StepIdSchema, minutes: z.int() }),
+]);
+
+export type Issue = z.infer<typeof IssueSchema>;
+export type IssueCode = Issue['code'];
+export type ErrorCode = Extract<Issue, { severity: 'error' }>['code'];
+export type WarningCode = Extract<Issue, { severity: 'warning' }>['code'];
+
+export const ERROR_CODES: readonly ErrorCode[] = [
+  'invalid_field',
+  'minutes_out_of_range',
+  'empty_plan',
+  'too_many_dishes',
+  'too_many_steps',
+  'unknown_dependency',
+  'self_dependency',
+  'cycle',
+  'duplicate_step_id',
+  'duplicate_dish_id',
+  'unknown_dish',
+  'dish_without_steps',
+  'missing_appliance',
+];
+
+export const WARNING_CODES: readonly WarningCode[] = [
+  'appliance_mismatch',
+  'long_hands_on',
+  'short_hands_free',
+];

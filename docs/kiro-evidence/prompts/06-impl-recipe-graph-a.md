@@ -1,0 +1,3 @@
+Spec: recipe-graph. Implement tasks T1 (schemas and inferred types) and then T2 (test support), in that order, and nothing after T2. Treat each sub-task as its own unit: test first, see it fail on an assertion, implement, run the proving command the task names, and tick the sub-task only when that command passed in this session. Tick T1 or T2 itself only when all its sub-tasks are ticked.
+
+Read .kiro/specs/recipe-graph/requirements.md, design.md and tasks.md in full first. If the design is ambiguous or wrong somewhere, stop at that point and report it rather than guessing. Do not commit. End with the report kiro-conduct.md asks for.

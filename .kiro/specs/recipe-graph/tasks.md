@@ -19,27 +19,27 @@ A task is ticked only after its command passed in the same session. Commands run
 
 ## T1. Schemas and inferred types
 
-- [ ] T1.1 Example tests for the bounds of `StepSchema`, `DishSchema`, `PlanSchema` and
+- [x] T1.1 Example tests for the bounds of `StepSchema`, `DishSchema`, `PlanSchema` and
   `KitchenSchema`: each bound at its edge and one past it, blank text, `detail` present,
   absent and empty, both id patterns and their length limits, the `after` bound, unknown
   keys rejected, `z.infer` types checked with `expectTypeOf`.
   Files: `test/core/schema.test.ts`, `src/core/schema.ts` (stub).
   Covers: R1.1–R1.8.
   Command: `npx vitest run --project examples test/core/schema.test.ts`
-- [ ] T1.2 Implement `LIMITS`, `DISH_ID_PATTERN`, `STEP_ID_PATTERN`, `DishIdSchema`,
+- [x] T1.2 Implement `LIMITS`, `DISH_ID_PATTERN`, `STEP_ID_PATTERN`, `DishIdSchema`,
   `StepIdSchema`, `ApplianceSchema`, `StepSchema`, `DishSchema`, `PlanSchema`,
   `KitchenSchema` and the five types until T1.1 passes.
   Files: `src/core/schema.ts`.
   Covers: R1.1–R1.8.
   Command: `npx vitest run --project examples test/core/schema.test.ts`
-- [ ] T1.3 Example tests for `IssueSchema`: one valid issue per code in the design table,
+- [x] T1.3 Example tests for `IssueSchema`: one valid issue per code in the design table,
   each code rejected with the other severity, a missing extra field rejected, an unknown
   key rejected; `ERROR_CODES` and `WARNING_CODES` equal the table's codes in table order;
   `expectTypeOf` shows that narrowing on `code` fixes `severity`.
   Files: `test/core/schema.test.ts`.
   Covers: R1.9, R7.1.
   Command: `npx vitest run --project examples test/core/schema.test.ts`
-- [ ] T1.4 Implement `IssueSchema`, `Issue`, `IssueCode`, `ErrorCode`, `WarningCode`,
+- [x] T1.4 Implement `IssueSchema`, `Issue`, `IssueCode`, `ErrorCode`, `WarningCode`,
   `ERROR_CODES`, `WARNING_CODES` until T1.3 passes.
   Files: `src/core/schema.ts`.
   Covers: R1.9, R7.1.
@@ -47,14 +47,14 @@ A task is ticked only after its command passed in the same session. Commands run
 
 ## T2. Test support
 
-- [ ] T2.1 Write `SUNDAY_ROAST`, `MEZZE`, `TIGHT_OVEN`, `HOME_KITCHEN` and
+- [x] T2.1 Write `SUNDAY_ROAST`, `MEZZE`, `TIGHT_OVEN`, `HOME_KITCHEN` and
   `TWO_COOK_KITCHEN` exactly as the design tables give them, steps in non-topological
   order, each with its hand-worked comment. Add an example test that each fixture passes
   `PlanSchema` or `KitchenSchema`.
   Files: `test/support/fixtures.ts`, `test/core/schema.test.ts`.
   Covers: R10.4.
   Command: `npx vitest run --project examples test/core/schema.test.ts`
-- [ ] T2.2 Example tests that each oracle gives the hand-worked facts of the three
+- [x] T2.2 Example tests that each oracle gives the hand-worked facts of the three
   fixtures (successors of `chicken.roast`, terminal steps, topological orders, longest
   chains 110, 82 and 55), plus a hand-made 3-cycle and two disjoint cycles for
   `oracleStronglyConnected`, `oracleShortestCycleLength` and `isCycleIn`, warning
@@ -63,16 +63,16 @@ A task is ticked only after its command passed in the same session. Commands run
   Files: `test/meta/oracles.test.ts`, `test/support/oracles.ts` (stub).
   Covers: R10.5.
   Command: `npx vitest run --project examples test/meta/oracles.test.ts`
-- [ ] T2.3 Implement the oracles with plain loops, importing from `src/core` only types
+- [x] T2.3 Implement the oracles with plain loops, importing from `src/core` only types
   and schemas, until T2.2 passes.
   Files: `test/support/oracles.ts`.
   Covers: R10.5.
   Command: `npx vitest run --project examples test/meta/oracles.test.ts`
-- [ ] T2.4 Add `fcParams()`.
+- [x] T2.4 Add `fcParams()`.
   Files: `test/support/fc-params.ts`.
   Covers: `testing.md` run-count rule.
   Command: `npm run typecheck`
-- [ ] T2.5 Example tests for the generators from `fc.sample` with a fixed seed: every
+- [x] T2.5 Example tests for the generators from `fc.sample` with a fixed seed: every
   `arbPlan` value is valid by construction (schema, unique ids, known `after` entries,
   every dish has a step, oracle order of full length); samples cover every item of R10.2,
   `large: true` reaches 12 dishes and 80 steps; `arbPlanAndKitchen` never uses an absent
@@ -82,7 +82,7 @@ A task is ticked only after its command passed in the same session. Commands run
   Files: `test/meta/arbitraries.test.ts`, `test/support/arbitraries.ts` (stub).
   Covers: R10.1, R10.2.
   Command: `npx vitest run --project examples test/meta/arbitraries.test.ts`
-- [ ] T2.6 Implement `arbKitchen`, `arbPlan`, `arbPlanAndKitchen`, `arbShuffledPlan`,
+- [x] T2.6 Implement `arbKitchen`, `arbPlan`, `arbPlanAndKitchen`, `arbShuffledPlan`,
   `arbPlanLikeValue`, `arbRecipeText` and `arbBrokenPlan` for every error code in the
   design table until T2.5 passes.
   Files: `test/support/arbitraries.ts`.
