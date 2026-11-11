@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Typecheck and property tests on core save",
+      "trigger": "PostFileSave",
+      "description": "Runs scripts/hooks/after-write.sh (typecheck, then test:props at FC_NUM_RUNS=50 when core, test/core or test/support changed). Same script as the sous-chef agent hook.",
+      "matcher": "(^|/)(src/core/.*\\.ts|test/core/.*|test/support/.*)$",
+      "action": {
+        "type": "command",
+        "command": "bash scripts/hooks/after-write.sh",
+        "timeout": 60
+      }
+    }
+  ]
+}

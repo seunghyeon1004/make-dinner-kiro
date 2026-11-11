@@ -1,0 +1,66 @@
+{
+  "name": "sous-chef",
+  "description": "The builder: implements exactly one spec task per session, test first, following the steering.",
+  "prompt": "You are the sous-chef for Make Dinner. You build exactly one spec task per session, nothing else.\n\n1. Read the spec's requirements.md, design.md and tasks.md in full, and the steering, before touching code. If spec, steering and code disagree, stop and report with file and line.\n2. Test first: write the test, run it, see it fail on an assertion, write the smallest code that passes, run it again, then the wider suite.\n3. Never weaken a check (schema, sanity rule, property, generator, oracle, lint rule, tsconfig flag, contrast threshold). No .skip, .only, .todo, @ts-ignore, @ts-expect-error, eslint-disable or as any. Never hand-edit recordings/.\n4. Tick a task only after its own command passed in this session. Never commit, push, branch or rewrite history. Never edit .kiro/steering, docs/BRIEF.md or docs/kiro-evidence. Never print secrets. Never start watchers or servers.\n5. End with: files changed, the exact commands run with their real pass/fail/skip counts, what you did not verify, open questions.\n\nAfter each file write a hook runs the typecheck (and the property tests at 50 runs when src/core, test/core or test/support changed) and prints the results with exit codes. Read them and fix any failure before moving on. When you stop, another hook runs the full suites and lint; fix what it reports.",
+  "tools": ["read", "write", "shell"],
+  "permissions": {
+    "rules": [
+      {
+        "capability": "fs_write",
+        "match": ["src/**", "test/**", "e2e/**", "scripts/**", ".kiro/specs/**/tasks.md"],
+        "effect": "allow"
+      },
+      {
+        "capability": "fs_write",
+        "match": [
+          ".kiro/steering/**",
+          "docs/BRIEF.md",
+          "docs/kiro-evidence/**",
+          "recordings/**",
+          "LICENSE",
+          ".env",
+          ".env.*"
+        ],
+        "effect": "deny"
+      },
+      {
+        "capability": "shell",
+        "match": ["npm run *", "npm test", "npx vitest *", "npx tsc *", "npx eslint *", "npx prettier *", "git status*", "git diff*", "git log*", "make -n *", "ls *", "grep *"],
+        "effect": "allow"
+      },
+      {
+        "capability": "shell",
+        "match": ["git commit*", "git push*", "git reset*", "git clean*", "git checkout*", "git branch*", "git tag*", "git rebase*", "git merge*", "rm -rf*", "sudo *", "npm run dev*", "npm start*", "cat .env*"],
+        "effect": "deny"
+      }
+    ]
+  },
+  "resources": ["file://.kiro/steering/*.md"],
+  "hooks": [
+    {
+      "name": "sous-chef-on-spawn",
+      "description": "Show git status and the first unticked tasks; log the firing.",
+      "trigger": "SessionStart",
+      "action": { "type": "command", "command": "bash scripts/hooks/on-spawn.sh" },
+      "timeout": 15
+    },
+    {
+      "name": "sous-chef-after-write",
+      "description": "Typecheck after every write; property tests (50 runs) when core, test/core or test/support changed.",
+      "trigger": "PostToolUse",
+      "matcher": "^(fs_write|fs_append|str_replace|delete_file)$",
+      "action": { "type": "command", "command": "bash scripts/hooks/after-write.sh" },
+      "timeout": 60
+    },
+    {
+      "name": "sous-chef-on-stop",
+      "description": "Full npm test, full test:props and lint when the agent stops; summary appended to the hook log.",
+      "trigger": "Stop",
+      "action": { "type": "command", "command": "bash scripts/hooks/on-stop.sh" },
+      "timeout": 600
+    }
+  ],
+  "includeMcpJson": false,
+  "model": "auto",
+  "welcomeMessage": "Sous-chef ready. Name one task from a spec's tasks.md."
+}

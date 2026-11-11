@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Check contrast on tokens.css save",
+      "trigger": "PostFileSave",
+      "description": "Runs npm run check:contrast so every token pair in ui.md keeps meeting WCAG AA.",
+      "matcher": "(^|/)src/web/styles/tokens\\.css$",
+      "action": {
+        "type": "command",
+        "command": "npm run check:contrast",
+        "timeout": 60
+      }
+    }
+  ]
+}

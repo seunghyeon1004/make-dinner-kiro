@@ -2,3 +2,4 @@
 2026-11-11T04:09:49Z scaffold-session [--v3 --trust-all-tools --trust-workspace --model claude-sonnet-5.5] credits 37.59 exit 0
 2026-11-11T04:24:57Z spec-recipe-graph-session [--v3 --mode spec --trust-all-tools --trust-workspace --model claude-opus-5.5] credits ? exit 1
 2026-11-11T04:28:37Z spec-recipe-graph-session [--v3 --mode spec --trust-all-tools --trust-workspace --model claude-opus-5.5 --resume-id sess_54f00e44-b601-4ecc-bf19-d951002274d2] credits 19.73 exit 0
+2026-11-11T04:32:56Z agents-hooks-session [--v3 --trust-all-tools --trust-workspace --model auto] credits 7.45 exit 0

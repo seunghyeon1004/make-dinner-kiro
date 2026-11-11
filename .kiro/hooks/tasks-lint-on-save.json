@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Lint tasks.md on save",
+      "trigger": "PostFileSave",
+      "description": "Fails if a tasks.md has a ticked parent with an unticked child, or a task line without an id; prints the offending lines.",
+      "matcher": "(^|/)\\.kiro/specs/.*/tasks\\.md$",
+      "action": {
+        "type": "command",
+        "command": "bash scripts/hooks/tasks-lint.sh",
+        "timeout": 30
+      }
+    }
+  ]
+}
