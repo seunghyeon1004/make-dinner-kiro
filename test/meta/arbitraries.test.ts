@@ -4,15 +4,21 @@ import { ERROR_CODES, KitchenSchema, LIMITS, PlanSchema } from '../../src/core/s
 import type { ErrorCode, Plan } from '../../src/core/schema.js';
 import {
   arbBrokenPlan,
+  arbHandsFreePair,
   arbKitchen,
   arbPlan,
   arbPlanAndKitchen,
   arbPlanLikeValue,
   arbRecipeText,
   arbShuffledPlan,
+  arbUnlimitedKitchen,
+  arbUnlimitedPair,
+  fitUnlimited,
 } from '../support/arbitraries.js';
 import type { BrokenCase } from '../support/arbitraries.js';
 import { fcParams } from '../support/fc-params.js';
+import { SUNDAY_ROAST } from '../support/fixtures.js';
+import { checkKitchen, checkPlan } from '../../src/core/sanity.js';
 import {
   oracleStronglyConnected,
   oracleTopologicalOrder,
@@ -451,4 +457,153 @@ describe('R10.1 a failing property reports a shrunk counterexample (T2.7)', () =
       expect(counterexample?.rule).toBe(rule);
     },
   );
+});
+
+// ---------------------------------------------------------------------------------------
+// Scheduler spec, T2.4: arbUnlimitedKitchen, fitUnlimited, arbUnlimitedPair, arbHandsFreePair
+
+const needs = (plan: Plan) => ({
+  burners: plan.steps.filter((s) => s.appliance === 'burner').length,
+  ovens: plan.steps.filter((s) => s.appliance === 'oven').length,
+  cooks: plan.steps.filter((s) => s.handsOn).length,
+});
+
+/** A plan of `n` steps `t.s01`..`t.sNN` with the given appliance and handsOn, no prerequisites. */
+function uniformPlan(n: number, appliance: 'burner' | 'oven' | 'none', handsOn: boolean): Plan {
+  return {
+    title: 'Uniform',
+    dishes: [{ id: 't', name: 'Test' }],
+    steps: Array.from({ length: n }, (_, i) => ({
+      id: `t.s${String(i + 1).padStart(2, '0')}`,
+      dish: 't',
+      title: 'Prepare the thing',
+      minutes: 5,
+      appliance,
+      handsOn,
+      after: [],
+      holdMin: null,
+    })),
+  };
+}
+
+describe('R10.2 arbUnlimitedKitchen', () => {
+  it('SUNDAY_ROAST needs 3 burners, 1 oven and 6 cooks, so those are the lowest counts drawn', () => {
+    const kitchens = sampleOf(arbUnlimitedKitchen(SUNDAY_ROAST), 300);
+    for (const k of kitchens) {
+      expect(KitchenSchema.safeParse(k).success).toBe(true);
+      expect(k.burners).toBeGreaterThanOrEqual(3);
+      expect(k.ovens).toBeGreaterThanOrEqual(1);
+      expect(k.cooks).toBe(6);
+    }
+    expect(kitchens.some((k) => k.burners === 3)).toBe(true);
+    expect(kitchens.some((k) => k.burners === 8)).toBe(true);
+    expect(kitchens.some((k) => k.ovens === 1)).toBe(true);
+    expect(kitchens.some((k) => k.ovens === 4)).toBe(true);
+  });
+  it('a plan that needs nothing still gets at least one cook', () => {
+    const kitchens = sampleOf(arbUnlimitedKitchen(uniformPlan(2, 'none', false)), 200);
+    for (const k of kitchens) expect(k.cooks).toBeGreaterThanOrEqual(1);
+    expect(kitchens.some((k) => k.burners === 0)).toBe(true);
+  });
+});
+
+describe('R10.2 fitUnlimited', () => {
+  it('changes nothing in a plan within the bounds', () => {
+    expect(fitUnlimited(SUNDAY_ROAST)).toEqual(SUNDAY_ROAST);
+  });
+  it('8 hands-on steps: the first 6 by id stay hands-on, s07 and s08 become hands-free', () => {
+    const fitted = fitUnlimited(uniformPlan(8, 'none', true));
+    expect(fitted.steps.filter((s) => s.handsOn).map((s) => s.id)).toEqual([
+      't.s01',
+      't.s02',
+      't.s03',
+      't.s04',
+      't.s05',
+      't.s06',
+    ]);
+  });
+  it('10 burner steps keep 8 burner steps; 6 oven steps keep 4; the rest use no appliance', () => {
+    const burners = fitUnlimited(uniformPlan(10, 'burner', false));
+    expect(burners.steps.filter((s) => s.appliance === 'burner').map((s) => s.id)).toEqual(
+      ['01', '02', '03', '04', '05', '06', '07', '08'].map((n) => `t.s${n}`),
+    );
+    expect(burners.steps.filter((s) => s.appliance === 'none').map((s) => s.id)).toEqual([
+      't.s09',
+      't.s10',
+    ]);
+    const ovens = fitUnlimited(uniformPlan(6, 'oven', false));
+    expect(ovens.steps.filter((s) => s.appliance === 'oven')).toHaveLength(4);
+    expect(ovens.steps.filter((s) => s.appliance === 'none').map((s) => s.id)).toEqual([
+      't.s05',
+      't.s06',
+    ]);
+  });
+  it('keeps the step order of the input and every other field', () => {
+    const plan = uniformPlan(8, 'none', true);
+    const reversed: Plan = { ...plan, steps: [...plan.steps].reverse() };
+    const fitted = fitUnlimited(reversed);
+    expect(fitted.steps.map((s) => s.id)).toEqual(reversed.steps.map((s) => s.id));
+    expect(fitted.steps.map((s) => s.handsOn)).toEqual([
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+    ]);
+    expect(fitted.steps.every((s) => s.minutes === 5 && s.title === 'Prepare the thing')).toBe(
+      true,
+    );
+  });
+});
+
+describe('R10.2 arbUnlimitedPair', () => {
+  const pairs = sampleOf(arbUnlimitedPair(), 300);
+  it('every kitchen has counts at least the burner, oven and hands-on step counts and passes KitchenSchema', () => {
+    expect(pairs).toHaveLength(300);
+    for (const { plan, kitchen } of pairs) {
+      const need = needs(plan);
+      expect(KitchenSchema.safeParse(kitchen).success).toBe(true);
+      expect(kitchen.burners).toBeGreaterThanOrEqual(need.burners);
+      expect(kitchen.ovens).toBeGreaterThanOrEqual(need.ovens);
+      expect(kitchen.cooks).toBeGreaterThanOrEqual(need.cooks);
+    }
+  });
+  it('every plan passes PlanSchema, has no checkPlan error and fits its kitchen', () => {
+    for (const { plan, kitchen } of pairs) {
+      expect(PlanSchema.safeParse(plan).success).toBe(true);
+      expect(checkPlan(plan).filter((i) => i.severity === 'error')).toEqual([]);
+      expect(checkKitchen(plan, kitchen)).toEqual([]);
+    }
+  });
+  it('reaches the schema maxima: 6 cooks needed, 8 burners and 4 ovens available', () => {
+    expect(pairs.some((p) => needs(p.plan).cooks === 6)).toBe(true);
+    expect(pairs.some((p) => p.kitchen.burners === 8)).toBe(true);
+    expect(pairs.some((p) => p.kitchen.ovens === 4)).toBe(true);
+    expect(pairs.some((p) => needs(p.plan).burners > 0)).toBe(true);
+  });
+});
+
+describe('R10.2 arbHandsFreePair', () => {
+  const pairs = sampleOf(arbHandsFreePair(), 300);
+  it('no step is hands-on', () => {
+    expect(pairs).toHaveLength(300);
+    for (const { plan } of pairs) expect(plan.steps.some((s) => s.handsOn)).toBe(false);
+  });
+  it('plans pass the schema, kitchens have every needed appliance, no error', () => {
+    for (const { plan, kitchen } of pairs) {
+      expect(PlanSchema.safeParse(plan).success).toBe(true);
+      expect(KitchenSchema.safeParse(kitchen).success).toBe(true);
+      expect(checkPlan(plan).filter((i) => i.severity === 'error')).toEqual([]);
+      expect(checkKitchen(plan, kitchen)).toEqual([]);
+    }
+  });
+  it('still varies the kitchen: cooks of 1 and of 6, with and without burners', () => {
+    expect(pairs.some((p) => p.kitchen.cooks === 1)).toBe(true);
+    expect(pairs.some((p) => p.kitchen.cooks === 6)).toBe(true);
+    expect(pairs.some((p) => p.kitchen.burners === 0)).toBe(true);
+    expect(pairs.some((p) => p.plan.steps.some((s) => s.appliance === 'burner'))).toBe(true);
+  });
 });

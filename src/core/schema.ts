@@ -82,6 +82,12 @@ const variant = <S extends 'error' | 'warning', C extends string, F extends z.Zo
     ...fields,
   });
 
+const HoldExceededIssueSchema = variant('warning', 'hold_exceeded', {
+  stepId: StepIdSchema,
+  waitMin: z.int().min(1),
+  holdMin: z.int().min(0),
+});
+
 export const IssueSchema = z.discriminatedUnion('code', [
   variant('error', 'invalid_field', {
     field: z.string().min(1),
@@ -119,9 +125,11 @@ export const IssueSchema = z.discriminatedUnion('code', [
   }),
   variant('warning', 'long_hands_on', { stepId: StepIdSchema, minutes: z.int() }),
   variant('warning', 'short_hands_free', { stepId: StepIdSchema, minutes: z.int() }),
+  HoldExceededIssueSchema,
 ]);
 
 export type Issue = z.infer<typeof IssueSchema>;
+export type HoldExceededIssue = Extract<Issue, { code: 'hold_exceeded' }>;
 export type IssueCode = Issue['code'];
 export type ErrorCode = Extract<Issue, { severity: 'error' }>['code'];
 export type WarningCode = Extract<Issue, { severity: 'warning' }>['code'];
@@ -146,6 +154,7 @@ export const WARNING_CODES: readonly WarningCode[] = [
   'appliance_mismatch',
   'long_hands_on',
   'short_hands_free',
+  'hold_exceeded',
 ];
 
 /** Order on ids by UTF-16 code units: -1, 0 or 1. Never localeCompare. */
@@ -172,3 +181,37 @@ export function canonicalPlan(plan: Plan): Plan {
       .toSorted(byId),
   };
 }
+
+/** Earliest minute on the scheduler axis: every step lasts at most 480 minutes (decided here). */
+const AXIS_MIN = -(LIMITS.stepsMax * LIMITS.minutesMax);
+
+export const StepLanesSchema = z.strictObject({
+  burner: z.int().min(1).max(LIMITS.burnersMax).nullable(),
+  oven: z.int().min(1).max(LIMITS.ovensMax).nullable(),
+  cook: z.int().min(1).max(LIMITS.cooksMax).nullable(),
+});
+
+export const ScheduledStepSchema = z.strictObject({
+  id: StepIdSchema,
+  startMin: z.int().min(AXIS_MIN).max(-1),
+  endMin: z
+    .int()
+    .min(AXIS_MIN + 1)
+    .max(0),
+  lanes: StepLanesSchema,
+  slackMin: z.int().min(0).max(-AXIS_MIN),
+  critical: z.boolean(),
+  waitMin: z.int().min(0).max(-AXIS_MIN).nullable(),
+});
+
+export const ScheduleSchema = z.strictObject({
+  plan: PlanSchema,
+  kitchen: KitchenSchema,
+  steps: z.array(ScheduledStepSchema).min(1).max(LIMITS.stepsMax),
+  spanMin: z.int().min(1).max(-AXIS_MIN),
+  chainMin: z.int().min(1).max(-AXIS_MIN),
+  warnings: z.array(HoldExceededIssueSchema),
+});
+export type StepLanes = z.infer<typeof StepLanesSchema>;
+export type ScheduledStep = z.infer<typeof ScheduledStepSchema>;
+export type Schedule = z.infer<typeof ScheduleSchema>;

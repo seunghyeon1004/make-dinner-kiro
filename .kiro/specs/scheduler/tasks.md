@@ -20,7 +20,7 @@ A task is ticked only after its command passed in the same session. Commands run
 
 ## T1. Schedule types and the `hold_exceeded` issue
 
-- [ ] T1.1 Example tests for `StepLanesSchema`, `ScheduledStepSchema` and `ScheduleSchema`: each
+- [x] T1.1 Example tests for `StepLanesSchema`, `ScheduledStepSchema` and `ScheduleSchema`: each
   bound at its edge and one past it (`startMin` −38400 and −1 vs −38401 and 0, `endMin` 0 vs 1,
   lane 0 and 9, negative slack, negative wait), unknown keys rejected, the H1 table written out
   as a `Schedule` parses; `IssueSchema` accepts a `hold_exceeded` warning and rejects it as an
@@ -29,7 +29,7 @@ A task is ticked only after its command passed in the same session. Commands run
   Files: `test/core/schema.test.ts`, `src/core/schema.ts` (stubs).
   Covers: R2.1, R2.2, R2.6, R2.7, R2.8.
   Command: `npx vitest run --project examples test/core/schema.test.ts`
-- [ ] T1.2 Implement the three schemas, their types, `HoldExceededIssue` and the `hold_exceeded`
+- [x] T1.2 Implement the three schemas, their types, `HoldExceededIssue` and the `hold_exceeded`
   variant until T1.1 passes.
   Files: `src/core/schema.ts`.
   Covers: R2.1, R2.2, R2.6, R2.7, R2.8.
@@ -37,7 +37,7 @@ A task is ticked only after its command passed in the same session. Commands run
 
 ## T2. Test support
 
-- [ ] T2.1 Add `PREP_AHEAD`, `SOLO_BURNER`, `SOLO_KEEPS`, `HANDS_FREE`, `TWO_CHOPS`, `LONG_DAY`,
+- [x] T2.1 Add `PREP_AHEAD`, `SOLO_BURNER`, `SOLO_KEEPS`, `HANDS_FREE`, `TWO_CHOPS`, `LONG_DAY`,
   `COLD_SAUCE` and the kitchens `ONE_BURNER_KITCHEN`, `NO_BURNER_KITCHEN`, `BURNER_ONLY_KITCHEN`,
   `BARE_KITCHEN`, `BIG_KITCHEN` exactly as in the design, steps in non-topological order where
   there is more than one, each with its expected schedule (H1 to H6) in a comment; add the H1 to
@@ -46,7 +46,7 @@ A task is ticked only after its command passed in the same session. Commands run
   Files: `test/support/fixtures.ts`, `test/core/schema.test.ts`.
   Covers: R10.3.
   Command: `npx vitest run --project examples test/core/schema.test.ts`
-- [ ] T2.2 Example tests for the new oracles against hand work: on the H1 and H3 starts,
+- [x] T2.2 Example tests for the new oracles against hand work: on the H1 and H3 starts,
   `oracleSlack`, `oracleWaits` and `oracleHoldExceeded` give the table values; the H1 to H5
   tables give no capacity, precedence, completeness or lane violation; each hand-made broken
   schedule in the design outline gives exactly its one violation; `oracleValid` is false for an
@@ -54,20 +54,20 @@ A task is ticked only after its command passed in the same session. Commands run
   Files: `test/meta/oracles.test.ts`, `test/support/oracles.ts` (stubs).
   Covers: R10.1.
   Command: `npx vitest run --project examples test/meta/oracles.test.ts`
-- [ ] T2.3 Implement the oracles with plain loops, importing from `src/core` only types and
+- [x] T2.3 Implement the oracles with plain loops, importing from `src/core` only types and
   schemas, until T2.2 passes. Lint or a test asserts the file imports nothing from
   `schedule`, `passes/` or `timeline`.
   Files: `test/support/oracles.ts`.
   Covers: R10.1.
   Command: `npx vitest run --project examples test/meta/oracles.test.ts`
-- [ ] T2.4 Example tests from `fc.sample` with a fixed seed: every `arbUnlimitedPair` kitchen
+- [x] T2.4 Example tests from `fc.sample` with a fixed seed: every `arbUnlimitedPair` kitchen
   has counts `>=` the plan's burner, oven and hands-on step counts and passes `KitchenSchema`,
   every plan has no `checkPlan` error; `arbHandsFreePair` plans have no hands-on step and their
   kitchens have every needed appliance.
   Files: `test/meta/arbitraries.test.ts`, `test/support/arbitraries.ts` (stubs).
   Covers: R10.2.
   Command: `npx vitest run --project examples test/meta/arbitraries.test.ts`
-- [ ] T2.5 Implement `arbUnlimitedKitchen`, `fitUnlimited`, `arbUnlimitedPair` and
+- [x] T2.5 Implement `arbUnlimitedKitchen`, `fitUnlimited`, `arbUnlimitedPair` and
   `arbHandsFreePair` until T2.4 passes, changing no existing generator.
   Files: `test/support/arbitraries.ts`.
   Covers: R10.2.
@@ -75,7 +75,7 @@ A task is ticked only after its command passed in the same session. Commands run
 
 ## T3. Guarantee coverage check
 
-- [ ] T3.1 Write `CLAIMS` and `test/meta/guarantees.test.ts` with checks 1 to 6 of the design.
+- [x] T3.1 Write `CLAIMS` and `test/meta/guarantees.test.ts` with checks 1 to 6 of the design.
   Parser checks run on the real steering file and on inline strings (a title cut at `${`, a
   prettier-wrapped `it(`, `G4.10` not covering `G4.1`, an unknown `G9` title). Run it and see the
   coverage check fail listing exactly the G ids (S1 and S2 exist from recipe-graph). This task
@@ -86,14 +86,14 @@ A task is ticked only after its command passed in the same session. Commands run
 
 ## T4. Timeline
 
-- [ ] T4.1 Example tests for `capacityOf`, `resourcesOf` (all six appliance and hands-on pairs),
+- [x] T4.1 Example tests for `capacityOf`, `resourcesOf` (all six appliance and hands-on pairs),
   `usage`, `add`, `remove`, `lastFull`, `firstFull`, `latestFit` and `earliestFit`, as in the
   design outline, including the jump over a busy block giving the same answer as trying every
   candidate, an empty resource list, and the floor and ceiling throws.
   Files: `test/core/timeline.test.ts`, `src/core/timeline.ts` (stubs).
   Covers: R3.4, R3.5, N2.
   Command: `npx vitest run --project examples test/core/timeline.test.ts`
-- [ ] T4.2 Implement `src/core/timeline.ts` until T4.1 passes.
+- [x] T4.2 Implement `src/core/timeline.ts` until T4.1 passes.
   Files: `src/core/timeline.ts`.
   Covers: R3.4, R3.5, N2, N3.
   Command: `npx vitest run --project examples test/core/timeline.test.ts`

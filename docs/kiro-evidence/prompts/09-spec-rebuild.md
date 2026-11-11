@@ -14,3 +14,5 @@ Scope:
 - Check R1 to R6 against the algorithm while writing the design, as the scheduler spec did, and report any conflict with a counterexample rather than adjusting quietly. In particular check R3 together with re-align, R5 together with repeated rebuilds, and whether forward repair in previous-start order can ever place a step before a prerequisite that was pushed later.
 
 Keep tasks.md to about 20 sub-tasks.
+
+Length: this spec builds on two others, so refer to them instead of repeating them. Aim for requirements.md under 160 lines and design.md under 420 lines; be exact rather than long.

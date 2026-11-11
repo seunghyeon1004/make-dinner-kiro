@@ -1,0 +1,126 @@
+
+=== session 2026-11-11T05:15:16Z ===
+$ kiro-cli chat --output-format stream-json --v3 --mode spec --trust-all-tools --trust-workspace --model claude-opus-5.5 "$(cat docs/kiro-evidence/prompts/09-spec-rebuild.md)"
+--- prompt ---
+Write the spec `rebuild` in .kiro/specs/rebuild/: requirements.md, then design.md, then tasks.md. No code in this session.
+
+Rebuild is the incremental build of this build system: during cooking something slips, and the plan is recomputed with done and running steps pinned, moving only what has to move. Read docs/BRIEF.md ("Rebuild"), .kiro/steering/scheduler-guarantees.md (R1 to R6 and the notation), and the scheduler spec in .kiro/specs/scheduler/ (the Schedule type, timeline helpers, passes, oracles, generators and fixtures; reuse them, do not redefine them). Follow the format of the scheduler spec (EARS requirements with ids, design with real paths and exact signatures, algorithms with stated tie-breaks, a "Why the guarantees hold" section checked against the algorithm, hand-worked examples, correctness properties with ids and generators, test-first tasks.md; "(decided here)" marks; "Conflicts found"; decisions and open questions at the end of your reply).
+
+Scope:
+- `rebuild(schedule, progress, now)` in src/core/rebuild.ts, pure: forward repair, the new serving minute, re-align (right-justify of pending steps whose result does not keep, toward the new serving minute), lanes, readout, and the diff. Typed Result errors for bad input (unknown step id in progress, a done step with end before start, `now` not an integer, a running step that started after now, a pending step whose prerequisite is... decide what is and is not an error when the cook has done things out of order, and say why: the cook is always right about what already happened, so pinned facts are never rejected for breaking precedence or capacity; the rebuild plans the future around them).
+- The exact Progress type and the Rebuilt type: the new Schedule (same shape as the scheduler's, on the same axis, with serving minute S' carried explicitly; say how every consumer that assumed "serving is minute 0" reads it), plus `diff: { moved: [{ stepId, fromStartMin, toStartMin }], unchanged: string[], servingShiftMin }`.
+- Rebuild must be repeatable: the output of one rebuild is valid input to the next (the cook slips twice). State the invariant that makes this true and add a property for it (P-RB ids): a second rebuild with no further slip changes nothing (this is R4 applied to a rebuilt schedule).
+- "Needs more time" on a running step (extraMin), a step finished early, a step started early by the cook, a step not started although its time has passed (the cook is behind: forward repair pushes it to now), a done step that took longer than planned, all steps done (nothing to plan; the serving minute is when the last terminal step ended).
+- Lanes after a rebuild: pinned steps keep their lanes where possible; say what happens when actual times make two pinned steps overlap on one lane (reality over the model: capacity is only guaranteed from `now` onward, R1).
+- Slack and waits in the rebuilt schedule are computed against S'. hold_exceeded warnings are recomputed (a held-back dish may now break a hold; that is exactly what the cook needs to be told).
+- Hand-worked examples on the SUNDAY_ROAST fixture with HOME_KITCHEN, starting from table H1 of the scheduler design: (a) at now = -60 the roast is running and gets extraMin 15: show which steps move and that `greens.shred` (already done) and the pending prep stay; S' = 15; (b) the cook is 8 minutes behind on a hands-on step with nothing else slipping; (c) a no-slip rebuild (R4). Each as a full table the implementation must reproduce exactly.
+- Properties: one per R1 to R6, using `arbProgress(schedule)` and `arbNow(schedule)` generators (define them: progress consistent with some moment `now` of a real run, including early starts, overruns and extra minutes), with oracles independent of src/. Extend test/meta/guarantees.test.ts by adding the `rebuild: ['R']` claim.
+- Check R1 to R6 against the algorithm while writing the design, as the scheduler spec did, and report any conflict with a counterexample rather than adjusting quietly. In particular check R3 together with re-align, R5 together with repeated rebuilds, and whether forward repair in previous-start order can ever place a step before a prerequisite that was pushed later.
+
+Keep tasks.md to about 20 sub-tasks.
+
+Length: this spec builds on two others, so refer to them instead of repeating them. Aim for requirements.md under 160 lines and design.md under 420 lines; be exact rather than long.
+--- transcript (rendered from the event stream by scripts/kiro-render.mjs) ---
+[steering] {"steeringDocuments":["file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/kiro-conduct.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/product.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/scheduler-guarantees.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/structure.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/tech.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/testing.md"],"kind":"steering_inclusion"}
+[tool:other] Update Session Information
+[tool:search] List Directory ~/hackathons-2026/kiroween/makedinner/.kiro
+[tool:search] Grep Search
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/docs/BRIEF.md
+[tool:search] List Directory ~/hackathons-2026/kiroween/makedinner/.kiro/specs
+[tool:execute] $ ls -la .kiro/specs/* .kiro/steering src/core src/core/passes test test/* 2>&1; wc -l .kiro/specs/scheduler/* docs/kiro-evidence/spec-rebuild-session.txt; git status --short; git log --oneline | head -15
+    … (107 earlier lines not shown)
+    drwxr-xr-x  7 user  staff    224 11월 11 13:42 .
+    drwxr-xr-x  7 user  staff    224 11월 11 13:39 ..
+    -rw-r--r--  1 user  staff  24120 11월 11 14:05 arbitraries.ts
+    -rw-r--r--  1 user  staff    671 11월 11 13:01 fakes.ts
+    -rw-r--r--  1 user  staff    461 11월 11 13:40 fc-params.ts
+    -rw-r--r--  1 user  staff   7485 11월 11 13:38 fixtures.ts
+    -rw-r--r--  1 user  staff  10439 11월 11 13:40 oracles.ts
+         648 .kiro/specs/scheduler/design.md
+         220 .kiro/specs/scheduler/requirements.md
+         250 .kiro/specs/scheduler/tasks.md
+          29 docs/kiro-evidence/spec-rebuild-session.txt
+        1147 total
+     M docs/kiro-evidence/hook-fires.log
+     M docs/kiro-evidence/prompts/09-spec-rebuild.md
+    ?? docs/kiro-evidence/impl-scheduler-session.txt
+    ?? docs/kiro-evidence/prompts/13a-impl-scheduler.md
+    ?? docs/kiro-evidence/prompts/13b-impl-scheduler.md
+    ?? docs/kiro-evidence/prompts/13c-impl-scheduler.md
+    ?? docs/kiro-evidence/spec-rebuild-session.txt
+    bf3e5b5 README stub
+    85c5a35 Review of dinnerfile and recipe-reader specs: steering and review notes by hand
+    0b7bc26 recipe-graph T2.7, T6-T8 complete (sous-chef, auto); specs dinnerfile and recipe-reader (Kiro spec mode, opus)
+    1da2d46 recipe-graph T3-T5: graph helpers, canonical form, parsing (sous-chef, auto); T2.7 added by hand
+    39ab713 Spec scheduler (Kiro spec mode, opus): found C1 and C2; G4.1 wording narrowed by hand
+    078e901 recipe-graph T1-T2: schemas, fixtures, oracles, generators (sous-chef, auto)
+    2720414 Custom agents sous-chef and expediter, workspace hooks and hook scripts (Kiro session, auto)
+    75f0a5c Spec recipe-graph (Kiro spec mode, opus); runner keeps stderr apart; S1 reworded
+    b5a3d55 Keep sample recipe text byte-exact
+    3aafe5d Scaffold: tooling, health route, web shell, contrast check (Kiro session 2); sample recipes by hand
+    6b53b3f Brief, Kiro runner and steering files written by Kiro (session 1)
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/scheduler/requirements.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/scheduler/design.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/scheduler/tasks.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/scheduler/design.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/support/fixtures.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/schema.ts
+[tool:search] Grep Search
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/docs/kiro-evidence/spec-rebuild-session.txt
+[tool:search] Grep Search
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/steering/ui.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/support/arbitraries.ts
+[tool:search] Grep Search
+[tool:execute] $ cat src/core/result.ts; ls test/meta; grep -n "sortIssues" -A25 src/core/sanity.ts | head -50; cat vitest.config.ts
+    … (55 earlier lines not shown)
+    299-/** Base word, the appliance it suggests, and every form matched (design table). */
+    300-const MISMATCH_WORDS: readonly (readonly [string, Suggested, readonly string[]])[] = [
+    301-  ['oven', 'oven', ['oven', 'ovens']],
+    302-  ['roast', 'oven', ['roast', 'roasts', 'roasted', 'roasting']],
+    303-  ['bake', 'oven', ['bake', 'bakes', 'baked', 'baking']],
+    304-  ['simmer', 'burner', ['simmer', 'simmers', 'simmered', 'simmering']],
+    305-  ['boil', 'burner', ['boil', 'boils', 'boiled', 'boiling']],
+    306-  ['fry', 'burner', ['fry', 'fries', 'fried', 'frying']],
+    import { defineConfig } from 'vitest/config';
+    
+    export default defineConfig({
+      test: {
+        projects: [
+          {
+            test: {
+              name: 'examples',
+              include: ['test/**/*.test.ts'],
+              environment: 'node',
+            },
+          },
+          {
+            test: {
+              name: 'props',
+              include: ['test/**/*.pbt.ts'],
+              environment: 'node',
+            },
+          },
+        ],
+      },
+    });
+    exit 0
+[tool:execute] $ cat test/meta/guarantee-claims.ts; grep -n "validatePlan\|PlanCheck" -A6 src/core/sanity.ts | head -30
+    /**
+     * Guarantee families each spec proves, as the leading letter of the ids in
+     * `.kiro/steering/scheduler-guarantees.md`. A family is claimed whole: every id of it needs a
+     * property (see `guarantees.test.ts`). Later specs add an entry; none is removed.
+     */
+    export const CLAIMS: Readonly<Record<string, readonly ('G' | 'R' | 'S' | 'D')[]>> = {
+      'recipe-graph': ['S'],
+      scheduler: ['G'],
+    };
+    509:export type PlanCheck = { plan: Plan; issues: Issue[] } | { plan: null; issues: Issue[] };
+    510-
+    511-/** Parse, then check: the one pipeline every plan source uses. Never throws on input. */
+    512:export function validatePlan(input: unknown): PlanCheck {
+    513-  const parsed = parsePlan(input);
+    514-  if (!parsed.ok) return { plan: null, issues: parsed.error };
+    515-  return { plan: parsed.value, issues: checkPlan(parsed.value) };
+    516-}
+    exit 0

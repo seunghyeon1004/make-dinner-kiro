@@ -1,4 +1,4 @@
-import type { Plan } from '../../src/core/schema.js';
+import type { Kitchen, Plan, ScheduledStep } from '../../src/core/schema.js';
 
 // Independent recomputations for tests (testing.md). Plain loops, brute force, no import
 // from src/core other than types. Every number and word list below is written out here on
@@ -345,4 +345,242 @@ export function oracleNormalise(text: string): string {
   while (start < end && isWhiteSpace(joined.charAt(start))) start++;
   while (end > start && isWhiteSpace(joined.charAt(end - 1))) end--;
   return joined.slice(start, end);
+}
+
+// ---------------------------------------------------------------------------------------
+// Scheduler oracles. Written from scheduler-guarantees.md: plain loops over every minute and
+// every step, nothing shared with src/core/schedule.ts, passes/ or timeline.ts.
+
+export type Starts = Record<string, number>;
+type ResourceName = 'burner' | 'oven' | 'cook';
+const RESOURCE_NAMES: readonly ResourceName[] = ['burner', 'oven', 'cook'];
+
+type PlanStep = Plan['steps'][number];
+
+const startOf = (starts: Starts, step: PlanStep): number => starts[step.id] ?? 0;
+const endOf = (starts: Starts, step: PlanStep): number => startOf(starts, step) + step.minutes;
+const activeAt = (starts: Starts, step: PlanStep, minute: number): boolean =>
+  startOf(starts, step) <= minute && minute < endOf(starts, step);
+
+function usesResource(step: PlanStep, resource: ResourceName): boolean {
+  if (resource === 'cook') return step.handsOn;
+  return step.appliance === resource;
+}
+
+function limitOf(kitchen: Kitchen, resource: ResourceName): number {
+  if (resource === 'burner') return kitchen.burners;
+  if (resource === 'oven') return kitchen.ovens;
+  return kitchen.cooks;
+}
+
+/** The steps in plain code-unit order of id. */
+function byId(plan: Plan): PlanStep[] {
+  return [...plan.steps].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+/** The steps that list `id` in `after`. */
+function usersOf(plan: Plan, id: string): PlanStep[] {
+  return byId(plan).filter((s) => s.after.includes(id));
+}
+
+/** G1: every minute and resource where more steps are active than the kitchen has units. */
+export function oracleCapacityViolations(
+  plan: Plan,
+  kitchen: Kitchen,
+  starts: Starts,
+): { minute: number; resource: ResourceName; count: number; limit: number }[] {
+  const out: { minute: number; resource: ResourceName; count: number; limit: number }[] = [];
+  if (plan.steps.length === 0) return out;
+  let first = Infinity;
+  let last = -Infinity;
+  for (const s of plan.steps) {
+    first = Math.min(first, startOf(starts, s));
+    last = Math.max(last, endOf(starts, s));
+  }
+  for (let minute = first; minute < last; minute++) {
+    for (const resource of RESOURCE_NAMES) {
+      let count = 0;
+      for (const s of plan.steps) {
+        if (usesResource(s, resource) && activeAt(starts, s, minute)) count++;
+      }
+      const limit = limitOf(kitchen, resource);
+      if (count > limit) out.push({ minute, resource, count, limit });
+    }
+  }
+  return out;
+}
+
+/** G2: every step that starts before one of its prerequisites ends. */
+export function oraclePrecedenceViolations(
+  plan: Plan,
+  starts: Starts,
+): { stepId: string; prereq: string }[] {
+  const out: { stepId: string; prereq: string }[] = [];
+  for (const s of byId(plan)) {
+    for (const prereq of [...new Set(s.after)].sort()) {
+      const p = plan.steps.find((x) => x.id === prereq);
+      if (p === undefined) continue;
+      if (startOf(starts, s) < endOf(starts, p)) out.push({ stepId: s.id, prereq });
+    }
+  }
+  return out;
+}
+
+/**
+ * G3: `missing:<id>`, `duplicate:<id>`, `extra:<id>`, then per scheduled step
+ * `not_integer:<id>`, `length:<id>` (end - start differs from minutes), `after_serving:<id>`.
+ */
+export function oracleCompletenessViolations(
+  plan: Plan,
+  steps: readonly ScheduledStep[],
+): string[] {
+  const out: string[] = [];
+  const planIds = byId(plan).map((s) => s.id);
+  for (const id of planIds) {
+    const count = steps.filter((s) => s.id === id).length;
+    if (count === 0) out.push(`missing:${id}`);
+    if (count > 1) out.push(`duplicate:${id}`);
+  }
+  const extra = [...new Set(steps.map((s) => s.id))].filter((id) => !planIds.includes(id)).sort();
+  for (const id of extra) out.push(`extra:${id}`);
+  const entries = [...steps].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  for (const e of entries) {
+    const step = plan.steps.find((s) => s.id === e.id);
+    if (step === undefined) continue;
+    if (!Number.isInteger(e.startMin) || !Number.isInteger(e.endMin))
+      out.push(`not_integer:${e.id}`);
+    if (e.endMin - e.startMin !== step.minutes) out.push(`length:${e.id}`);
+    if (e.endMin > 0) out.push(`after_serving:${e.id}`);
+  }
+  return out;
+}
+
+/** G1 to G3 on bare starts: integers, nothing ends after 0, no capacity or precedence violation. */
+export function oracleValid(plan: Plan, kitchen: Kitchen, starts: Starts): boolean {
+  for (const s of plan.steps) {
+    const start = starts[s.id];
+    if (start === undefined || !Number.isInteger(start)) return false;
+    if (start + s.minutes > 0) return false;
+  }
+  return (
+    oracleCapacityViolations(plan, kitchen, starts).length === 0 &&
+    oraclePrecedenceViolations(plan, starts).length === 0
+  );
+}
+
+/**
+ * Notation of scheduler-guarantees.md: null where the result keeps; for a terminal step
+ * `0 - end`; otherwise the latest start of its users minus its end.
+ */
+export function oracleWaits(plan: Plan, starts: Starts): Record<string, number | null> {
+  const out: Record<string, number | null> = {};
+  for (const s of byId(plan)) {
+    if (s.holdMin === null) {
+      out[s.id] = null;
+      continue;
+    }
+    const users = usersOf(plan, s.id);
+    if (users.length === 0) {
+      out[s.id] = 0 - endOf(starts, s);
+      continue;
+    }
+    let latest = -Infinity;
+    for (const u of users) latest = Math.max(latest, startOf(starts, u));
+    out[s.id] = latest - endOf(starts, s);
+  }
+  return out;
+}
+
+/** G4.3: every step whose wait is longer than its hold, by id. */
+export function oracleHoldExceeded(
+  plan: Plan,
+  starts: Starts,
+): { stepId: string; waitMin: number; holdMin: number }[] {
+  const waits = oracleWaits(plan, starts);
+  const out: { stepId: string; waitMin: number; holdMin: number }[] = [];
+  for (const s of byId(plan)) {
+    const wait = waits[s.id];
+    if (wait === null || wait === undefined || s.holdMin === null) continue;
+    if (wait > s.holdMin) out.push({ stepId: s.id, waitMin: wait, holdMin: s.holdMin });
+  }
+  return out;
+}
+
+/**
+ * G5.1 and G6: `lane_missing:<id>:<resource>`, `lane_extra:<id>:<resource>`,
+ * `lane_range:<id>:<resource>`, then `lane_clash:<resource>:<lane>:<idA>:<idB>` (idA < idB).
+ */
+export function oracleLaneViolations(
+  plan: Plan,
+  kitchen: Kitchen,
+  steps: readonly ScheduledStep[],
+): string[] {
+  const out: string[] = [];
+  const entryOf = (id: string): ScheduledStep | undefined => steps.find((e) => e.id === id);
+  for (const s of byId(plan)) {
+    const entry = entryOf(s.id);
+    if (entry === undefined) continue;
+    for (const resource of RESOURCE_NAMES) {
+      const lane = entry.lanes[resource];
+      const needed = usesResource(s, resource);
+      if (needed && lane === null) out.push(`lane_missing:${s.id}:${resource}`);
+      if (!needed && lane !== null) out.push(`lane_extra:${s.id}:${resource}`);
+      if (
+        lane !== null &&
+        !(Number.isInteger(lane) && lane >= 1 && lane <= limitOf(kitchen, resource))
+      ) {
+        out.push(`lane_range:${s.id}:${resource}`);
+      }
+    }
+  }
+  const ids = byId(plan).map((s) => s.id);
+  for (const resource of RESOURCE_NAMES) {
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const a = entryOf(ids[i] ?? '');
+        const b = entryOf(ids[j] ?? '');
+        if (a === undefined || b === undefined) continue;
+        const lane = a.lanes[resource];
+        if (lane === null || lane !== b.lanes[resource]) continue;
+        if (a.startMin < b.endMin && b.startMin < a.endMin) {
+          out.push(`lane_clash:${resource}:${lane}:${a.id}:${b.id}`);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * G8, by the definition: the largest k >= 0 such that delaying the step alone by each d in
+ * 1..k keeps G1 to G3 true (lanes ignored, holds not considered). Tries d = 1, 2, ... and
+ * stops at the first failure.
+ */
+export function oracleSlack(plan: Plan, kitchen: Kitchen, starts: Starts, stepId: string): number {
+  const step = plan.steps.find((s) => s.id === stepId);
+  if (step === undefined) return 0;
+  const users = usersOf(plan, stepId);
+  const others = plan.steps.filter((s) => s.id !== stepId);
+  for (let d = 1; ; d++) {
+    const newStart = startOf(starts, step) + d;
+    const newEnd = newStart + step.minutes;
+    if (newEnd > 0) return d - 1;
+    if (users.some((u) => startOf(starts, u) < newEnd)) return d - 1;
+    for (let minute = newStart; minute < newEnd; minute++) {
+      for (const resource of RESOURCE_NAMES) {
+        if (!usesResource(step, resource)) continue;
+        let count = 1;
+        for (const o of others) {
+          if (usesResource(o, resource) && activeAt(starts, o, minute)) count++;
+        }
+        if (count > limitOf(kitchen, resource)) return d - 1;
+      }
+    }
+  }
+}
+
+export function startsOf(steps: readonly ScheduledStep[]): Starts {
+  const out: Starts = {};
+  for (const s of steps) out[s.id] = s.startMin;
+  return out;
 }

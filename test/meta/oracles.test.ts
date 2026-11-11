@@ -1,10 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import type { Appliance, Plan, Step } from '../../src/core/schema.js';
-import { MEZZE, SUNDAY_ROAST, TIGHT_OVEN } from '../support/fixtures.js';
+import type { Appliance, Kitchen, Plan, ScheduledStep, Step } from '../../src/core/schema.js';
+import {
+  BARE_KITCHEN,
+  HOME_KITCHEN,
+  MEZZE,
+  NO_BURNER_KITCHEN,
+  ONE_BURNER_KITCHEN,
+  PREP_AHEAD,
+  SUNDAY_ROAST,
+  TIGHT_OVEN,
+  TWO_CHOPS,
+} from '../support/fixtures.js';
 import {
   isCycleIn,
+  oracleCapacityViolations,
+  oracleCompletenessViolations,
+  oracleHoldExceeded,
+  oracleLaneViolations,
   oracleLongestChain,
   oracleNormalise,
+  oraclePrecedenceViolations,
+  oracleSlack,
+  oracleValid,
+  oracleWaits,
+  startsOf,
   oracleShortestCycleLength,
   oracleStronglyConnected,
   oracleSuccessors,
@@ -409,5 +428,309 @@ describe('R9.1 oracleNormalise, one example per rule', () => {
   it('an empty or white-space-only text gives an empty string', () => {
     expect(oracleNormalise('')).toBe('');
     expect(oracleNormalise(' \r\n \t ')).toBe('');
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// Scheduler spec, T2.2: the scheduler oracles against the hand-worked tables H1 to H5.
+
+/** [id, startMin, endMin, burner, oven, cook, slackMin, waitMin], as in the design tables. */
+type Row = readonly [
+  string,
+  number,
+  number,
+  number | null,
+  number | null,
+  number | null,
+  number,
+  number | null,
+];
+
+const H1: readonly Row[] = [
+  ['chicken.carve', -5, 0, null, null, 1, 0, 0],
+  ['chicken.prep', -110, -100, null, null, 1, 0, null],
+  ['chicken.rest', -25, -5, null, null, null, 0, 0],
+  ['chicken.roast', -100, -25, null, 1, null, 0, 5],
+  ['gravy.roux', -20, -18, 1, null, 1, 0, 0],
+  ['gravy.simmer', -18, -8, 1, null, null, 0, 0],
+  ['gravy.strain', -8, -6, null, null, 1, 0, 6],
+  ['greens.boil', -10, -6, 2, null, null, 0, 0],
+  ['greens.shred', -100, -95, null, null, 1, 75, null],
+  ['greens.toss', -6, -5, null, null, 1, 0, 5],
+];
+const H2: readonly Row[] = [
+  ['chicken.carve', -5, 0, null, null, 1, 0, 0],
+  ['chicken.prep', -110, -100, null, null, 1, 0, null],
+  ['chicken.rest', -25, -5, null, null, null, 0, 0],
+  ['chicken.roast', -100, -25, null, 1, null, 0, 3],
+  ['gravy.roux', -22, -20, 1, null, 1, 0, 0],
+  ['gravy.simmer', -20, -10, 1, null, null, 0, 2],
+  ['gravy.strain', -8, -6, null, null, 1, 0, 6],
+  ['greens.boil', -10, -6, 1, null, null, 0, 0],
+  ['greens.shred', -100, -95, null, null, 1, 73, null],
+  ['greens.toss', -6, -5, null, null, 1, 0, 5],
+];
+const H3: readonly Row[] = [
+  ['pie.assemble', -85, -70, null, null, 1, 30, null],
+  ['pie.bake', -40, 0, null, 1, null, 0, 0],
+  ['potatoes.peel', -95, -85, null, null, 1, 0, null],
+  ['potatoes.roast', -85, -40, null, 1, null, 0, 40],
+];
+const H4: readonly Row[] = [
+  ['flatbread.cook', -14, -2, 1, null, 1, 0, 2],
+  ['flatbread.mix', -84, -74, null, null, 1, 0, null],
+  ['flatbread.rise', -74, -14, null, null, null, 0, 0],
+  ['hummus.blend', -74, -64, null, null, 1, 0, null],
+  ['salad.chop', -64, -54, null, null, 1, 0, null],
+  ['salad.dressing', -54, -49, null, null, 1, 35, null],
+  ['salad.toss', -2, 0, null, null, 1, 0, 0],
+];
+const H5: readonly Row[] = [
+  ['bread.bake', -8, 0, null, 1, null, 0, 0],
+  ['bread.shape', -13, -8, null, null, 1, 0, 0],
+  ['jelly.set', -60, 0, null, null, null, 0, null],
+  ['salad.chop', -60, -50, null, null, 1, 37, null],
+  ['salad.toss', -2, 0, null, null, 1, 0, 0],
+];
+
+const TABLES: readonly (readonly [string, Plan, Kitchen, readonly Row[]])[] = [
+  ['H1 SUNDAY_ROAST x HOME_KITCHEN', SUNDAY_ROAST, HOME_KITCHEN, H1],
+  ['H2 SUNDAY_ROAST x ONE_BURNER_KITCHEN', SUNDAY_ROAST, ONE_BURNER_KITCHEN, H2],
+  ['H3 TIGHT_OVEN x HOME_KITCHEN', TIGHT_OVEN, HOME_KITCHEN, H3],
+  ['H4 MEZZE x HOME_KITCHEN', MEZZE, HOME_KITCHEN, H4],
+  ['H5 PREP_AHEAD x NO_BURNER_KITCHEN', PREP_AHEAD, NO_BURNER_KITCHEN, H5],
+];
+
+const stepsOf = (rows: readonly Row[]): ScheduledStep[] =>
+  rows.map(([id, startMin, endMin, burner, oven, cook, slackMin, waitMin]) => ({
+    id,
+    startMin,
+    endMin,
+    lanes: { burner, oven, cook },
+    slackMin,
+    critical: slackMin === 0,
+    waitMin,
+  }));
+
+describe.each(TABLES)('R10.1 oracles on the hand-worked table %s', (_name, plan, kitchen, rows) => {
+  const steps = stepsOf(rows);
+  const starts = startsOf(steps);
+
+  it('startsOf reads the start of each step', () => {
+    expect(Object.keys(starts).sort()).toEqual(rows.map((r) => r[0]));
+    for (const row of rows) expect(starts[row[0]]).toBe(row[1]);
+  });
+  it('no capacity, precedence, completeness or lane violation, and the schedule is valid', () => {
+    expect(oracleCapacityViolations(plan, kitchen, starts)).toEqual([]);
+    expect(oraclePrecedenceViolations(plan, starts)).toEqual([]);
+    expect(oracleCompletenessViolations(plan, steps)).toEqual([]);
+    expect(oracleLaneViolations(plan, kitchen, steps)).toEqual([]);
+    expect(oracleValid(plan, kitchen, starts)).toBe(true);
+  });
+  it('oracleSlack gives the slack column for every step', () => {
+    for (const row of rows)
+      expect([row[0], oracleSlack(plan, kitchen, starts, row[0])]).toEqual([row[0], row[6]]);
+  });
+  it('oracleWaits gives the wait column (null where the result keeps)', () => {
+    expect(oracleWaits(plan, starts)).toEqual(Object.fromEntries(rows.map((r) => [r[0], r[7]])));
+  });
+});
+
+describe('R10.1 oracleHoldExceeded on the hand-worked tables', () => {
+  it('H3: only potatoes.roast waits past its hold (40 > 10)', () => {
+    expect(oracleHoldExceeded(TIGHT_OVEN, startsOf(stepsOf(H3)))).toEqual([
+      { stepId: 'potatoes.roast', waitMin: 40, holdMin: 10 },
+    ]);
+  });
+  it('H1, H2, H4 and H5: no step waits past its hold (a wait equal to the hold is fine)', () => {
+    expect(oracleHoldExceeded(SUNDAY_ROAST, startsOf(stepsOf(H1)))).toEqual([]);
+    expect(oracleHoldExceeded(SUNDAY_ROAST, startsOf(stepsOf(H2)))).toEqual([]);
+    expect(oracleHoldExceeded(MEZZE, startsOf(stepsOf(H4)))).toEqual([]);
+    expect(oracleHoldExceeded(PREP_AHEAD, startsOf(stepsOf(H5)))).toEqual([]);
+  });
+  it('H5 pass 1 starts: bread.shape at -17 waits 4 > hold 2', () => {
+    const pass1 = { ...startsOf(stepsOf(H5)), 'bread.shape': -17, 'salad.chop': -12 };
+    expect(oracleHoldExceeded(PREP_AHEAD, pass1)).toEqual([
+      { stepId: 'bread.shape', waitMin: 4, holdMin: 2 },
+    ]);
+  });
+  it('H6 TWO_CHOPS x BARE_KITCHEN: b.chop waits 10 > 5', () => {
+    const starts = { 'a.chop': -10, 'b.chop': -20 };
+    expect(oracleHoldExceeded(TWO_CHOPS, starts)).toEqual([
+      { stepId: 'b.chop', waitMin: 10, holdMin: 5 },
+    ]);
+    expect(oracleWaits(TWO_CHOPS, starts)).toEqual({ 'a.chop': 0, 'b.chop': 10 });
+  });
+});
+
+describe('R10.1 each hand-made broken schedule gives exactly its one violation', () => {
+  const ovens = planOf([
+    { id: 'x.a', minutes: 3, appliance: 'oven', handsOn: false },
+    { id: 'y.b', minutes: 3, appliance: 'oven', handsOn: false },
+  ]);
+  it('two oven steps overlapping in one minute with one oven: capacity', () => {
+    // x.a is active at -3, -2, -1; y.b at -5, -4, -3: they share minute -3 only.
+    expect(oracleCapacityViolations(ovens, HOME_KITCHEN, { 'x.a': -3, 'y.b': -5 })).toEqual([
+      { minute: -3, resource: 'oven', count: 2, limit: 1 },
+    ]);
+  });
+  it('the same two steps one minute apart: no capacity violation', () => {
+    expect(oracleCapacityViolations(ovens, HOME_KITCHEN, { 'x.a': -3, 'y.b': -6 })).toEqual([]);
+  });
+  it('two hands-on steps overlapping with one cook: capacity on the cook', () => {
+    const chops = planOf([
+      { id: 'x.a', minutes: 2 },
+      { id: 'y.b', minutes: 2 },
+    ]);
+    expect(oracleCapacityViolations(chops, HOME_KITCHEN, { 'x.a': -2, 'y.b': -3 })).toEqual([
+      { minute: -2, resource: 'cook', count: 2, limit: 1 },
+    ]);
+  });
+  it('a hands-free step is not counted against the cook', () => {
+    const mixed = planOf([
+      { id: 'x.a', minutes: 2, handsOn: false },
+      { id: 'y.b', minutes: 2 },
+    ]);
+    expect(oracleCapacityViolations(mixed, BARE_KITCHEN, { 'x.a': -2, 'y.b': -2 })).toEqual([]);
+  });
+
+  const chain = planOf([
+    { id: 'p.a', minutes: 3, handsOn: false },
+    { id: 'p.b', minutes: 2, handsOn: false, after: ['p.a'] },
+  ]);
+  it('a step starting before its prerequisite ends: precedence', () => {
+    // p.a ends at -2, p.b starts at -3.
+    expect(oraclePrecedenceViolations(chain, { 'p.a': -5, 'p.b': -3 })).toEqual([
+      { stepId: 'p.b', prereq: 'p.a' },
+    ]);
+  });
+  it('a step starting exactly when its prerequisite ends: no violation', () => {
+    expect(oraclePrecedenceViolations(chain, { 'p.a': -5, 'p.b': -2 })).toEqual([]);
+  });
+
+  const steps = (rows: readonly Row[]): ScheduledStep[] => stepsOf(rows);
+  it('a missing step: completeness', () => {
+    expect(
+      oracleCompletenessViolations(chain, steps([['p.a', -5, -2, null, null, null, 0, 0]])),
+    ).toEqual(['missing:p.b']);
+  });
+  it('an extra step, a duplicated step, a wrong length and an end after 0', () => {
+    const base: Row[] = [
+      ['p.a', -5, -2, null, null, null, 0, 0],
+      ['p.b', -2, 0, null, null, null, 0, 0],
+    ];
+    expect(
+      oracleCompletenessViolations(chain, steps([...base, ['q.z', -2, 0, null, null, null, 0, 0]])),
+    ).toEqual(['extra:q.z']);
+    expect(oracleCompletenessViolations(chain, steps([...base, base[0] as Row]))).toEqual([
+      'duplicate:p.a',
+    ]);
+    expect(
+      oracleCompletenessViolations(
+        chain,
+        steps([['p.a', -5, -1, null, null, null, 0, 0], base[1] as Row]),
+      ),
+    ).toEqual(['length:p.a']);
+    expect(
+      oracleCompletenessViolations(
+        chain,
+        steps([
+          ['p.a', -4, -1, null, null, null, 0, 0],
+          ['p.b', -1, 1, null, null, null, 0, 0],
+        ]),
+      ),
+    ).toEqual(['after_serving:p.b']);
+  });
+
+  it('two overlapping steps on cook 1: lane clash; the same steps on cooks 1 and 2: none', () => {
+    const chops = planOf([
+      { id: 'x.a', minutes: 2 },
+      { id: 'y.b', minutes: 2 },
+    ]);
+    const kitchen = { burners: 0, ovens: 0, cooks: 2 };
+    expect(
+      oracleLaneViolations(
+        chops,
+        kitchen,
+        steps([
+          ['x.a', -2, 0, null, null, 1, 0, 0],
+          ['y.b', -3, -1, null, null, 1, 0, 0],
+        ]),
+      ),
+    ).toEqual(['lane_clash:cook:1:x.a:y.b']);
+    expect(
+      oracleLaneViolations(
+        chops,
+        kitchen,
+        steps([
+          ['x.a', -2, 0, null, null, 1, 0, 0],
+          ['y.b', -3, -1, null, null, 2, 0, 0],
+        ]),
+      ),
+    ).toEqual([]);
+  });
+  it('a missing, an unexpected and an out-of-range lane', () => {
+    const one = planOf([{ id: 'x.a', minutes: 2, appliance: 'oven', handsOn: false }]);
+    expect(
+      oracleLaneViolations(one, HOME_KITCHEN, steps([['x.a', -2, 0, null, null, null, 0, 0]])),
+    ).toEqual(['lane_missing:x.a:oven']);
+    expect(
+      oracleLaneViolations(one, HOME_KITCHEN, steps([['x.a', -2, 0, null, 1, 1, 0, 0]])),
+    ).toEqual(['lane_extra:x.a:cook']);
+    expect(
+      oracleLaneViolations(one, HOME_KITCHEN, steps([['x.a', -2, 0, null, 2, null, 0, 0]])),
+    ).toEqual(['lane_range:x.a:oven']);
+  });
+});
+
+describe('R10.1 oracleValid', () => {
+  it('is false when a step ends after minute 0', () => {
+    const chain = planOf([{ id: 'p.a', minutes: 3, handsOn: false }]);
+    expect(oracleValid(chain, HOME_KITCHEN, { 'p.a': -3 })).toBe(true);
+    expect(oracleValid(chain, HOME_KITCHEN, { 'p.a': -2 })).toBe(false);
+  });
+  it('is false for a capacity violation and for a precedence violation', () => {
+    const ovens = planOf([
+      { id: 'x.a', minutes: 3, appliance: 'oven', handsOn: false },
+      { id: 'y.b', minutes: 3, appliance: 'oven', handsOn: false },
+    ]);
+    expect(oracleValid(ovens, HOME_KITCHEN, { 'x.a': -3, 'y.b': -5 })).toBe(false);
+    const chain = planOf([
+      { id: 'p.a', minutes: 3, handsOn: false },
+      { id: 'p.b', minutes: 2, handsOn: false, after: ['p.a'] },
+    ]);
+    expect(oracleValid(chain, HOME_KITCHEN, { 'p.a': -5, 'p.b': -3 })).toBe(false);
+  });
+});
+
+describe('R10.1 oracleSlack takes the definition, not the end points (design C2)', () => {
+  it('one cook, s.go at -20 and o.go at -17, 1 minute each: delays 1 and 2 fit, 3 collides, so slack 2', () => {
+    // Delays 4 to 19 fit again and 20 ends after 0; an end-point check would say 19.
+    const plan = planOf([
+      { id: 's.go', minutes: 1 },
+      { id: 'o.go', minutes: 1 },
+    ]);
+    const starts = { 's.go': -20, 'o.go': -17 };
+    expect(oracleValid(plan, HOME_KITCHEN, starts)).toBe(true);
+    expect(oracleSlack(plan, HOME_KITCHEN, starts, 's.go')).toBe(2);
+  });
+  it('a step whose result is used at its end has slack 0', () => {
+    const plan = planOf([
+      { id: 'p.a', minutes: 3, handsOn: false },
+      { id: 'p.b', minutes: 2, handsOn: false, after: ['p.a'] },
+    ]);
+    expect(oracleSlack(plan, HOME_KITCHEN, { 'p.a': -5, 'p.b': -2 }, 'p.a')).toBe(0);
+    expect(oracleSlack(plan, HOME_KITCHEN, { 'p.a': -6, 'p.b': -2 }, 'p.a')).toBe(1);
+  });
+});
+
+describe('R10.1 the oracles import nothing from the scheduler', () => {
+  it('oracles.ts has no import of schedule, passes or timeline, and only type or schema imports from core', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(new URL('../support/oracles.ts', import.meta.url), 'utf8');
+    const imports = [...source.matchAll(/^import[^;]*from\s+'([^']+)'/gm)].map((m) => m[1]);
+    expect(imports).toEqual(['../../src/core/schema.js']);
+    // no dynamic import or require that could reach them
+    expect(source).not.toMatch(/import\(|require\(/);
   });
 });

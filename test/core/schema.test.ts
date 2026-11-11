@@ -5,6 +5,9 @@ import {
   ERROR_CODES,
   WARNING_CODES,
   IssueSchema,
+  ScheduledStepSchema,
+  ScheduleSchema,
+  StepLanesSchema,
   ApplianceSchema,
   DISH_ID_PATTERN,
   DishIdSchema,
@@ -15,22 +18,39 @@ import {
   StepIdSchema,
   StepSchema,
 } from '../../src/core/schema.js';
+import { checkKitchen, checkPlan } from '../../src/core/sanity.js';
 import {
+  BARE_KITCHEN,
+  BIG_KITCHEN,
+  BURNER_ONLY_KITCHEN,
+  COLD_SAUCE,
+  HANDS_FREE,
   HOME_KITCHEN,
+  LONG_DAY,
   MEZZE,
+  NO_BURNER_KITCHEN,
+  ONE_BURNER_KITCHEN,
+  PREP_AHEAD,
+  SOLO_BURNER,
+  SOLO_KEEPS,
   SUNDAY_ROAST,
   TIGHT_OVEN,
+  TWO_CHOPS,
   TWO_COOK_KITCHEN,
 } from '../support/fixtures.js';
 import type {
   Appliance,
   Dish,
   ErrorCode,
+  HoldExceededIssue,
   Issue,
   IssueCode,
   Kitchen,
   Plan,
+  Schedule,
+  ScheduledStep,
   Step,
+  StepLanes,
   WarningCode,
 } from '../../src/core/schema.js';
 
@@ -506,10 +526,23 @@ const ISSUES: readonly {
       minutes: 1,
     },
   },
+  {
+    code: 'hold_exceeded',
+    severity: 'warning',
+    issue: {
+      severity: 'warning',
+      code: 'hold_exceeded',
+      message:
+        'Step potatoes.roast will be ready 40 minutes before serving and can wait only 10 minutes. More ovens, burners or cooks may help.',
+      stepId: 'potatoes.roast',
+      waitMin: 40,
+      holdMin: 10,
+    },
+  },
 ];
 
 describe('R1.9, R7.1 IssueSchema', () => {
-  it('has the design table codes: 13 errors then 3 warnings, in table order', () => {
+  it('has the design table codes: 13 errors then the warnings, in table order', () => {
     expect(ERROR_CODES).toEqual([
       'invalid_field',
       'minutes_out_of_range',
@@ -525,7 +558,12 @@ describe('R1.9, R7.1 IssueSchema', () => {
       'dish_without_steps',
       'missing_appliance',
     ]);
-    expect(WARNING_CODES).toEqual(['appliance_mismatch', 'long_hands_on', 'short_hands_free']);
+    expect(WARNING_CODES).toEqual([
+      'appliance_mismatch',
+      'long_hands_on',
+      'short_hands_free',
+      'hold_exceeded',
+    ]);
   });
 
   it('the test table covers exactly the codes of ERROR_CODES then WARNING_CODES', () => {
@@ -575,7 +613,7 @@ describe('R1.9, R7.1 IssueSchema', () => {
     expect(accepts(IssueSchema, { ...ISSUES[6]?.issue, stepId: 'Gravy Roux' })).toBe(false);
   });
   it('rejects an unknown code', () => {
-    expect(accepts(IssueSchema, { severity: 'error', code: 'hold_exceeded', message: 'x' })).toBe(
+    expect(accepts(IssueSchema, { severity: 'error', code: 'burnt_toast', message: 'x' })).toBe(
       false,
     );
   });
@@ -610,7 +648,7 @@ describe('R1.9 types: narrowing on code fixes severity and extra fields', () => 
       | 'missing_appliance'
     >();
     expectTypeOf<WarningCode>().toEqualTypeOf<
-      'appliance_mismatch' | 'long_hands_on' | 'short_hands_free'
+      'appliance_mismatch' | 'long_hands_on' | 'short_hands_free' | 'hold_exceeded'
     >();
     expectTypeOf<IssueCode>().toEqualTypeOf<ErrorCode | WarningCode>();
   });
@@ -870,5 +908,314 @@ describe('canonicalPlan (R8.1, R8.2)', () => {
     const [x, y] = canonicalPlan(plan).steps;
     expect(x !== undefined && 'detail' in x).toBe(false);
     expect(y?.detail).toBe('Slowly.');
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// Scheduler spec, T1.1: StepLanesSchema, ScheduledStepSchema, ScheduleSchema, hold_exceeded
+
+const lanes = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+  burner: null,
+  oven: null,
+  cook: 1,
+  ...over,
+});
+
+const scheduled = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+  id: 'chicken.carve',
+  startMin: -5,
+  endMin: 0,
+  lanes: lanes(),
+  slackMin: 0,
+  critical: true,
+  waitMin: 0,
+  ...over,
+});
+
+/** The H1 table of the scheduler design (SUNDAY_ROAST x HOME_KITCHEN), column by column. */
+const H1_STEPS: Record<string, unknown>[] = [
+  scheduled({ id: 'chicken.carve', startMin: -5, endMin: 0, waitMin: 0 }),
+  scheduled({ id: 'chicken.prep', startMin: -110, endMin: -100, waitMin: null }),
+  scheduled({
+    id: 'chicken.rest',
+    startMin: -25,
+    endMin: -5,
+    lanes: lanes({ cook: null }),
+    waitMin: 0,
+  }),
+  scheduled({
+    id: 'chicken.roast',
+    startMin: -100,
+    endMin: -25,
+    lanes: lanes({ oven: 1, cook: null }),
+    waitMin: 5,
+  }),
+  scheduled({
+    id: 'gravy.roux',
+    startMin: -20,
+    endMin: -18,
+    lanes: lanes({ burner: 1 }),
+    waitMin: 0,
+  }),
+  scheduled({
+    id: 'gravy.simmer',
+    startMin: -18,
+    endMin: -8,
+    lanes: lanes({ burner: 1, cook: null }),
+    waitMin: 0,
+  }),
+  scheduled({ id: 'gravy.strain', startMin: -8, endMin: -6, waitMin: 6 }),
+  scheduled({
+    id: 'greens.boil',
+    startMin: -10,
+    endMin: -6,
+    lanes: lanes({ burner: 2, cook: null }),
+    waitMin: 0,
+  }),
+  scheduled({
+    id: 'greens.shred',
+    startMin: -100,
+    endMin: -95,
+    slackMin: 75,
+    critical: false,
+    waitMin: null,
+  }),
+  scheduled({ id: 'greens.toss', startMin: -6, endMin: -5, waitMin: 5 }),
+];
+
+const h1Schedule = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+  plan: canonicalPlan(SUNDAY_ROAST),
+  kitchen: HOME_KITCHEN,
+  steps: H1_STEPS,
+  spanMin: 110,
+  chainMin: 110,
+  warnings: [],
+  ...over,
+});
+
+describe('R2.1, R2.6 StepLanesSchema: lane numbers within the kitchen bounds', () => {
+  it('accepts null or 1..max for each resource, and rejects 0 and max + 1', () => {
+    expect(accepts(StepLanesSchema, lanes())).toBe(true);
+    expect(accepts(StepLanesSchema, { burner: 8, oven: 4, cook: 6 })).toBe(true);
+    expect(accepts(StepLanesSchema, { burner: 1, oven: 1, cook: 1 })).toBe(true);
+    for (const [key, edge] of [
+      ['burner', 8],
+      ['oven', 4],
+      ['cook', 6],
+    ] as const) {
+      expect(accepts(StepLanesSchema, lanes({ [key]: 0 }))).toBe(false);
+      expect(accepts(StepLanesSchema, lanes({ [key]: edge + 1 }))).toBe(false);
+      expect(accepts(StepLanesSchema, lanes({ [key]: edge }))).toBe(true);
+    }
+  });
+  it('rejects 9 burners, a fraction, a string, an unknown key and a missing key', () => {
+    expect(accepts(StepLanesSchema, lanes({ burner: 9 }))).toBe(false);
+    expect(accepts(StepLanesSchema, lanes({ cook: 1.5 }))).toBe(false);
+    expect(accepts(StepLanesSchema, lanes({ cook: '1' }))).toBe(false);
+    expect(accepts(StepLanesSchema, lanes({ extra: 1 }))).toBe(false);
+    expect(accepts(StepLanesSchema, without(lanes(), 'oven'))).toBe(false);
+  });
+});
+
+describe('R2.1, R2.2 ScheduledStepSchema bounds', () => {
+  it('startMin: -38400 and -1 pass, -38401 and 0 fail', () => {
+    expect(accepts(ScheduledStepSchema, scheduled({ startMin: -38400 }))).toBe(true);
+    expect(accepts(ScheduledStepSchema, scheduled({ startMin: -1 }))).toBe(true);
+    expect(accepts(ScheduledStepSchema, scheduled({ startMin: -38401 }))).toBe(false);
+    expect(accepts(ScheduledStepSchema, scheduled({ startMin: 0 }))).toBe(false);
+  });
+  it('endMin: 0 and -38399 pass, 1 and -38400 fail', () => {
+    expect(accepts(ScheduledStepSchema, scheduled({ endMin: 0 }))).toBe(true);
+    expect(accepts(ScheduledStepSchema, scheduled({ endMin: -38399 }))).toBe(true);
+    expect(accepts(ScheduledStepSchema, scheduled({ endMin: 1 }))).toBe(false);
+    expect(accepts(ScheduledStepSchema, scheduled({ endMin: -38400 }))).toBe(false);
+  });
+  it('slackMin: 0 and 38400 pass, -1 and 38401 fail', () => {
+    expect(accepts(ScheduledStepSchema, scheduled({ slackMin: 0 }))).toBe(true);
+    expect(accepts(ScheduledStepSchema, scheduled({ slackMin: 38400 }))).toBe(true);
+    expect(accepts(ScheduledStepSchema, scheduled({ slackMin: -1 }))).toBe(false);
+    expect(accepts(ScheduledStepSchema, scheduled({ slackMin: 38401 }))).toBe(false);
+  });
+  it('waitMin: null, 0 and 38400 pass, -1 and 38401 fail', () => {
+    expect(accepts(ScheduledStepSchema, scheduled({ waitMin: null }))).toBe(true);
+    expect(accepts(ScheduledStepSchema, scheduled({ waitMin: 0 }))).toBe(true);
+    expect(accepts(ScheduledStepSchema, scheduled({ waitMin: 38400 }))).toBe(true);
+    expect(accepts(ScheduledStepSchema, scheduled({ waitMin: -1 }))).toBe(false);
+    expect(accepts(ScheduledStepSchema, scheduled({ waitMin: 38401 }))).toBe(false);
+  });
+  it('rejects fractions, a bad id, a non-boolean critical and out-of-range lanes', () => {
+    expect(accepts(ScheduledStepSchema, scheduled({ startMin: -5.5 }))).toBe(false);
+    expect(accepts(ScheduledStepSchema, scheduled({ id: 'Carve' }))).toBe(false);
+    expect(accepts(ScheduledStepSchema, scheduled({ critical: 'yes' }))).toBe(false);
+    expect(accepts(ScheduledStepSchema, scheduled({ lanes: lanes({ cook: 7 }) }))).toBe(false);
+  });
+  it('rejects unknown keys and every missing key', () => {
+    expect(accepts(ScheduledStepSchema, scheduled({ extra: 1 }))).toBe(false);
+    for (const key of Object.keys(scheduled())) {
+      expect(accepts(ScheduledStepSchema, without(scheduled(), key))).toBe(false);
+    }
+  });
+});
+
+describe('R2.1, R2.2 ScheduleSchema', () => {
+  it('R10.6 the H1 table written out as a Schedule parses and comes back unchanged', () => {
+    const parsed = ScheduleSchema.safeParse(h1Schedule());
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).toEqual(h1Schedule());
+  });
+  it('rejects unknown keys and every missing key', () => {
+    expect(accepts(ScheduleSchema, h1Schedule({ extra: 1 }))).toBe(false);
+    for (const key of Object.keys(h1Schedule())) {
+      expect(accepts(ScheduleSchema, without(h1Schedule(), key))).toBe(false);
+    }
+  });
+  it('spanMin and chainMin: 1 and 38400 pass, 0 and 38401 fail', () => {
+    for (const key of ['spanMin', 'chainMin']) {
+      expect(accepts(ScheduleSchema, h1Schedule({ [key]: 1 }))).toBe(true);
+      expect(accepts(ScheduleSchema, h1Schedule({ [key]: 38400 }))).toBe(true);
+      expect(accepts(ScheduleSchema, h1Schedule({ [key]: 0 }))).toBe(false);
+      expect(accepts(ScheduleSchema, h1Schedule({ [key]: 38401 }))).toBe(false);
+    }
+  });
+  it('steps: at least one, at most 80', () => {
+    expect(accepts(ScheduleSchema, h1Schedule({ steps: [] }))).toBe(false);
+    const one = [scheduled()];
+    expect(accepts(ScheduleSchema, h1Schedule({ steps: one }))).toBe(true);
+    const many = Array.from({ length: 81 }, () => scheduled());
+    expect(accepts(ScheduleSchema, h1Schedule({ steps: many.slice(0, 80) }))).toBe(true);
+    expect(accepts(ScheduleSchema, h1Schedule({ steps: many }))).toBe(false);
+  });
+  it('rejects an invalid plan or kitchen inside, and a warning that is not hold_exceeded', () => {
+    expect(accepts(ScheduleSchema, h1Schedule({ plan: { title: 'x' } }))).toBe(false);
+    expect(accepts(ScheduleSchema, h1Schedule({ kitchen: { burners: 1 } }))).toBe(false);
+    const warning = ISSUES.find((i) => i.code === 'hold_exceeded')?.issue;
+    const other = ISSUES.find((i) => i.code === 'long_hands_on')?.issue;
+    expect(accepts(ScheduleSchema, h1Schedule({ warnings: [warning] }))).toBe(true);
+    expect(accepts(ScheduleSchema, h1Schedule({ warnings: [other] }))).toBe(false);
+  });
+});
+
+describe('R2.8 hold_exceeded issue', () => {
+  const issue = ISSUES.find((i) => i.code === 'hold_exceeded')?.issue ?? {};
+  it('accepts the warning', () => {
+    expect(accepts(IssueSchema, issue)).toBe(true);
+  });
+  it('rejects it as an error and without waitMin', () => {
+    expect(accepts(IssueSchema, { ...issue, severity: 'error' })).toBe(false);
+    expect(accepts(IssueSchema, without(issue, 'waitMin'))).toBe(false);
+  });
+  it('waitMin is at least 1 and holdMin at least 0, both integers', () => {
+    expect(accepts(IssueSchema, { ...issue, waitMin: 1 })).toBe(true);
+    expect(accepts(IssueSchema, { ...issue, waitMin: 0 })).toBe(false);
+    expect(accepts(IssueSchema, { ...issue, holdMin: 0 })).toBe(true);
+    expect(accepts(IssueSchema, { ...issue, holdMin: -1 })).toBe(false);
+    expect(accepts(IssueSchema, { ...issue, waitMin: 1.5 })).toBe(false);
+    expect(accepts(IssueSchema, { ...issue, holdMin: 2.5 })).toBe(false);
+  });
+});
+
+describe('R2.1 inferred types of the schedule', () => {
+  it('StepLanes, ScheduledStep, Schedule and HoldExceededIssue', () => {
+    expectTypeOf<StepLanes>().toEqualTypeOf<{
+      burner: number | null;
+      oven: number | null;
+      cook: number | null;
+    }>();
+    expectTypeOf<ScheduledStep>().toEqualTypeOf<{
+      id: string;
+      startMin: number;
+      endMin: number;
+      lanes: StepLanes;
+      slackMin: number;
+      critical: boolean;
+      waitMin: number | null;
+    }>();
+    expectTypeOf<Schedule['plan']>().toEqualTypeOf<Plan>();
+    expectTypeOf<Schedule['kitchen']>().toEqualTypeOf<Kitchen>();
+    expectTypeOf<Schedule['steps']>().toEqualTypeOf<ScheduledStep[]>();
+    expectTypeOf<Schedule['spanMin']>().toEqualTypeOf<number>();
+    expectTypeOf<Schedule['chainMin']>().toEqualTypeOf<number>();
+    expectTypeOf<Schedule['warnings']>().toEqualTypeOf<HoldExceededIssue[]>();
+    expectTypeOf<HoldExceededIssue['severity']>().toEqualTypeOf<'warning'>();
+    expectTypeOf<HoldExceededIssue['waitMin']>().toEqualTypeOf<number>();
+    expectTypeOf<HoldExceededIssue['holdMin']>().toEqualTypeOf<number>();
+    expectTypeOf<HoldExceededIssue['stepId']>().toEqualTypeOf<string>();
+    expectTypeOf<z.infer<typeof ScheduleSchema>>().toEqualTypeOf<Schedule>();
+  });
+});
+
+describe('R10.3 scheduler fixtures pass the schemas and have no sanity error', () => {
+  // [name, plan, step count, dish ids]
+  const NEW_PLANS = [
+    ['PREP_AHEAD', PREP_AHEAD, 5, ['bread', 'jelly', 'salad']],
+    ['SOLO_BURNER', SOLO_BURNER, 1, ['solo']],
+    ['SOLO_KEEPS', SOLO_KEEPS, 1, ['solo']],
+    ['HANDS_FREE', HANDS_FREE, 2, ['stock', 'jelly']],
+    ['TWO_CHOPS', TWO_CHOPS, 2, ['a', 'b']],
+    ['LONG_DAY', LONG_DAY, 80, ['feast']],
+    ['COLD_SAUCE', COLD_SAUCE, 3, ['fish', 'sauce']],
+  ] as const;
+
+  it.each(NEW_PLANS)('%s', (_name, fixture, stepCount, dishIds) => {
+    expect(PlanSchema.safeParse(fixture).success).toBe(true);
+    expect(fixture.steps).toHaveLength(stepCount);
+    expect(fixture.dishes.map((d) => d.id)).toEqual(dishIds);
+    expect(checkPlan(fixture).filter((i) => i.severity === 'error')).toEqual([]);
+  });
+
+  it('LONG_DAY: 80 steps of 480 minutes, no prerequisites, hold 0, so 80 long_hands_on warnings', () => {
+    expect(LONG_DAY.steps.every((s) => s.minutes === 480 && s.after.length === 0)).toBe(true);
+    expect(LONG_DAY.steps.every((s) => s.holdMin === 0 && s.handsOn)).toBe(true);
+    expect(LONG_DAY.steps[0]?.id).toBe('feast.s80');
+    expect(checkPlan(LONG_DAY).map((i) => i.code)).toEqual(Array(80).fill('long_hands_on'));
+  });
+
+  it('PREP_AHEAD, COLD_SAUCE and TWO_CHOPS give no warning at all', () => {
+    expect(checkPlan(PREP_AHEAD)).toEqual([]);
+    expect(checkPlan(COLD_SAUCE)).toEqual([]);
+    expect(checkPlan(TWO_CHOPS)).toEqual([]);
+  });
+
+  it('PREP_AHEAD and COLD_SAUCE are not written in topological order', () => {
+    for (const fixture of [PREP_AHEAD, COLD_SAUCE]) {
+      const position = new Map(fixture.steps.map((s, i) => [s.id, i]));
+      expect(
+        fixture.steps.some((s) =>
+          s.after.some((p) => (position.get(p) ?? -1) > (position.get(s.id) ?? -1)),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it('kitchens have the counts of the design', () => {
+    expect(ONE_BURNER_KITCHEN).toEqual({ burners: 1, ovens: 1, cooks: 1 });
+    expect(NO_BURNER_KITCHEN).toEqual({ burners: 0, ovens: 1, cooks: 1 });
+    expect(BURNER_ONLY_KITCHEN).toEqual({ burners: 1, ovens: 0, cooks: 1 });
+    expect(BARE_KITCHEN).toEqual({ burners: 0, ovens: 0, cooks: 1 });
+    expect(BIG_KITCHEN).toEqual({ burners: 8, ovens: 4, cooks: 6 });
+    for (const k of [
+      ONE_BURNER_KITCHEN,
+      NO_BURNER_KITCHEN,
+      BURNER_ONLY_KITCHEN,
+      BARE_KITCHEN,
+      BIG_KITCHEN,
+    ]) {
+      expect(KitchenSchema.safeParse(k).success).toBe(true);
+    }
+  });
+
+  it('each plan is paired with a kitchen that has what it needs (design H5, H6)', () => {
+    const pairs = [
+      [PREP_AHEAD, NO_BURNER_KITCHEN],
+      [SOLO_BURNER, BURNER_ONLY_KITCHEN],
+      [SOLO_KEEPS, BURNER_ONLY_KITCHEN],
+      [HANDS_FREE, BURNER_ONLY_KITCHEN],
+      [TWO_CHOPS, BARE_KITCHEN],
+      [TWO_CHOPS, BIG_KITCHEN],
+      [LONG_DAY, BARE_KITCHEN],
+      [COLD_SAUCE, BURNER_ONLY_KITCHEN],
+      [SUNDAY_ROAST, ONE_BURNER_KITCHEN],
+    ] as const;
+    for (const [plan, kitchen] of pairs) expect(checkKitchen(plan, kitchen)).toEqual([]);
   });
 });

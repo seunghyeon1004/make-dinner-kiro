@@ -297,6 +297,68 @@ export function arbPlanAndKitchen(
   });
 }
 
+/**
+ * Makes a plan small enough for an "unlimited" kitchen to exist (C1): in step-id order, every
+ * hands-on step after the 6th becomes hands-free, every burner step after the 8th and every
+ * oven step after the 4th uses no appliance. Step order and all other fields stay. Only fields
+ * that no error rule reads change, so a valid plan stays valid (warnings may appear).
+ */
+export function fitUnlimited(plan: Plan): Plan {
+  const ordered = [...plan.steps].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const changed = new Map<string, Step>();
+  let hands = 0;
+  let burners = 0;
+  let ovens = 0;
+  for (const step of ordered) {
+    let next = step;
+    if (step.handsOn) {
+      hands++;
+      if (hands > 6) next = { ...next, handsOn: false };
+    }
+    if (step.appliance === 'burner') {
+      burners++;
+      if (burners > 8) next = { ...next, appliance: 'none' };
+    }
+    if (step.appliance === 'oven') {
+      ovens++;
+      if (ovens > 4) next = { ...next, appliance: 'none' };
+    }
+    changed.set(step.id, next);
+  }
+  return { ...plan, steps: plan.steps.map((s) => changed.get(s.id) ?? s) };
+}
+
+/**
+ * Counts at least the steps needing each resource; only for plans with at most 8 burner, 4
+ * oven and 6 hands-on steps (see C1). Each count is drawn from the number needed up to the
+ * schema maximum (and cooks from at least 1).
+ */
+export function arbUnlimitedKitchen(plan: Plan): fc.Arbitrary<Kitchen> {
+  const burners = plan.steps.filter((s) => s.appliance === 'burner').length;
+  const ovens = plan.steps.filter((s) => s.appliance === 'oven').length;
+  const cooks = plan.steps.filter((s) => s.handsOn).length;
+  return fc.record({
+    burners: fc.integer({ min: burners, max: 8 }),
+    ovens: fc.integer({ min: ovens, max: 4 }),
+    cooks: fc.integer({ min: Math.max(1, cooks), max: 6 }),
+  });
+}
+
+/** `arbPlan()` fitted by `fitUnlimited`, then a kitchen from `arbUnlimitedKitchen`. */
+export function arbUnlimitedPair(): fc.Arbitrary<{ plan: Plan; kitchen: Kitchen }> {
+  return arbPlan()
+    .map(fitUnlimited)
+    .chain((plan) => arbUnlimitedKitchen(plan).map((kitchen) => ({ plan, kitchen })));
+}
+
+/** `arbPlanAndKitchen()` with every step's `handsOn` set to false. */
+export function arbHandsFreePair(): fc.Arbitrary<{ plan: Plan; kitchen: Kitchen }> {
+  return arbPlanAndKitchen().map(({ plan, kitchen }) => ({
+    plan: { ...plan, steps: plan.steps.map((s) => ({ ...s, handsOn: false })) },
+    kitchen,
+  }));
+}
+
 /** The same plan with `steps`, `dishes` and every `after` list in another order. */
 export function arbShuffledPlan(plan: Plan): fc.Arbitrary<Plan> {
   const indices = (n: number): number[] => Array.from({ length: n }, (_, i) => i);

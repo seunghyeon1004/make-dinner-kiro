@@ -1,0 +1,2849 @@
+
+=== session 2026-11-11T05:15:16Z ===
+$ kiro-cli chat --output-format stream-json --v3 --agent sous-chef --trust-all-tools --trust-workspace --model auto "$(cat docs/kiro-evidence/prompts/13a-impl-scheduler.md)"
+--- prompt ---
+Spec: scheduler. Implement T1 (types), T2 (test support), T3 (guarantee coverage check) and T4 (timeline), in that order, and nothing after. Note for T3: the coverage check will list G families that have no property yet; follow the design on how it stays honest until T8 adds them (it must not pass vacuously, and you must not tick T3.1 on a check that cannot fail).
+
+Read .kiro/specs/scheduler/requirements.md, design.md and tasks.md in full first, and the recipe-graph code they build on. The hand-worked tables H1 to H6 in the design are the expected results: if your implementation disagrees with a table, work the case by hand before deciding which is wrong; if the table is wrong, stop and report it with your working (do not change the expected values to match the code).
+
+Each sub-task: test first, see it fail on an assertion, implement, run the proving command the task names, tick the sub-task only when it passed in this session. Property tasks are real fast-check properties using `fcParams()`; never lower the run count in code; a failing property is a scheduler bug until shown otherwise (scheduler-guarantees.md).
+
+Working rule: when the design is ambiguous or slightly off in a way that touches no guarantee, no schema bound and no sanity rule, choose the reading closest to the requirement, write it under "Decisions I made", and continue. Stop and ask only when a requirement, a guarantee, a property or a hand-worked table would have to change.
+
+Keep example tests proportionate. Do not commit. End with the report kiro-conduct.md asks for, with the real counts from `npm test`, `npm run test:props`, `npm run typecheck`, `npm run lint` and `npx prettier --check .`.
+--- transcript (rendered from the event stream by scripts/kiro-render.mjs) ---
+[steering] {"steeringDocuments":["file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/kiro-conduct.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/product.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/scheduler-guarantees.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/structure.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/tech.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/testing.md"],"kind":"steering_inclusion"}
+
+I'll start by reading the spec files in full.
+
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/scheduler/requirements.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/scheduler/design.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/scheduler/tasks.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/scheduler/design.md
+[tool:search] List Directory ~/hackathons-2026/kiroween/makedinner
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && git status --short | head; find src test -type f | sort; wc -l src/core/*.ts test/support/*.ts test/core/*.ts test/meta/*.ts; cat package.json vitest.config.ts
+    … (112 earlier lines not shown)
+        "playwright-core": "1.60.0",
+        "prettier": "3.9.10",
+        "tsx": "4.23.15",
+        "typescript": "6.0.3",
+        "typescript-eslint": "8.72.2",
+        "vitest": "5.1.0"
+      }
+    }
+    import { defineConfig } from 'vitest/config';
+    
+    export default defineConfig({
+      test: {
+        projects: [
+          {
+            test: {
+              name: 'examples',
+              include: ['test/**/*.test.ts'],
+              environment: 'node',
+            },
+          },
+          {
+            test: {
+              name: 'props',
+              include: ['test/**/*.pbt.ts'],
+              environment: 'node',
+            },
+          },
+        ],
+      },
+    });
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/schema.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/index.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/graph.ts
+
+Now the existing tests that I'll extend, and the support files.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && grep -n "WARNING_CODES\|^describe\|^import\|expectTypeOf" test/core/schema.test.ts | head -60; sed -n 1,40p test/core/index.test.ts; cat test/support/fc-params.ts; grep -n "^export" test/support/fixtures.ts test/support/oracles.ts test/support/arbitraries.ts
+    … (88 earlier lines not shown)
+     */
+    export function fcParams(): Parameters<unknown[]> {
+      const requested = Number(process.env.FC_NUM_RUNS);
+      const numRuns = Number.isInteger(requested) && requested > 0 ? requested : DEFAULT_NUM_RUNS;
+      return { numRuns };
+    }
+    test/support/fixtures.ts:23:export const SUNDAY_ROAST: Plan = {
+    test/support/fixtures.ts:146:export const MEZZE: Plan = {
+    test/support/fixtures.ts:237:export const TIGHT_OVEN: Plan = {
+    test/support/fixtures.ts:288:export const HOME_KITCHEN: Kitchen = { burners: 4, ovens: 1, cooks: 1 };
+    test/support/fixtures.ts:291:export const TWO_COOK_KITCHEN: Kitchen = { burners: 4, ovens: 1, cooks: 2 };
+    test/support/oracles.ts:48:export function oracleSuccessors(plan: Plan): Record<string, string[]> {
+    test/support/oracles.ts:62:export function oracleTopologicalOrder(plan: Plan): string[] | null {
+    test/support/oracles.ts:81:export function respectsPrecedence(plan: Plan, order: readonly string[]): boolean {
+    test/support/oracles.ts:100:export function isCycleIn(plan: Plan, path: readonly string[]): boolean {
+    test/support/oracles.ts:119:export function oracleStronglyConnected(plan: Plan): string[][] {
+    test/support/oracles.ts:157:export function oracleShortestCycleLength(plan: Plan, id: string): number | null {
+    test/support/oracles.ts:183:export function oracleLongestChain(plan: Plan): number {
+    test/support/oracles.ts:202:export interface OracleWarning {
+    test/support/oracles.ts:263:export function oracleWarnings(plan: Plan): OracleWarning[] {
+    test/support/oracles.ts:310:export function oracleNormalise(text: string): string {
+    test/support/arbitraries.ts:7:export interface PlanOpts {
+    test/support/arbitraries.ts:14:export interface BrokenCase {
+    test/support/arbitraries.ts:170:export function arbKitchen(): fc.Arbitrary<Kitchen> {
+    test/support/arbitraries.ts:277:export function arbPlan(opts: PlanOpts = {}): fc.Arbitrary<Plan> {
+    test/support/arbitraries.ts:289:export function arbPlanAndKitchen(
+    test/support/arbitraries.ts:301:export function arbShuffledPlan(plan: Plan): fc.Arbitrary<Plan> {
+    test/support/arbitraries.ts:325:export function arbPlanLikeValue(): fc.Arbitrary<unknown> {
+    test/support/arbitraries.ts:409:export function arbRecipeText(): fc.Arbitrary<string> {
+    test/support/arbitraries.ts:724:export function arbBrokenPlan(rule: ErrorCode): fc.Arbitrary<BrokenCase> {
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/core/schema.test.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/core/schema.test.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/support/fixtures.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/core/schema.test.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 280,330p src/core/sanity.ts; grep -n "WARNING_CODES\|IssueSchema\|hold_exceeded" -r src test --include=*.ts -l; cat eslint.config.js | head -120
+    … (142 earlier lines not shown)
+            },
+          ],
+          'no-restricted-globals': [
+            'error',
+            ...['Date', 'performance', 'crypto', 'setTimeout', 'setInterval', 'process'].map(
+              (name) => ({ name, message: `src/core is deterministic: ${name} is not allowed.` }),
+            ),
+          ],
+          'no-restricted-syntax': [
+            'error',
+            {
+              selector: 'MemberExpression[object.name="Math"][property.name="random"]',
+              message: 'src/core is deterministic: Math.random is not allowed.',
+            },
+          ],
+        },
+      },
+    
+      // src/server: core through index only; never web or mcp.
+      {
+        files: ['src/server/**/*.ts'],
+        rules: {
+          'no-restricted-imports': [
+            'error',
+            {
+              patterns: [
+                coreOnlyThroughIndex,
+                {
+                  group: ['**/web/**', '**/mcp/**'],
+                  message: 'src/server never imports src/web or src/mcp.',
+    exit 0
+[tool:search] Grep Search
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && grep -n "export function sortIssues" -B3 -A40 src/core/sanity.ts; cat test/meta/oracles.test.ts | sed -n 1,40p; ls .kiro/specs; ls .kiro/steering
+    … (65 earlier lines not shown)
+      title?: string;
+      detail?: string;
+    }
+    
+    /** A plan from short step specs; the dish is the part of the id before the dot. */
+    function planOf(specs: Spec[]): Plan {
+      const dishIds = [...new Set(specs.map((s) => s.id.split('.')[0] ?? ''))];
+      const steps: Step[] = specs.map((s) => ({
+        id: s.id,
+        dish: s.id.split('.')[0] ?? '',
+        title: s.title ?? 'Do the thing',
+        ...(s.detail === undefined ? {} : { detail: s.detail }),
+        minutes: s.minutes ?? 5,
+        appliance: s.appliance ?? 'none',
+        handsOn: s.handsOn ?? true,
+        after: s.after ?? [],
+        holdMin: null,
+      }));
+      return { title: 'Test plan', dishes: dishIds.map((id) => ({ id, name: id })), steps };
+    dinnerfile
+    recipe-graph
+    recipe-reader
+    scheduler
+    kiro-conduct.md
+    product.md
+    scheduler-guarantees.md
+    structure.md
+    tech.md
+    testing.md
+    ui.md
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/sanity.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+import re
+p='test/core/schema.test.ts'
+s=open(p).read()
+
+s=s.replace("""  canonicalPlan,
+  ERROR_CODES,
+  WARNING_CODES,
+  IssueSchema,
+""","""  canonicalPlan,
+  ERROR_CODES,
+  WARNING_CODES,
+  IssueSchema,
+  ScheduledStepSchema,
+  ScheduleSchema,
+  StepLanesSchema,
+""",1)
+s=s.replace("""  Issue,
+  IssueCode,
+  Kitchen,
+  Plan,
+  Step,
+  WarningCode,
+} from '../../src/core/schema.js';
+""","""  HoldExceededIssue,
+  Issue,
+  IssueCode,
+  Kitchen,
+  Plan,
+  Schedule,
+  ScheduledStep,
+  Step,
+  StepLanes,
+  WarningCode,
+} from '../../src/core/schema.js';
+""",1)
+
+s=s.replace("""    expect(WARNING_CODES).toEqual(['appliance_mismatch', 'long_hands_on', 'short_hands_free']);
+  });""","""    expect(WARNING_CODES).toEqual([
+      'appliance_mismatch',
+      'long_hands_on',
+      'short_hands_free',
+      'hold_exceeded',
+    ]);
+  });""",1)
+s=s.replace("it('has the design table codes: 13 errors then 3 warnings, in table order'","it('has the design table codes: 13 errors then the warnings, in table order'",1)
+
+s=s.replace("""      message: 'Step pasta.drain runs by itself for only 1 minute.',
+      stepId: 'pasta.drain',
+      minutes: 1,
+    },
+  },
+];
+""","""      message: 'Step pasta.drain runs by itself for only 1 minute.',
+      stepId: 'pasta.drain',
+      minutes: 1,
+    },
+  },
+  {
+    code: 'hold_exceeded',
+    severity: 'warning',
+    issue: {
+      severity: 'warning',
+      code: 'hold_exceeded',
+      message:
+        'Step potatoes.roast will be ready 40 minutes before serving and can wait only 10 minutes. More ovens, burners or cooks may help.',
+      stepId: 'potatoes.roast',
+      waitMin: 40,
+      holdMin: 10,
+    },
+  },
+];
+""",1)
+
+s=s.replace("""  it('rejects an unknown code', () => {
+    expect(accepts(IssueSchema, { severity: 'error', code: 'hold_exceeded', message: 'x' })).toBe(
+      false,
+    );
+  });""","""  it('rejects an unknown code', () => {
+    expect(accepts(IssueSchema, { severity: 'error', code: 'burnt_toast', message: 'x' })).toBe(
+      false,
+    );
+  });""",1)
+
+s=s.replace("""    expectTypeOf<WarningCode>().toEqualTypeOf<
+      'appliance_mismatch' | 'long_hands_on' | 'short_hands_free'
+    >();""","""    expectTypeOf<WarningCode>().toEqualTypeOf<
+      'appliance_mismatch' | 'long_hands_on' | 'short_hands_free' | 'hold_exceeded'
+    >();""",1)
+
+s += """
+// ---------------------------------------------------------------------------------------
+// Scheduler spec, T1.1: StepLanesSchema, ScheduledStepSchema, ScheduleSchema, hold_exceeded
+
+const lanes = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+  burner: null,
+  oven: null,
+  cook: 1,
+  ...over,
+});
+
+const scheduled = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+  id: 'chicken.carve',
+  startMin: -5,
+  endMin: 0,
+  lanes: lanes(),
+  slackMin: 0,
+  critical: true,
+  waitMin: 0,
+  ...over,
+});
+
+/** The H1 table of the scheduler design (SUNDAY_ROAST x HOME_KITCHEN), column by column. */
+const H1_STEPS: Record<string, unknown>[] = [
+  scheduled({ id: 'chicken.carve', startMin: -5, endMin: 0, waitMin: 0 }),
+  scheduled({ id: 'chicken.prep', startMin: -110, endMin: -100, waitMin: null }),
+  scheduled({
+    id: 'chicken.rest',
+    startMin: -25,
+    endMin: -5,
+    lanes: lanes({ cook: null }),
+    waitMin: 0,
+  }),
+  scheduled({
+    id: 'chicken.roast',
+    startMin: -100,
+    endMin: -25,
+    lanes: lanes({ oven: 1, cook: null }),
+    waitMin: 5,
+  }),
+  scheduled({
+    id: 'gravy.roux',
+    startMin: -20,
+    endMin: -18,
+    lanes: lanes({ burner: 1 }),
+    waitMin: 0,
+  }),
+  scheduled({
+    id: 'gravy.simmer',
+    startMin: -18,
+    endMin: -8,
+    lanes: lanes({ burner: 1, cook: null }),
+    waitMin: 0,
+  }),
+  scheduled({ id: 'gravy.strain', startMin: -8, endMin: -6, waitMin: 6 }),
+  scheduled({
+    id: 'greens.boil',
+    startMin: -10,
+    endMin: -6,
+    lanes: lanes({ burner: 2, cook: null }),
+    waitMin: 0,
+  }),
+  scheduled({
+    id: 'greens.shred',
+    startMin: -100,
+    endMin: -95,
+    slackMin: 75,
+    critical: false,
+    waitMin: null,
+  }),
+  scheduled({ id: 'greens.toss', startMin: -6, endMin: -5, waitMin: 5 }),
+];
+
+const h1Schedule = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+  plan: canonicalPlan(SUNDAY_ROAST),
+  kitchen: HOME_KITCHEN,
+  steps: H1_STEPS,
+  spanMin: 110,
+  chainMin: 110,
+  warnings: [],
+  ...over,
+});
+
+describe('R2.1, R2.6 StepLanesSchema: lane numbers within the kitchen bounds', () => {
+  it('accepts null or 1..max for each resource, and rejects 0 and max + 1', () => {
+    expect(accepts(StepLanesSchema, lanes())).toBe(true);
+    expect(accepts(StepLanesSchema, { burner: 8, oven: 4, cook: 6 })).toBe(true);
+    expect(accepts(StepLanesSchema, { burner: 1, oven: 1, cook: 1 })).toBe(true);
+    for (const [key, edge] of [
+      ['burner', 8],
+      ['oven', 4],
+      ['cook', 6],
+    ] as const) {
+      expect(accepts(StepLanesSchema, lanes({ [key]: 0 }))).toBe(false);
+      expect(accepts(StepLanesSchema, lanes({ [key]: edge + 1 }))).toBe(false);
+      expect(accepts(StepLanesSchema, lanes({ [key]: edge }))).toBe(true);
+    }
+  });
+  it('rejects 9 burners, a fraction, a string, an unknown key and a missing key', () => {
+    expect(accepts(StepLanesSchema, lanes({ burner: 9 }))).toBe(false);
+    expect(accepts(StepLanesSchema, lanes({ cook: 1.5 }))).toBe(false);
+    expect(accepts(StepLanesSchema, lanes({ cook: '1' }))).toBe(false);
+    expect(accepts(StepLanesSchema, lanes({ extra: 1 }))).toBe(false);
+    expect(accepts(StepLanesSchema, without(lanes(), 'oven'))).toBe(false);
+  });
+});
+
+describe('R2.1, R2.2 ScheduledStepSchema bounds', () => {
+  it('startMin: -38400 and -1 pass, -38401 and 0 fail', () => {
+    expect(accepts(ScheduledStepSchema, scheduled({ startMin: -38400 }))).toBe(true);
+    expect(accepts(ScheduledStepSchema, scheduled({ startMin: -1 }))).toBe(true);
+    expect(accepts(ScheduledStepSchema, scheduled({ startMin: -38401 }))).toBe(false);
+    expect(accepts(ScheduledStepSchema, scheduled({ startMin: 0 }))).toBe(false);
+  });
+  it('endMin: 0 and -38399 pass, 1 and -38400 fail', () => {
+    expect(accepts(ScheduledStepSchema, scheduled({ endMin: 0 }))).toBe(true);
+    expect(accepts(ScheduledStepSchema, scheduled({ endMin: -38399 }))).toBe(true);
+    expect(accepts(ScheduledStepSchema, scheduled({ endMin: 1 }))).toBe(false);
+    expect(accepts(ScheduledStepSchema, scheduled({ endMin: -38400 }))).toBe(false);
+  });
+  it('slackMin: 0 and 38400 pass, -1 and 38401 fail', () => {
+    expect(accepts(ScheduledStepSchema, scheduled({ slackMin: 0 }))).toBe(true);
+    expect(accepts(ScheduledStepSchema, scheduled({ slackMin: 38400 }))).toBe(true);
+    expect(accepts(ScheduledStepSchema, scheduled({ slackMin: -1 }))).toBe(false);
+    expect(accepts(ScheduledStepSchema, scheduled({ slackMin: 38401 }))).toBe(false);
+  });
+  it('waitMin: null, 0 and 38400 pass, -1 and 38401 fail', () => {
+    expect(accepts(ScheduledStepSchema, scheduled({ waitMin: null }))).toBe(true);
+    expect(accepts(ScheduledStepSchema, scheduled({ waitMin: 0 }))).toBe(true);
+    expect(accepts(ScheduledStepSchema, scheduled({ waitMin: 38400 }))).toBe(true);
+    expect(accepts(ScheduledStepSchema, scheduled({ waitMin: -1 }))).toBe(false);
+    expect(accepts(ScheduledStepSchema, scheduled({ waitMin: 38401 }))).toBe(false);
+  });
+  it('rejects fractions, a bad id, a non-boolean critical and out-of-range lanes', () => {
+    expect(accepts(ScheduledStepSchema, scheduled({ startMin: -5.5 }))).toBe(false);
+    expect(accepts(ScheduledStepSchema, scheduled({ id: 'Carve' }))).toBe(false);
+    expect(accepts(ScheduledStepSchema, scheduled({ critical: 'yes' }))).toBe(false);
+    expect(accepts(ScheduledStepSchema, scheduled({ lanes: lanes({ cook: 7 }) }))).toBe(false);
+  });
+  it('rejects unknown keys and every missing key', () => {
+    expect(accepts(ScheduledStepSchema, scheduled({ extra: 1 }))).toBe(false);
+    for (const key of Object.keys(scheduled())) {
+      expect(accepts(ScheduledStepSchema, without(scheduled(), key))).toBe(false);
+    }
+  });
+});
+
+describe('R2.1, R2.2 ScheduleSchema', () => {
+  it('R10.6 the H1 table written out as a Schedule parses and comes back unchanged', () => {
+    const parsed = ScheduleSchema.safeParse(h1Schedule());
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).toEqual(h1Schedule());
+  });
+  it('rejects unknown keys and every missing key', () => {
+    expect(accepts(ScheduleSchema, h1Schedule({ extra: 1 }))).toBe(false);
+    for (const key of Object.keys(h1Schedule())) {
+      expect(accepts(ScheduleSchema, without(h1Schedule(), key))).toBe(false);
+    }
+  });
+  it('spanMin and chainMin: 1 and 38400 pass, 0 and 38401 fail', () => {
+    for (const key of ['spanMin', 'chainMin']) {
+      expect(accepts(ScheduleSchema, h1Schedule({ [key]: 1 }))).toBe(true);
+      expect(accepts(ScheduleSchema, h1Schedule({ [key]: 38400 }))).toBe(true);
+      expect(accepts(ScheduleSchema, h1Schedule({ [key]: 0 }))).toBe(false);
+      expect(accepts(ScheduleSchema, h1Schedule({ [key]: 38401 }))).toBe(false);
+    }
+  });
+  it('steps: at least one, at most 80', () => {
+    expect(accepts(ScheduleSchema, h1Schedule({ steps: [] }))).toBe(false);
+    const one = [scheduled()];
+    expect(accepts(ScheduleSchema, h1Schedule({ steps: one }))).toBe(true);
+    const many = Array.from({ length: 81 }, () => scheduled());
+    expect(accepts(ScheduleSchema, h1Schedule({ steps: many.slice(0, 80) }))).toBe(true);
+    expect(accepts(ScheduleSchema, h1Schedule({ steps: many }))).toBe(false);
+  });
+  it('rejects an invalid plan or kitchen inside, and a warning that is not hold_exceeded', () => {
+    expect(accepts(ScheduleSchema, h1Schedule({ plan: { title: 'x' } }))).toBe(false);
+    expect(accepts(ScheduleSchema, h1Schedule({ kitchen: { burners: 1 } }))).toBe(false);
+    const warning = ISSUES.find((i) => i.code === 'hold_exceeded')?.issue;
+    const other = ISSUES.find((i) => i.code === 'long_hands_on')?.issue;
+    expect(accepts(ScheduleSchema, h1Schedule({ warnings: [warning] }))).toBe(true);
+    expect(accepts(ScheduleSchema, h1Schedule({ warnings: [other] }))).toBe(false);
+  });
+});
+
+describe('R2.8 hold_exceeded issue', () => {
+  const issue = ISSUES.find((i) => i.code === 'hold_exceeded')?.issue ?? {};
+  it('accepts the warning', () => {
+    expect(accepts(IssueSchema, issue)).toBe(true);
+  });
+  it('rejects it as an error and without waitMin', () => {
+    expect(accepts(IssueSchema, { ...issue, severity: 'error' })).toBe(false);
+    expect(accepts(IssueSchema, without(issue, 'waitMin'))).toBe(false);
+  });
+  it('waitMin is at least 1 and holdMin at least 0, both integers', () => {
+    expect(accepts(IssueSchema, { ...issue, waitMin: 1 })).toBe(true);
+    expect(accepts(IssueSchema, { ...issue, waitMin: 0 })).toBe(false);
+    expect(accepts(IssueSchema, { ...issue, holdMin: 0 })).toBe(true);
+    expect(accepts(IssueSchema, { ...issue, holdMin: -1 })).toBe(false);
+    expect(accepts(IssueSchema, { ...issue, waitMin: 1.5 })).toBe(false);
+    expect(accepts(IssueSchema, { ...issue, holdMin: 2.5 })).toBe(false);
+  });
+});
+
+describe('R2.1 inferred types of the schedule', () => {
+  it('StepLanes, ScheduledStep, Schedule and HoldExceededIssue', () => {
+    expectTypeOf<StepLanes>().toEqualTypeOf<{
+      burner: number | null;
+      oven: number | null;
+      cook: number | null;
+    }>();
+    expectTypeOf<ScheduledStep>().toEqualTypeOf<{
+      id: string;
+      startMin: number;
+      endMin: number;
+      lanes: StepLanes;
+      slackMin: number;
+      critical: boolean;
+      waitMin: number | null;
+    }>();
+    expectTypeOf<Schedule['plan']>().toEqualTypeOf<Plan>();
+    expectTypeOf<Schedule['kitchen']>().toEqualTypeOf<Kitchen>();
+    expectTypeOf<Schedule['steps']>().toEqualTypeOf<ScheduledStep[]>();
+    expectTypeOf<Schedule['spanMin']>().toEqualTypeOf<number>();
+    expectTypeOf<Schedule['chainMin']>().toEqualTypeOf<number>();
+    expectTypeOf<Schedule['warnings']>().toEqualTypeOf<HoldExceededIssue[]>();
+    expectTypeOf<HoldExceededIssue['severity']>().toEqualTypeOf<'warning'>();
+    expectTypeOf<HoldExceededIssue['waitMin']>().toEqualTypeOf<number>();
+    expectTypeOf<HoldExceededIssue['holdMin']>().toEqualTypeOf<number>();
+    expectTypeOf<HoldExceededIssue['stepId']>().toEqualTypeOf<string>();
+    expectTypeOf<z.infer<typeof ScheduleSchema>>().toEqualTypeOf<Schedule>();
+  });
+});
+"""
+open(p,'w').write(s)
+EOF
+    
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/core/schema.ts'
+s=open(p).read()
+s=s.replace("""  variant('warning', 'short_hands_free', { stepId: StepIdSchema, minutes: z.int() }),
+]);
+""","""  variant('warning', 'short_hands_free', { stepId: StepIdSchema, minutes: z.int() }),
+  // STUB (T1.1 red phase): bounds are loose on purpose.
+  variant('warning', 'hold_exceeded', { stepId: StepIdSchema, waitMin: z.int(), holdMin: z.int() }),
+]);
+""",1)
+s=s.replace("""export type Issue = z.infer<typeof IssueSchema>;""","""export type Issue = z.infer<typeof IssueSchema>;
+export type HoldExceededIssue = Extract<Issue, { code: 'hold_exceeded' }>;""",1)
+s+="""
+// STUB (T1.1 red phase): shapes without bounds.
+export const StepLanesSchema = z.strictObject({
+  burner: z.int().nullable(),
+  oven: z.int().nullable(),
+  cook: z.int().nullable(),
+});
+export const ScheduledStepSchema = z.strictObject({
+  id: StepIdSchema,
+  startMin: z.int(),
+  endMin: z.int(),
+  lanes: StepLanesSchema,
+  slackMin: z.int(),
+  critical: z.boolean(),
+  waitMin: z.int().nullable(),
+});
+export const ScheduleSchema = z.strictObject({
+  plan: PlanSchema,
+  kitchen: KitchenSchema,
+  steps: z.array(ScheduledStepSchema),
+  spanMin: z.int(),
+  chainMin: z.int(),
+  warnings: z.array(IssueSchema),
+});
+export type StepLanes = z.infer<typeof StepLanesSchema>;
+export type ScheduledStep = z.infer<typeof ScheduledStepSchema>;
+export type Schedule = z.infer<typeof ScheduleSchema>;
+"""
+s=s.replace("""  'short_hands_free',
+];""","""  'short_hands_free',
+];""")
+open(p,'w').write(s)
+EOF
+npx vitest run --project examples test/core/schema.test.ts 2>&1 | grep -v "^ *✓" | head -80
+    … (50 earlier lines not shown)
+    
+    - Expected
+    + Received
+    
+    @@ -13,6 +13,7 @@
+        "dish_without_steps",
+        "missing_appliance",
+        "appliance_mismatch",
+        "long_hands_on",
+        "short_hands_free",
+    +   "hold_exceeded",
+      ]
+    
+     ❯ test/core/schema.test.ts:557:39
+        555|
+        556|   it('the test table covers exactly the codes of ERROR_CODES then WARN…
+        557|     expect(ISSUES.map((i) => i.code)).toEqual([...ERROR_CODES, ...WARN…
+           |                                       ^
+        558|   });
+        559|
+    
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/13]⎯
+    
+     FAIL  |examples| test/core/schema.test.ts > R2.1, R2.6 StepLanesSchema: lane numbers within the kitchen bounds > accepts null or 1..max for each resource, and rejects 0 and max + 1
+    AssertionError: expected true to be false // Object.is equality
+    
+    - Expected
+    + Received
+    
+    - false
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/core/schema.ts'
+s=open(p).read()
+s=s.replace("""  // STUB (T1.1 red phase): bounds are loose on purpose.
+  variant('warning', 'hold_exceeded', { stepId: StepIdSchema, waitMin: z.int(), holdMin: z.int() }),
+""","""  variant('warning', 'hold_exceeded', {
+    stepId: StepIdSchema,
+    waitMin: z.int().min(1),
+    holdMin: z.int().min(0),
+  }),
+""")
+s=s.replace("""  'short_hands_free',
+];""","""  'short_hands_free',
+  'hold_exceeded',
+];""")
+i=s.index("\n// STUB (T1.1 red phase)")
+s=s[:i]+"""
+/** Earliest minute on the scheduler axis: every step lasts at most 480 minutes (decided here). */
+const AXIS_MIN = -(LIMITS.stepsMax * LIMITS.minutesMax);
+
+export const StepLanesSchema = z.strictObject({
+  burner: z.int().min(1).max(LIMITS.burnersMax).nullable(),
+  oven: z.int().min(1).max(LIMITS.ovensMax).nullable(),
+  cook: z.int().min(1).max(LIMITS.cooksMax).nullable(),
+});
+
+export const ScheduledStepSchema = z.strictObject({
+  id: StepIdSchema,
+  startMin: z.int().min(AXIS_MIN).max(-1),
+  endMin: z.int().min(AXIS_MIN + 1).max(0),
+  lanes: StepLanesSchema,
+  slackMin: z.int().min(0).max(-AXIS_MIN),
+  critical: z.boolean(),
+  waitMin: z.int().min(0).max(-AXIS_MIN).nullable(),
+});
+
+const HoldExceededIssueSchema = IssueSchema.options.find(
+  (option) => option.shape.code.value === 'hold_exceeded',
+);
+
+export const ScheduleSchema = z.strictObject({
+  plan: PlanSchema,
+  kitchen: KitchenSchema,
+  steps: z.array(ScheduledStepSchema).min(1).max(LIMITS.stepsMax),
+  spanMin: z.int().min(1).max(-AXIS_MIN),
+  chainMin: z.int().min(1).max(-AXIS_MIN),
+  warnings: z.array(IssueSchema),
+});
+export type StepLanes = z.infer<typeof StepLanesSchema>;
+export type ScheduledStep = z.infer<typeof ScheduledStepSchema>;
+export type Schedule = z.infer<typeof ScheduleSchema>;
+"""
+open(p,'w').write(s)
+EOF
+    
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/core/schema.ts'
+s=open(p).read()
+s=s.replace("""  variant('warning', 'hold_exceeded', {
+    stepId: StepIdSchema,
+    waitMin: z.int().min(1),
+    holdMin: z.int().min(0),
+  }),
+""","""  HoldExceededIssueSchema,
+""")
+s=s.replace("""export const IssueSchema = z.discriminatedUnion""","""const HoldExceededIssueSchema = variant('warning', 'hold_exceeded', {
+  stepId: StepIdSchema,
+  waitMin: z.int().min(1),
+  holdMin: z.int().min(0),
+});
+
+export const IssueSchema = z.discriminatedUnion""")
+s=s.replace("""const HoldExceededIssueSchema = IssueSchema.options.find(
+  (option) => option.shape.code.value === 'hold_exceeded',
+);
+
+""","")
+s=s.replace("  warnings: z.array(IssueSchema),","  warnings: z.array(HoldExceededIssueSchema),")
+open(p,'w').write(s)
+EOF
+npx vitest run --project examples test/core/schema.test.ts 2>&1 | tail -8; npm run typecheck 2>&1 | tail -15
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+    
+    
+     Test Files  1 passed (1)
+          Tests  249 passed (249)
+       Start at  14:16:59
+       Duration  111ms (import 43%, tests 31%, transform 23%, worker 2%)
+    
+    
+    > make-dinner@0.0.0 typecheck
+    > tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && grep -n "export function checkPlan\|export function checkKitchen\|export function validatePlan\|export interface PlanCheck" -A8 src/core/sanity.ts | head -60
+    358:export function checkPlan(plan: Plan): Issue[] {
+    359-  const issues: Issue[] = [];
+    360-  const stepIds = new Set(plan.steps.map((s) => s.id));
+    361-  const dishIds = new Set(plan.dishes.map((d) => d.id));
+    362-
+    363-  for (const [stepId, count] of countIds(plan.steps.map((s) => s.id))) {
+    364-    if (count < 2) continue;
+    365-    issues.push({
+    366-      severity: 'error',
+    --
+    482:export function checkKitchen(plan: Plan, kitchen: Kitchen): Issue[] {
+    483-  const issues: Issue[] = [];
+    484-  // Every occurrence is looked at, not the first, so step order cannot change the result;
+    485-  // sortIssues drops the exact duplicates a repeated id gives.
+    486-  for (const step of plan.steps) {
+    487-    if (step.appliance === 'burner' && kitchen.burners === 0) {
+    488-      issues.push({
+    489-        severity: 'error',
+    490-        code: 'missing_appliance',
+    --
+    512:export function validatePlan(input: unknown): PlanCheck {
+    513-  const parsed = parsePlan(input);
+    514-  if (!parsed.ok) return { plan: null, issues: parsed.error };
+    515-  return { plan: parsed.value, issues: checkPlan(parsed.value) };
+    516-}
+    exit 0
+
+Test first (T2.1).
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/core/schema.test.ts'
+s=open(p).read()
+s=s.replace("""import {
+  HOME_KITCHEN,
+  MEZZE,
+  SUNDAY_ROAST,
+  TIGHT_OVEN,
+  TWO_COOK_KITCHEN,
+} from '../support/fixtures.js';
+""","""import { checkKitchen, checkPlan } from '../../src/core/sanity.js';
+import {
+  BARE_KITCHEN,
+  BIG_KITCHEN,
+  BURNER_ONLY_KITCHEN,
+  COLD_SAUCE,
+  HANDS_FREE,
+  HOME_KITCHEN,
+  LONG_DAY,
+  MEZZE,
+  NO_BURNER_KITCHEN,
+  ONE_BURNER_KITCHEN,
+  PREP_AHEAD,
+  SOLO_BURNER,
+  SOLO_KEEPS,
+  SUNDAY_ROAST,
+  TIGHT_OVEN,
+  TWO_CHOPS,
+  TWO_COOK_KITCHEN,
+} from '../support/fixtures.js';
+""",1)
+s+="""
+describe('R10.3 scheduler fixtures pass the schemas and have no sanity error', () => {
+  // [name, plan, step count, dish ids]
+  const NEW_PLANS = [
+    ['PREP_AHEAD', PREP_AHEAD, 5, ['bread', 'jelly', 'salad']],
+    ['SOLO_BURNER', SOLO_BURNER, 1, ['solo']],
+    ['SOLO_KEEPS', SOLO_KEEPS, 1, ['solo']],
+    ['HANDS_FREE', HANDS_FREE, 2, ['jelly', 'stock']],
+    ['TWO_CHOPS', TWO_CHOPS, 2, ['a', 'b']],
+    ['LONG_DAY', LONG_DAY, 80, ['feast']],
+    ['COLD_SAUCE', COLD_SAUCE, 3, ['fish', 'sauce']],
+  ] as const;
+
+  it.each(NEW_PLANS)('%s', (_name, fixture, stepCount, dishIds) => {
+    expect(PlanSchema.safeParse(fixture).success).toBe(true);
+    expect(fixture.steps).toHaveLength(stepCount);
+    expect(fixture.dishes.map((d) => d.id)).toEqual(dishIds);
+    expect(checkPlan(fixture).filter((i) => i.severity === 'error')).toEqual([]);
+  });
+
+  it('LONG_DAY: 80 steps of 480 minutes, no prerequisites, hold 0, so 80 long_hands_on warnings', () => {
+    expect(LONG_DAY.steps.every((s) => s.minutes === 480 && s.after.length === 0)).toBe(true);
+    expect(LONG_DAY.steps.every((s) => s.holdMin === 0 && s.handsOn)).toBe(true);
+    expect(LONG_DAY.steps[0]?.id).toBe('feast.s80');
+    expect(checkPlan(LONG_DAY).map((i) => i.code)).toEqual(Array(80).fill('long_hands_on'));
+  });
+
+  it('PREP_AHEAD, COLD_SAUCE and TWO_CHOPS give no warning at all', () => {
+    expect(checkPlan(PREP_AHEAD)).toEqual([]);
+    expect(checkPlan(COLD_SAUCE)).toEqual([]);
+    expect(checkPlan(TWO_CHOPS)).toEqual([]);
+  });
+
+  it('PREP_AHEAD and COLD_SAUCE are not written in topological order', () => {
+    for (const fixture of [PREP_AHEAD, COLD_SAUCE]) {
+      const position = new Map(fixture.steps.map((s, i) => [s.id, i]));
+      expect(
+        fixture.steps.some((s) =>
+          s.after.some((p) => (position.get(p) ?? -1) > (position.get(s.id) ?? -1)),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it('kitchens have the counts of the design', () => {
+    expect(ONE_BURNER_KITCHEN).toEqual({ burners: 1, ovens: 1, cooks: 1 });
+    expect(NO_BURNER_KITCHEN).toEqual({ burners: 0, ovens: 1, cooks: 1 });
+    expect(BURNER_ONLY_KITCHEN).toEqual({ burners: 1, ovens: 0, cooks: 1 });
+    expect(BARE_KITCHEN).toEqual({ burners: 0, ovens: 0, cooks: 1 });
+    expect(BIG_KITCHEN).toEqual({ burners: 8, ovens: 4, cooks: 6 });
+    for (const k of [
+      ONE_BURNER_KITCHEN,
+      NO_BURNER_KITCHEN,
+      BURNER_ONLY_KITCHEN,
+      BARE_KITCHEN,
+      BIG_KITCHEN,
+    ]) {
+      expect(KitchenSchema.safeParse(k).success).toBe(true);
+    }
+  });
+
+  it('each plan is paired with a kitchen that has what it needs (design H5, H6)', () => {
+    const pairs = [
+      [PREP_AHEAD, NO_BURNER_KITCHEN],
+      [SOLO_BURNER, BURNER_ONLY_KITCHEN],
+      [SOLO_KEEPS, BURNER_ONLY_KITCHEN],
+      [HANDS_FREE, BURNER_ONLY_KITCHEN],
+      [TWO_CHOPS, BARE_KITCHEN],
+      [TWO_CHOPS, BIG_KITCHEN],
+      [LONG_DAY, BARE_KITCHEN],
+      [COLD_SAUCE, BURNER_ONLY_KITCHEN],
+      [SUNDAY_ROAST, ONE_BURNER_KITCHEN],
+    ] as const;
+    for (const [plan, kitchen] of pairs) expect(checkKitchen(plan, kitchen)).toEqual([]);
+  });
+});
+"""
+open(p,'w').write(s)
+EOF
+npx vitest run --project examples test/core/schema.test.ts 2>&1 | grep -E "×|Tests|FAIL|Error" | head -20
+         × PREP_AHEAD 3ms
+         × SOLO_BURNER 0ms
+         × SOLO_KEEPS 0ms
+         × HANDS_FREE 0ms
+         × TWO_CHOPS 0ms
+         × LONG_DAY 0ms
+         × COLD_SAUCE 0ms
+         × LONG_DAY: 80 steps of 480 minutes, no prerequisites, hold 0, so 80 long_hands_on warnings 0ms
+         × PREP_AHEAD, COLD_SAUCE and TWO_CHOPS give no warning at all 0ms
+         × PREP_AHEAD and COLD_SAUCE are not written in topological order 0ms
+         × kitchens have the counts of the design 0ms
+         × each plan is paired with a kitchen that has what it needs (design H5, H6) 0ms
+    ⎯⎯⎯⎯⎯⎯ Failed Tests 12 ⎯⎯⎯⎯⎯⎯⎯
+     FAIL  |examples| test/core/schema.test.ts > R10.3 scheduler fixtures pass the schemas and have no sanity error > PREP_AHEAD
+     FAIL  |examples| test/core/schema.test.ts > R10.3 scheduler fixtures pass the schemas and have no sanity error > SOLO_BURNER
+     FAIL  |examples| test/core/schema.test.ts > R10.3 scheduler fixtures pass the schemas and have no sanity error > SOLO_KEEPS
+     FAIL  |examples| test/core/schema.test.ts > R10.3 scheduler fixtures pass the schemas and have no sanity error > HANDS_FREE
+     FAIL  |examples| test/core/schema.test.ts > R10.3 scheduler fixtures pass the schemas and have no sanity error > TWO_CHOPS
+     FAIL  |examples| test/core/schema.test.ts > R10.3 scheduler fixtures pass the schemas and have no sanity error > LONG_DAY
+     FAIL  |examples| test/core/schema.test.ts > R10.3 scheduler fixtures pass the schemas and have no sanity error > COLD_SAUCE
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/support/fixtures.ts'
+s=open(p).read()
+
+s=s.replace("""// were worked out by hand from the tables in the recipe-graph design, not from src/.
+// Expected schedules are not worked out here (see the scheduler spec).
+""","""// were worked out by hand from the tables in the recipe-graph and scheduler designs, not
+// from src/. Expected schedules are the H1 to H6 tables of the scheduler design; columns are
+// start, end (minutes before serving, serving is 0), B burner, O oven and C cook lane
+// ('-' for none), slack, wait ('-' for a result that keeps).
+""",1)
+
+h1="""
+ *
+ * Expected schedule, H1: with HOME_KITCHEN (4 burners, 1 oven, 1 cook). span 110, chain 110,
+ * no warnings. Steps in id order:
+ *   id             start  end    B  O  C  slack  wait
+ *   chicken.carve     -5    0    -  -  1      0     0
+ *   chicken.prep    -110 -100    -  -  1      0     -
+ *   chicken.rest     -25   -5    -  -  -      0     0
+ *   chicken.roast   -100  -25    -  1  -      0     5
+ *   gravy.roux       -20  -18    1  -  1      0     0
+ *   gravy.simmer     -18   -8    1  -  -      0     0
+ *   gravy.strain      -8   -6    -  -  1      0     6
+ *   greens.boil      -10   -6    2  -  -      0     0
+ *   greens.shred    -100  -95    -  -  1     75     -   (pass 1 start -15)
+ *   greens.toss       -6   -5    -  -  1      0     5
+ *
+ * Expected schedule, H2: with ONE_BURNER_KITCHEN (1 burner, 1 oven, 1 cook). span 110,
+ * chain 110, no warnings. Differs from H1 only in:
+ *   chicken.roast   -100  -25    -  1  -      0     3
+ *   gravy.roux       -22  -20    1  -  1      0     0
+ *   gravy.simmer     -20  -10    1  -  -      0     2
+ *   greens.boil      -10   -6    1  -  -      0     0
+ *   greens.shred    -100  -95    -  -  1     73     -   (pass 1 start -15)
+ */"""
+# SUNDAY_ROAST doc end: " * - checkKitchen with `burners: 0`: missing_appliance for gravy.roux, gravy.simmer, greens.boil\n */"
+a=" * - checkKitchen with `burners: 0`: missing_appliance for gravy.roux, gravy.simmer, greens.boil\n */"
+assert a in s
+s=s.replace(a," * - checkKitchen with `burners: 0`: missing_appliance for gravy.roux, gravy.simmer, greens.boil"+h1,1)
+
+h4="""
+ *
+ * Expected schedule, H4: with HOME_KITCHEN. span 84, chain 82, no warnings.
+ *   id              start  end    B  O  C  slack  wait
+ *   flatbread.cook    -14   -2    1  -  1      0     2
+ *   flatbread.mix     -84  -74    -  -  1      0     -
+ *   flatbread.rise    -74  -14    -  -  -      0     0
+ *   hummus.blend      -74  -64    -  -  1      0     -   (pass 1 start -24)
+ *   salad.chop        -64  -54    -  -  1      0     -   (pass 1 start -34)
+ *   salad.dressing    -54  -49    -  -  1     35     -   (pass 1 start -39)
+ *   salad.toss         -2    0    -  -  1      0     0
+ */"""
+a=" * - longest chain: 10 + 60 + 12 = 82 (flatbread.mix, rise, cook)\n * - checkPlan: no issues\n */"
+assert a in s
+s=s.replace(a," * - longest chain: 10 + 60 + 12 = 82 (flatbread.mix, rise, cook)\n * - checkPlan: no issues"+h4,1)
+
+h3="""
+ *
+ * Expected schedule, H3: with HOME_KITCHEN. span 95, chain 55. One warning: hold_exceeded
+ * for potatoes.roast, waitMin 40, holdMin 10.
+ *   id               start  end    B  O  C  slack  wait
+ *   pie.assemble       -85  -70    -  -  1     30     -   (pass 1 start -55)
+ *   pie.bake           -40    0    -  1  -      0     0
+ *   potatoes.peel      -95  -85    -  -  1      0     -
+ *   potatoes.roast     -85  -40    -  1  -      0    40
+ */"""
+a=" * - checkKitchen with `ovens: 0`: missing_appliance for pie.bake and potatoes.roast\n */"
+assert a in s
+s=s.replace(a," * - checkKitchen with `ovens: 0`: missing_appliance for pie.bake and potatoes.roast"+h3,1)
+
+s+="""
+/** One burner, one oven, one cook. */
+export const ONE_BURNER_KITCHEN: Kitchen = { burners: 1, ovens: 1, cooks: 1 };
+
+/** No burner, one oven, one cook. */
+export const NO_BURNER_KITCHEN: Kitchen = { burners: 0, ovens: 1, cooks: 1 };
+
+/** One burner, no oven, one cook. */
+export const BURNER_ONLY_KITCHEN: Kitchen = { burners: 1, ovens: 0, cooks: 1 };
+
+/** No burner, no oven, one cook. */
+export const BARE_KITCHEN: Kitchen = { burners: 0, ovens: 0, cooks: 1 };
+
+/** The largest kitchen the schema allows. */
+export const BIG_KITCHEN: Kitchen = { burners: 8, ovens: 4, cooks: 6 };
+
+/**
+ * Bread, jelly and salad: right-justify at work (design H5). Steps in non-topological order.
+ *
+ * Expected schedule, H5: with NO_BURNER_KITCHEN (0 burners, 1 oven, 1 cook; no step needs a
+ * burner, so no burner lane). span 60, chain 60, no warnings.
+ *   id           start  end    B  O  C  slack  wait
+ *   bread.bake      -8    0    -  1  -      0     0
+ *   bread.shape    -13   -8    -  -  1      0     0   (pass 1 start -17, wait 4 > hold 2)
+ *   jelly.set      -60    0    -  -  -      0     -
+ *   salad.chop     -60  -50    -  -  1     37     -   (pass 1 start -12)
+ *   salad.toss      -2    0    -  -  1      0     0
+ * Pass 2 moves only salad.chop (keeps) to -60; pass 3 moves only bread.shape (hot) to -13.
+ */
+export const PREP_AHEAD: Plan = {
+  title: 'Bread, jelly and salad',
+  dishes: [
+    { id: 'bread', name: 'Flatbreads' },
+    { id: 'jelly', name: 'Jelly' },
+    { id: 'salad', name: 'Chopped salad' },
+  ],
+  steps: [
+    {
+      id: 'salad.toss',
+      dish: 'salad',
+      title: 'Toss the salad',
+      minutes: 2,
+      appliance: 'none',
+      handsOn: true,
+      after: ['salad.chop'],
+      holdMin: 5,
+    },
+    {
+      id: 'bread.bake',
+      dish: 'bread',
+      title: 'Bake the flatbreads',
+      minutes: 8,
+      appliance: 'oven',
+      handsOn: false,
+      after: ['bread.shape'],
+      holdMin: 15,
+    },
+    {
+      id: 'jelly.set',
+      dish: 'jelly',
+      title: 'Leave the jelly to set',
+      minutes: 60,
+      appliance: 'none',
+      handsOn: false,
+      after: [],
+      holdMin: null,
+    },
+    {
+      id: 'salad.chop',
+      dish: 'salad',
+      title: 'Chop the salad',
+      minutes: 10,
+      appliance: 'none',
+      handsOn: true,
+      after: [],
+      holdMin: null,
+    },
+    {
+      id: 'bread.shape',
+      dish: 'bread',
+      title: 'Shape the flatbreads',
+      minutes: 5,
+      appliance: 'none',
+      handsOn: true,
+      after: [],
+      holdMin: 2,
+    },
+  ],
+};
+
+/**
+ * One hot step on a burner (design H6) with BURNER_ONLY_KITCHEN: `solo.sear` at [-30, 0),
+ * burner 1, cook 1, slack 0, critical, wait 0. span 30, chain 30, no warnings.
+ */
+export const SOLO_BURNER: Plan = {
+  title: 'One pan',
+  dishes: [{ id: 'solo', name: 'Seared steak' }],
+  steps: [
+    {
+      id: 'solo.sear',
+      dish: 'solo',
+      title: 'Sear the steak',
+      minutes: 30,
+      appliance: 'burner',
+      handsOn: true,
+      after: [],
+      holdMin: 5,
+    },
+  ],
+};
+
+/**
+ * One step whose result keeps (design H6) with BURNER_ONLY_KITCHEN: `solo.chill` at [-30, 0),
+ * no lanes, slack 0, critical, wait null. span 30, chain 30, no warnings.
+ */
+export const SOLO_KEEPS: Plan = {
+  title: 'One dessert',
+  dishes: [{ id: 'solo', name: 'Panna cotta' }],
+  steps: [
+    {
+      id: 'solo.chill',
+      dish: 'solo',
+      title: 'Chill the panna cotta',
+      minutes: 30,
+      appliance: 'none',
+      handsOn: false,
+      after: [],
+      holdMin: null,
+    },
+  ],
+};
+
+/**
+ * Only hands-free steps (design H6) with BURNER_ONLY_KITCHEN, and again with `cooks: 6`:
+ * `stock.simmer` [-60, 0) burner 1, wait 0; `jelly.set` [-120, 0), no lanes, wait null; both
+ * slack 0, critical; span 120, chain 120, no warnings. The two schedules differ only in
+ * `kitchen`.
+ */
+export const HANDS_FREE: Plan = {
+  title: 'Stock and jelly',
+  dishes: [
+    { id: 'stock', name: 'Beef stock' },
+    { id: 'jelly', name: 'Jelly' },
+  ],
+  steps: [
+    {
+      id: 'stock.simmer',
+      dish: 'stock',
+      title: 'Simmer the stock',
+      minutes: 60,
+      appliance: 'burner',
+      handsOn: false,
+      after: [],
+      holdMin: 30,
+    },
+    {
+      id: 'jelly.set',
+      dish: 'jelly',
+      title: 'Leave the jelly to set',
+      minutes: 120,
+      appliance: 'none',
+      handsOn: false,
+      after: [],
+      holdMin: null,
+    },
+  ],
+};
+
+/**
+ * Two hot hands-on steps competing for the cook (design H6).
+ *
+ * With BARE_KITCHEN (1 cook): `a.chop` [-10, 0) cook 1, wait 0; `b.chop` [-20, -10) cook 1,
+ * wait 10; both slack 0; span 20, chain 10; one hold_exceeded for `b.chop` (waitMin 10,
+ * holdMin 5); G4.2 is tight.
+ *
+ * With BIG_KITCHEN (6 cooks): both [-10, 0), `a.chop` cook 1, `b.chop` cook 2, waits 0,
+ * span 10, no warnings.
+ */
+export const TWO_CHOPS: Plan = {
+  title: 'Two chops',
+  dishes: [
+    { id: 'a', name: 'Dish a' },
+    { id: 'b', name: 'Dish b' },
+  ],
+  steps: [
+    {
+      id: 'b.chop',
+      dish: 'b',
+      title: 'Chop the second pile',
+      minutes: 10,
+      appliance: 'none',
+      handsOn: true,
+      after: [],
+      holdMin: 5,
+    },
+    {
+      id: 'a.chop',
+      dish: 'a',
+      title: 'Chop the first pile',
+      minutes: 10,
+      appliance: 'none',
+      handsOn: true,
+      after: [],
+      holdMin: 5,
+    },
+  ],
+};
+
+/**
+ * Eighty 480-minute hands-on steps for one cook (design H6, R9.4), written from `s80` down to
+ * `s01`. With BARE_KITCHEN: `feast.sNN` at [-480*N, -480*(N-1)), cook 1, slack 0, wait
+ * 480*(N-1); span 38400, chain 480; 79 hold_exceeded warnings (s02 to s80). The plan itself
+ * has 80 long_hands_on warnings, which do not block.
+ */
+export const LONG_DAY: Plan = {
+  title: 'A very long day',
+  dishes: [{ id: 'feast', name: 'The feast' }],
+  steps: Array.from({ length: 80 }, (_unused, i) => {
+    const n = String(80 - i).padStart(2, '0');
+    return {
+      id: `feast.s${n}`,
+      dish: 'feast',
+      title: `Prepare batch ${n}`,
+      minutes: 480,
+      appliance: 'none' as const,
+      handsOn: true,
+      after: [],
+      holdMin: 0,
+    };
+  }),
+};
+
+/**
+ * A keeps step after a hot step (design H6, R9.5) with BURNER_ONLY_KITCHEN: `fish.fry`
+ * [-8, 0) burner 1 cook 1; `sauce.whisk` [-13, -8) cook 1, wait null; `sauce.reduce`
+ * [-23, -13) burner 1, wait 0; all slack 0; span 23, chain 15; no warnings. Pass 2 leaves
+ * `sauce.whisk` at -13: it starts at its hot prerequisite's end.
+ */
+export const COLD_SAUCE: Plan = {
+  title: 'Fish with a cold sauce',
+  dishes: [
+    { id: 'fish', name: 'Fried fish' },
+    { id: 'sauce', name: 'Butter sauce' },
+  ],
+  steps: [
+    {
+      id: 'sauce.whisk',
+      dish: 'sauce',
+      title: 'Whisk in the butter',
+      minutes: 5,
+      appliance: 'none',
+      handsOn: true,
+      after: ['sauce.reduce'],
+      holdMin: null,
+    },
+    {
+      id: 'fish.fry',
+      dish: 'fish',
+      title: 'Fry the fish',
+      minutes: 8,
+      appliance: 'burner',
+      handsOn: true,
+      after: [],
+      holdMin: 2,
+    },
+    {
+      id: 'sauce.reduce',
+      dish: 'sauce',
+      title: 'Reduce the wine',
+      minutes: 10,
+      appliance: 'burner',
+      handsOn: false,
+      after: [],
+      holdMin: 5,
+    },
+  ],
+};
+"""
+open(p,'w').write(s)
+EOF
+npx vitest run --project examples test/core/schema.test.ts 2>&1 | grep -E "×|Tests|Error|expected" | head -20
+         × HANDS_FREE 3ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    AssertionError: expected [ 'stock', 'jelly' ] to deeply equal [ 'jelly', 'stock' ]
+          Tests  1 failed | 260 passed (261)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -i "s/\['HANDS_FREE', HANDS_FREE, 2, \['jelly', 'stock'\]\]/['HANDS_FREE', HANDS_FREE, 2, ['stock', 'jelly']]/" test/core/schema.test.ts && npx vitest run --project examples test/core/schema.test.ts 2>&1 | grep -E "×|Tests|Error" ; npx prettier --check test src 2>&1 | tail -5
+    sed: 2: "test/core/schema.test.ts
+    ": undefined label 'est/core/schema.test.ts'
+    Checking formatting...
+    [warn] src/core/schema.ts
+    [warn] Code style issues found in the above file. Run Prettier with --write to fix.
+    exit 0
+[tool:edit] Replace in File ~/hackathons-2026/kiroween/makedinner/test/core/schema.test.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx prettier --write src/core/schema.ts >/dev/null && npx vitest run --project examples test/core/schema.test.ts 2>&1 | grep -E "×|Tests|Error"
+          Tests  261 passed (261)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 40,80p test/meta/oracles.test.ts; tail -30 test/meta/oracles.test.ts; sed -n 1,47p test/support/oracles.ts; sed -n 175,200p test/support/oracles.ts
+    … (114 earlier lines not shown)
+    
+    const prereqsOf = (n: Node, id: string): string[] => n.prereqs.get(id) ?? [];
+    
+    /** For every step id, the ids of the steps that list it in `after`, sorted. */
+      for (const [v, d] of dist) {
+        if (v === id) continue;
+        if (prereqsOf(n, id).includes(v) && (best === null || d + 1 < best)) best = d + 1;
+      }
+      return best;
+    }
+    
+    /** Largest sum of `minutes` along any dependency path, by repeated relaxation. */
+    export function oracleLongestChain(plan: Plan): number {
+      const n = nodes(plan);
+      const best = new Map<string, number>();
+      for (const id of n.ids) best.set(id, n.minutes.get(id) ?? 0);
+      for (let round = 0; round < n.ids.length; round++) {
+        for (const s of n.ids) {
+          let longestBefore = 0;
+          for (const p of prereqsOf(n, s)) {
+            if (p === s) continue;
+            longestBefore = Math.max(longestBefore, best.get(p) ?? 0);
+          }
+          best.set(s, (n.minutes.get(s) ?? 0) + longestBefore);
+        }
+      }
+      let result = 0;
+      for (const v of best.values()) result = Math.max(result, v);
+      return result;
+    }
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/meta/oracles.test.ts'
+s=open(p).read()
+s=s.replace("""import type { Appliance, Plan, Step } from '../../src/core/schema.js';
+import { MEZZE, SUNDAY_ROAST, TIGHT_OVEN } from '../support/fixtures.js';
+import {
+  isCycleIn,
+  oracleLongestChain,
+  oracleNormalise,
+""","""import type {
+  Appliance,
+  Kitchen,
+  Plan,
+  ScheduledStep,
+  Step,
+} from '../../src/core/schema.js';
+import {
+  BARE_KITCHEN,
+  HOME_KITCHEN,
+  MEZZE,
+  NO_BURNER_KITCHEN,
+  ONE_BURNER_KITCHEN,
+  PREP_AHEAD,
+  SUNDAY_ROAST,
+  TIGHT_OVEN,
+  TWO_CHOPS,
+} from '../support/fixtures.js';
+import {
+  isCycleIn,
+  oracleCapacityViolations,
+  oracleCompletenessViolations,
+  oracleHoldExceeded,
+  oracleLaneViolations,
+  oracleLongestChain,
+  oracleNormalise,
+  oraclePrecedenceViolations,
+  oracleSlack,
+  oracleValid,
+  oracleWaits,
+  startsOf,
+""",1)
+s=s.replace("""  oracleWarnings,
+  respectsPrecedence,
+} from""","""  oracleWarnings,
+  respectsPrecedence,
+} from""",1)
+s=s.replace("  respectsPrecedence,\n} from '../support/oracles.js';","  respectsPrecedence,\n} from '../support/oracles.js';",1)
+s+="""
+// ---------------------------------------------------------------------------------------
+// Scheduler spec, T2.2: the scheduler oracles against the hand-worked tables H1 to H5.
+
+/** [id, startMin, endMin, burner, oven, cook, slackMin, waitMin], as in the design tables. */
+type Row = readonly [string, number, number, number | null, number | null, number | null, number, number | null];
+
+const H1: readonly Row[] = [
+  ['chicken.carve', -5, 0, null, null, 1, 0, 0],
+  ['chicken.prep', -110, -100, null, null, 1, 0, null],
+  ['chicken.rest', -25, -5, null, null, null, 0, 0],
+  ['chicken.roast', -100, -25, null, 1, null, 0, 5],
+  ['gravy.roux', -20, -18, 1, null, 1, 0, 0],
+  ['gravy.simmer', -18, -8, 1, null, null, 0, 0],
+  ['gravy.strain', -8, -6, null, null, 1, 0, 6],
+  ['greens.boil', -10, -6, 2, null, null, 0, 0],
+  ['greens.shred', -100, -95, null, null, 1, 75, null],
+  ['greens.toss', -6, -5, null, null, 1, 0, 5],
+];
+const H2: readonly Row[] = [
+  ['chicken.carve', -5, 0, null, null, 1, 0, 0],
+  ['chicken.prep', -110, -100, null, null, 1, 0, null],
+  ['chicken.rest', -25, -5, null, null, null, 0, 0],
+  ['chicken.roast', -100, -25, null, 1, null, 0, 3],
+  ['gravy.roux', -22, -20, 1, null, 1, 0, 0],
+  ['gravy.simmer', -20, -10, 1, null, null, 0, 2],
+  ['gravy.strain', -8, -6, null, null, 1, 0, 6],
+  ['greens.boil', -10, -6, 1, null, null, 0, 0],
+  ['greens.shred', -100, -95, null, null, 1, 73, null],
+  ['greens.toss', -6, -5, null, null, 1, 0, 5],
+];
+const H3: readonly Row[] = [
+  ['pie.assemble', -85, -70, null, null, 1, 30, null],
+  ['pie.bake', -40, 0, null, 1, null, 0, 0],
+  ['potatoes.peel', -95, -85, null, null, 1, 0, null],
+  ['potatoes.roast', -85, -40, null, 1, null, 0, 40],
+];
+const H4: readonly Row[] = [
+  ['flatbread.cook', -14, -2, 1, null, 1, 0, 2],
+  ['flatbread.mix', -84, -74, null, null, 1, 0, null],
+  ['flatbread.rise', -74, -14, null, null, null, 0, 0],
+  ['hummus.blend', -74, -64, null, null, 1, 0, null],
+  ['salad.chop', -64, -54, null, null, 1, 0, null],
+  ['salad.dressing', -54, -49, null, null, 1, 35, null],
+  ['salad.toss', -2, 0, null, null, 1, 0, 0],
+];
+const H5: readonly Row[] = [
+  ['bread.bake', -8, 0, null, 1, null, 0, 0],
+  ['bread.shape', -13, -8, null, null, 1, 0, 0],
+  ['jelly.set', -60, 0, null, null, null, 0, null],
+  ['salad.chop', -60, -50, null, null, 1, 37, null],
+  ['salad.toss', -2, 0, null, null, 1, 0, 0],
+];
+
+const TABLES: readonly (readonly [string, Plan, Kitchen, readonly Row[]])[] = [
+  ['H1 SUNDAY_ROAST x HOME_KITCHEN', SUNDAY_ROAST, HOME_KITCHEN, H1],
+  ['H2 SUNDAY_ROAST x ONE_BURNER_KITCHEN', SUNDAY_ROAST, ONE_BURNER_KITCHEN, H2],
+  ['H3 TIGHT_OVEN x HOME_KITCHEN', TIGHT_OVEN, HOME_KITCHEN, H3],
+  ['H4 MEZZE x HOME_KITCHEN', MEZZE, HOME_KITCHEN, H4],
+  ['H5 PREP_AHEAD x NO_BURNER_KITCHEN', PREP_AHEAD, NO_BURNER_KITCHEN, H5],
+];
+
+const stepsOf = (rows: readonly Row[]): ScheduledStep[] =>
+  rows.map(([id, startMin, endMin, burner, oven, cook, slackMin, waitMin]) => ({
+    id,
+    startMin,
+    endMin,
+    lanes: { burner, oven, cook },
+    slackMin,
+    critical: slackMin === 0,
+    waitMin,
+  }));
+
+describe.each(TABLES)('R10.1 oracles on the hand-worked table %s', (_name, plan, kitchen, rows) => {
+  const steps = stepsOf(rows);
+  const starts = startsOf(steps);
+
+  it('startsOf reads the start of each step', () => {
+    expect(Object.keys(starts).sort()).toEqual(rows.map((r) => r[0]));
+    for (const row of rows) expect(starts[row[0]]).toBe(row[1]);
+  });
+  it('no capacity, precedence, completeness or lane violation, and the schedule is valid', () => {
+    expect(oracleCapacityViolations(plan, kitchen, starts)).toEqual([]);
+    expect(oraclePrecedenceViolations(plan, starts)).toEqual([]);
+    expect(oracleCompletenessViolations(plan, steps)).toEqual([]);
+    expect(oracleLaneViolations(plan, kitchen, steps)).toEqual([]);
+    expect(oracleValid(plan, kitchen, starts)).toBe(true);
+  });
+  it('oracleSlack gives the slack column for every step', () => {
+    for (const row of rows) expect([row[0], oracleSlack(plan, kitchen, starts, row[0])]).toEqual([row[0], row[6]]);
+  });
+  it('oracleWaits gives the wait column (null where the result keeps)', () => {
+    expect(oracleWaits(plan, starts)).toEqual(Object.fromEntries(rows.map((r) => [r[0], r[7]])));
+  });
+});
+
+describe('R10.1 oracleHoldExceeded on the hand-worked tables', () => {
+  it('H3: only potatoes.roast waits past its hold (40 > 10)', () => {
+    expect(oracleHoldExceeded(TIGHT_OVEN, startsOf(stepsOf(H3)))).toEqual([
+      { stepId: 'potatoes.roast', waitMin: 40, holdMin: 10 },
+    ]);
+  });
+  it('H1, H2, H4 and H5: no step waits past its hold (a wait equal to the hold is fine)', () => {
+    expect(oracleHoldExceeded(SUNDAY_ROAST, startsOf(stepsOf(H1)))).toEqual([]);
+    expect(oracleHoldExceeded(SUNDAY_ROAST, startsOf(stepsOf(H2)))).toEqual([]);
+    expect(oracleHoldExceeded(MEZZE, startsOf(stepsOf(H4)))).toEqual([]);
+    expect(oracleHoldExceeded(PREP_AHEAD, startsOf(stepsOf(H5)))).toEqual([]);
+  });
+  it('H5 pass 1 starts: bread.shape at -17 waits 4 > hold 2', () => {
+    const pass1 = { ...startsOf(stepsOf(H5)), 'bread.shape': -17, 'salad.chop': -12 };
+    expect(oracleHoldExceeded(PREP_AHEAD, pass1)).toEqual([
+      { stepId: 'bread.shape', waitMin: 4, holdMin: 2 },
+    ]);
+  });
+  it('H6 TWO_CHOPS x BARE_KITCHEN: b.chop waits 10 > 5', () => {
+    const starts = { 'a.chop': -10, 'b.chop': -20 };
+    expect(oracleHoldExceeded(TWO_CHOPS, starts)).toEqual([
+      { stepId: 'b.chop', waitMin: 10, holdMin: 5 },
+    ]);
+    expect(oracleWaits(TWO_CHOPS, starts)).toEqual({ 'a.chop': 0, 'b.chop': 10 });
+  });
+});
+
+describe('R10.1 each hand-made broken schedule gives exactly its one violation', () => {
+  const ovens = planOf([
+    { id: 'x.a', minutes: 3, appliance: 'oven', handsOn: false },
+    { id: 'y.b', minutes: 3, appliance: 'oven', handsOn: false },
+  ]);
+  it('two oven steps overlapping in one minute with one oven: capacity', () => {
+    // x.a is active at -3, -2, -1; y.b at -5, -4, -3: they share minute -3 only.
+    expect(oracleCapacityViolations(ovens, HOME_KITCHEN, { 'x.a': -3, 'y.b': -5 })).toEqual([
+      { minute: -3, resource: 'oven', count: 2, limit: 1 },
+    ]);
+  });
+  it('the same two steps one minute apart: no capacity violation', () => {
+    expect(oracleCapacityViolations(ovens, HOME_KITCHEN, { 'x.a': -3, 'y.b': -6 })).toEqual([]);
+  });
+  it('two hands-on steps overlapping with one cook: capacity on the cook', () => {
+    const chops = planOf([
+      { id: 'x.a', minutes: 2 },
+      { id: 'y.b', minutes: 2 },
+    ]);
+    expect(oracleCapacityViolations(chops, HOME_KITCHEN, { 'x.a': -2, 'y.b': -3 })).toEqual([
+      { minute: -2, resource: 'cook', count: 2, limit: 1 },
+    ]);
+  });
+  it('a hands-free step is not counted against the cook', () => {
+    const mixed = planOf([
+      { id: 'x.a', minutes: 2, handsOn: false },
+      { id: 'y.b', minutes: 2 },
+    ]);
+    expect(oracleCapacityViolations(mixed, BARE_KITCHEN, { 'x.a': -2, 'y.b': -2 })).toEqual([]);
+  });
+
+  const chain = planOf([
+    { id: 'p.a', minutes: 3, handsOn: false },
+    { id: 'p.b', minutes: 2, handsOn: false, after: ['p.a'] },
+  ]);
+  it('a step starting before its prerequisite ends: precedence', () => {
+    // p.a ends at -2, p.b starts at -3.
+    expect(oraclePrecedenceViolations(chain, { 'p.a': -5, 'p.b': -3 })).toEqual([
+      { stepId: 'p.b', prereq: 'p.a' },
+    ]);
+  });
+  it('a step starting exactly when its prerequisite ends: no violation', () => {
+    expect(oraclePrecedenceViolations(chain, { 'p.a': -5, 'p.b': -2 })).toEqual([]);
+  });
+
+  const steps = (rows: readonly Row[]): ScheduledStep[] => stepsOf(rows);
+  it('a missing step: completeness', () => {
+    expect(
+      oracleCompletenessViolations(chain, steps([['p.a', -5, -2, null, null, null, 0, 0]])),
+    ).toEqual(['missing:p.b']);
+  });
+  it('an extra step, a duplicated step, a wrong length and an end after 0', () => {
+    const base: Row[] = [
+      ['p.a', -5, -2, null, null, null, 0, 0],
+      ['p.b', -2, 0, null, null, null, 0, 0],
+    ];
+    expect(oracleCompletenessViolations(chain, steps([...base, ['q.z', -2, 0, null, null, null, 0, 0]]))).toEqual(['extra:q.z']);
+    expect(oracleCompletenessViolations(chain, steps([...base, base[0] as Row]))).toEqual(['duplicate:p.a']);
+    expect(oracleCompletenessViolations(chain, steps([['p.a', -5, -1, null, null, null, 0, 0], base[1] as Row]))).toEqual(['length:p.a']);
+    expect(oracleCompletenessViolations(chain, steps([['p.a', -4, -1, null, null, null, 0, 0], ['p.b', -1, 1, null, null, null, 0, 0]]))).toEqual(['after_serving:p.b']);
+  });
+
+  it('two overlapping steps on cook 1: lane clash; the same steps on cooks 1 and 2: none', () => {
+    const chops = planOf([
+      { id: 'x.a', minutes: 2 },
+      { id: 'y.b', minutes: 2 },
+    ]);
+    const kitchen = { burners: 0, ovens: 0, cooks: 2 };
+    expect(
+      oracleLaneViolations(chops, kitchen, steps([['x.a', -2, 0, null, null, 1, 0, 0], ['y.b', -3, -1, null, null, 1, 0, 0]])),
+    ).toEqual(['lane_clash:cook:1:x.a:y.b']);
+    expect(
+      oracleLaneViolations(chops, kitchen, steps([['x.a', -2, 0, null, null, 1, 0, 0], ['y.b', -3, -1, null, null, 2, 0, 0]])),
+    ).toEqual([]);
+  });
+  it('a missing, an unexpected and an out-of-range lane', () => {
+    const one = planOf([{ id: 'x.a', minutes: 2, appliance: 'oven', handsOn: false }]);
+    expect(oracleLaneViolations(one, HOME_KITCHEN, steps([['x.a', -2, 0, null, null, null, 0, 0]]))).toEqual(['lane_missing:x.a:oven']);
+    expect(oracleLaneViolations(one, HOME_KITCHEN, steps([['x.a', -2, 0, null, 1, 1, 0, 0]]))).toEqual(['lane_extra:x.a:cook']);
+    expect(oracleLaneViolations(one, HOME_KITCHEN, steps([['x.a', -2, 0, null, 2, null, 0, 0]]))).toEqual(['lane_range:x.a:oven']);
+  });
+});
+
+describe('R10.1 oracleValid', () => {
+  it('is false when a step ends after minute 0', () => {
+    const chain = planOf([{ id: 'p.a', minutes: 3, handsOn: false }]);
+    expect(oracleValid(chain, HOME_KITCHEN, { 'p.a': -3 })).toBe(true);
+    expect(oracleValid(chain, HOME_KITCHEN, { 'p.a': -2 })).toBe(false);
+  });
+  it('is false for a capacity violation and for a precedence violation', () => {
+    const ovens = planOf([
+      { id: 'x.a', minutes: 3, appliance: 'oven', handsOn: false },
+      { id: 'y.b', minutes: 3, appliance: 'oven', handsOn: false },
+    ]);
+    expect(oracleValid(ovens, HOME_KITCHEN, { 'x.a': -3, 'y.b': -5 })).toBe(false);
+    const chain = planOf([
+      { id: 'p.a', minutes: 3, handsOn: false },
+      { id: 'p.b', minutes: 2, handsOn: false, after: ['p.a'] },
+    ]);
+    expect(oracleValid(chain, HOME_KITCHEN, { 'p.a': -5, 'p.b': -3 })).toBe(false);
+  });
+});
+
+describe('R10.1 oracleSlack takes the definition, not the end points (design C2)', () => {
+  it('one cook, s.go at -20 and o.go at -17, 1 minute each: delays 1 and 2 fit, 3 collides, so slack 2', () => {
+    // Delays 4 to 19 fit again and 20 ends after 0; an end-point check would say 19.
+    const plan = planOf([
+      { id: 's.go', minutes: 1 },
+      { id: 'o.go', minutes: 1 },
+    ]);
+    const starts = { 's.go': -20, 'o.go': -17 };
+    expect(oracleValid(plan, HOME_KITCHEN, starts)).toBe(true);
+    expect(oracleSlack(plan, HOME_KITCHEN, starts, 's.go')).toBe(2);
+  });
+  it('a step whose result is used at its end has slack 0', () => {
+    const plan = planOf([
+      { id: 'p.a', minutes: 3, handsOn: false },
+      { id: 'p.b', minutes: 2, handsOn: false, after: ['p.a'] },
+    ]);
+    expect(oracleSlack(plan, HOME_KITCHEN, { 'p.a': -5, 'p.b': -2 }, 'p.a')).toBe(0);
+    expect(oracleSlack(plan, HOME_KITCHEN, { 'p.a': -6, 'p.b': -2 }, 'p.a')).toBe(1);
+  });
+});
+
+describe('R10.1 the oracles import nothing from the scheduler', () => {
+  it('oracles.ts has no import of schedule, passes or timeline, and only type or schema imports from core', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(new URL('../support/oracles.ts', import.meta.url), 'utf8');
+    const imports = [...source.matchAll(/^import[^;]*from\\s+'([^']+)'/gm)].map((m) => m[1]);
+    expect(imports).toEqual(['../../src/core/schema.js']);
+    expect(source).not.toMatch(/schedule\\.js|passes\\/|timeline\\.js/);
+  });
+});
+"""
+open(p,'w').write(s)
+
+# stubs
+p='test/support/oracles.ts'
+s=open(p).read()
+s=s.replace("import type { Plan } from '../../src/core/schema.js';","import type { Kitchen, Plan, ScheduledStep } from '../../src/core/schema.js';",1)
+s+="""
+// ---------------------------------------------------------------------------------------
+// Scheduler oracles (STUBS for the red phase of T2.2)
+
+export type Starts = Record<string, number>;
+export function oracleCapacityViolations(
+  _plan: Plan,
+  _kitchen: Kitchen,
+  _starts: Starts,
+): { minute: number; resource: 'burner' | 'oven' | 'cook'; count: number; limit: number }[] {
+  return [];
+}
+export function oraclePrecedenceViolations(
+  _plan: Plan,
+  _starts: Starts,
+): { stepId: string; prereq: string }[] {
+  return [];
+}
+export function oracleCompletenessViolations(
+  _plan: Plan,
+  _steps: readonly ScheduledStep[],
+): string[] {
+  return [];
+}
+export function oracleValid(_plan: Plan, _kitchen: Kitchen, _starts: Starts): boolean {
+  return true;
+}
+export function oracleWaits(_plan: Plan, _starts: Starts): Record<string, number | null> {
+  return {};
+}
+export function oracleHoldExceeded(
+  _plan: Plan,
+  _starts: Starts,
+): { stepId: string; waitMin: number; holdMin: number }[] {
+  return [];
+}
+export function oracleLaneViolations(
+  _plan: Plan,
+  _kitchen: Kitchen,
+  _steps: readonly ScheduledStep[],
+): string[] {
+  return [];
+}
+export function oracleSlack(
+  _plan: Plan,
+  _kitchen: Kitchen,
+  _starts: Starts,
+  _stepId: string,
+): number {
+  return 0;
+}
+export function startsOf(steps: readonly ScheduledStep[]): Starts {
+  const out: Starts = {};
+  for (const s of steps) out[s.id] = s.startMin;
+  return out;
+}
+"""
+open(p,'w').write(s)
+EOF
+npx prettier --write test/meta/oracles.test.ts >/dev/null; npx vitest run --project examples test/meta/oracles.test.ts 2>&1 | grep -E "×|Tests|Test Files" | head -40
+         × oracleSlack gives the slack column for every step 3ms
+         × oracleWaits gives the wait column (null where the result keeps) 1ms
+         × oracleSlack gives the slack column for every step 0ms
+         × oracleWaits gives the wait column (null where the result keeps) 0ms
+         × oracleSlack gives the slack column for every step 0ms
+         × oracleWaits gives the wait column (null where the result keeps) 0ms
+         × oracleSlack gives the slack column for every step 0ms
+         × oracleWaits gives the wait column (null where the result keeps) 0ms
+         × oracleSlack gives the slack column for every step 0ms
+         × oracleWaits gives the wait column (null where the result keeps) 0ms
+         × H3: only potatoes.roast waits past its hold (40 > 10) 0ms
+         × H5 pass 1 starts: bread.shape at -17 waits 4 > hold 2 0ms
+         × H6 TWO_CHOPS x BARE_KITCHEN: b.chop waits 10 > 5 0ms
+         × two oven steps overlapping in one minute with one oven: capacity 0ms
+         × two hands-on steps overlapping with one cook: capacity on the cook 0ms
+         × a step starting before its prerequisite ends: precedence 0ms
+         × a missing step: completeness 0ms
+         × an extra step, a duplicated step, a wrong length and an end after 0 0ms
+         × two overlapping steps on cook 1: lane clash; the same steps on cooks 1 and 2: none 0ms
+         × a missing, an unexpected and an out-of-range lane 0ms
+         × is false when a step ends after minute 0 0ms
+         × is false for a capacity violation and for a precedence violation 0ms
+         × one cook, s.go at -20 and o.go at -17, 1 minute each: delays 1 and 2 fit, 3 collides, so slack 2 0ms
+         × a step whose result is used at its end has slack 0 0ms
+    ⎯⎯⎯⎯⎯⎯ Failed Tests 24 ⎯⎯⎯⎯⎯⎯⎯
+     Test Files  1 failed (1)
+          Tests  24 failed | 65 passed (89)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/support/oracles.ts'
+s=open(p).read()
+i=s.index("\n// ---------------------------------------------------------------------------------------\n// Scheduler oracles (STUBS")
+s=s[:i]+"""
+// ---------------------------------------------------------------------------------------
+// Scheduler oracles. Written from scheduler-guarantees.md: plain loops over every minute and
+// every step, nothing shared with src/core/schedule.ts, passes/ or timeline.ts.
+
+export type Starts = Record<string, number>;
+type ResourceName = 'burner' | 'oven' | 'cook';
+const RESOURCE_NAMES: readonly ResourceName[] = ['burner', 'oven', 'cook'];
+
+type PlanStep = Plan['steps'][number];
+
+const startOf = (starts: Starts, step: PlanStep): number => starts[step.id] ?? 0;
+const endOf = (starts: Starts, step: PlanStep): number => startOf(starts, step) + step.minutes;
+const activeAt = (starts: Starts, step: PlanStep, minute: number): boolean =>
+  startOf(starts, step) <= minute && minute < endOf(starts, step);
+
+function usesResource(step: PlanStep, resource: ResourceName): boolean {
+  if (resource === 'cook') return step.handsOn;
+  return step.appliance === resource;
+}
+
+function limitOf(kitchen: Kitchen, resource: ResourceName): number {
+  if (resource === 'burner') return kitchen.burners;
+  if (resource === 'oven') return kitchen.ovens;
+  return kitchen.cooks;
+}
+
+/** The steps in plain code-unit order of id. */
+function byId(plan: Plan): PlanStep[] {
+  return [...plan.steps].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+/** The steps that list `id` in `after`. */
+function usersOf(plan: Plan, id: string): PlanStep[] {
+  return byId(plan).filter((s) => s.after.includes(id));
+}
+
+/** G1: every minute and resource where more steps are active than the kitchen has units. */
+export function oracleCapacityViolations(
+  plan: Plan,
+  kitchen: Kitchen,
+  starts: Starts,
+): { minute: number; resource: ResourceName; count: number; limit: number }[] {
+  const out: { minute: number; resource: ResourceName; count: number; limit: number }[] = [];
+  if (plan.steps.length === 0) return out;
+  let first = Infinity;
+  let last = -Infinity;
+  for (const s of plan.steps) {
+    first = Math.min(first, startOf(starts, s));
+    last = Math.max(last, endOf(starts, s));
+  }
+  for (let minute = first; minute < last; minute++) {
+    for (const resource of RESOURCE_NAMES) {
+      let count = 0;
+      for (const s of plan.steps) {
+        if (usesResource(s, resource) && activeAt(starts, s, minute)) count++;
+      }
+      const limit = limitOf(kitchen, resource);
+      if (count > limit) out.push({ minute, resource, count, limit });
+    }
+  }
+  return out;
+}
+
+/** G2: every step that starts before one of its prerequisites ends. */
+export function oraclePrecedenceViolations(
+  plan: Plan,
+  starts: Starts,
+): { stepId: string; prereq: string }[] {
+  const out: { stepId: string; prereq: string }[] = [];
+  for (const s of byId(plan)) {
+    for (const prereq of [...new Set(s.after)].sort()) {
+      const p = plan.steps.find((x) => x.id === prereq);
+      if (p === undefined) continue;
+      if (startOf(starts, s) < endOf(starts, p)) out.push({ stepId: s.id, prereq });
+    }
+  }
+  return out;
+}
+
+/**
+ * G3: `missing:<id>`, `duplicate:<id>`, `extra:<id>`, then per scheduled step
+ * `not_integer:<id>`, `length:<id>` (end - start differs from minutes), `after_serving:<id>`.
+ */
+export function oracleCompletenessViolations(
+  plan: Plan,
+  steps: readonly ScheduledStep[],
+): string[] {
+  const out: string[] = [];
+  const planIds = byId(plan).map((s) => s.id);
+  for (const id of planIds) {
+    const count = steps.filter((s) => s.id === id).length;
+    if (count === 0) out.push(`missing:${id}`);
+    if (count > 1) out.push(`duplicate:${id}`);
+  }
+  const extra = [...new Set(steps.map((s) => s.id))].filter((id) => !planIds.includes(id)).sort();
+  for (const id of extra) out.push(`extra:${id}`);
+  const entries = [...steps].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  for (const e of entries) {
+    const step = plan.steps.find((s) => s.id === e.id);
+    if (step === undefined) continue;
+    if (!Number.isInteger(e.startMin) || !Number.isInteger(e.endMin)) out.push(`not_integer:${e.id}`);
+    if (e.endMin - e.startMin !== step.minutes) out.push(`length:${e.id}`);
+    if (e.endMin > 0) out.push(`after_serving:${e.id}`);
+  }
+  return out;
+}
+
+/** G1 to G3 on bare starts: integers, nothing ends after 0, no capacity or precedence violation. */
+export function oracleValid(plan: Plan, kitchen: Kitchen, starts: Starts): boolean {
+  for (const s of plan.steps) {
+    const start = starts[s.id];
+    if (start === undefined || !Number.isInteger(start)) return false;
+    if (start + s.minutes > 0) return false;
+  }
+  return (
+    oracleCapacityViolations(plan, kitchen, starts).length === 0 &&
+    oraclePrecedenceViolations(plan, starts).length === 0
+  );
+}
+
+/**
+ * Notation of scheduler-guarantees.md: null where the result keeps; for a terminal step
+ * `0 - end`; otherwise the latest start of its users minus its end.
+ */
+export function oracleWaits(plan: Plan, starts: Starts): Record<string, number | null> {
+  const out: Record<string, number | null> = {};
+  for (const s of byId(plan)) {
+    if (s.holdMin === null) {
+      out[s.id] = null;
+      continue;
+    }
+    const users = usersOf(plan, s.id);
+    if (users.length === 0) {
+      out[s.id] = 0 - endOf(starts, s);
+      continue;
+    }
+    let latest = -Infinity;
+    for (const u of users) latest = Math.max(latest, startOf(starts, u));
+    out[s.id] = latest - endOf(starts, s);
+  }
+  return out;
+}
+
+/** G4.3: every step whose wait is longer than its hold, by id. */
+export function oracleHoldExceeded(
+  plan: Plan,
+  starts: Starts,
+): { stepId: string; waitMin: number; holdMin: number }[] {
+  const waits = oracleWaits(plan, starts);
+  const out: { stepId: string; waitMin: number; holdMin: number }[] = [];
+  for (const s of byId(plan)) {
+    const wait = waits[s.id];
+    if (wait === null || wait === undefined || s.holdMin === null) continue;
+    if (wait > s.holdMin) out.push({ stepId: s.id, waitMin: wait, holdMin: s.holdMin });
+  }
+  return out;
+}
+
+/**
+ * G5.1 and G6: `lane_missing:<id>:<resource>`, `lane_extra:<id>:<resource>`,
+ * `lane_range:<id>:<resource>`, then `lane_clash:<resource>:<lane>:<idA>:<idB>` (idA < idB).
+ */
+export function oracleLaneViolations(
+  plan: Plan,
+  kitchen: Kitchen,
+  steps: readonly ScheduledStep[],
+): string[] {
+  const out: string[] = [];
+  const entryOf = (id: string): ScheduledStep | undefined => steps.find((e) => e.id === id);
+  for (const s of byId(plan)) {
+    const entry = entryOf(s.id);
+    if (entry === undefined) continue;
+    for (const resource of RESOURCE_NAMES) {
+      const lane = entry.lanes[resource];
+      const needed = usesResource(s, resource);
+      if (needed && lane === null) out.push(`lane_missing:${s.id}:${resource}`);
+      if (!needed && lane !== null) out.push(`lane_extra:${s.id}:${resource}`);
+      if (lane !== null && !(Number.isInteger(lane) && lane >= 1 && lane <= limitOf(kitchen, resource))) {
+        out.push(`lane_range:${s.id}:${resource}`);
+      }
+    }
+  }
+  const ids = byId(plan).map((s) => s.id);
+  for (const resource of RESOURCE_NAMES) {
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const a = entryOf(ids[i] ?? '');
+        const b = entryOf(ids[j] ?? '');
+        if (a === undefined || b === undefined) continue;
+        const lane = a.lanes[resource];
+        if (lane === null || lane !== b.lanes[resource]) continue;
+        if (a.startMin < b.endMin && b.startMin < a.endMin) {
+          out.push(`lane_clash:${resource}:${lane}:${a.id}:${b.id}`);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * G8, by the definition: the largest k >= 0 such that delaying the step alone by each d in
+ * 1..k keeps G1 to G3 true (lanes ignored, holds not considered). Tries d = 1, 2, ... and
+ * stops at the first failure.
+ */
+export function oracleSlack(plan: Plan, kitchen: Kitchen, starts: Starts, stepId: string): number {
+  const step = plan.steps.find((s) => s.id === stepId);
+  if (step === undefined) return 0;
+  const users = usersOf(plan, stepId);
+  const others = plan.steps.filter((s) => s.id !== stepId);
+  for (let d = 1; ; d++) {
+    const newStart = startOf(starts, step) + d;
+    const newEnd = newStart + step.minutes;
+    if (newEnd > 0) return d - 1;
+    if (users.some((u) => startOf(starts, u) < newEnd)) return d - 1;
+    for (let minute = newStart; minute < newEnd; minute++) {
+      for (const resource of RESOURCE_NAMES) {
+        if (!usesResource(step, resource)) continue;
+        let count = 1;
+        for (const o of others) {
+          if (usesResource(o, resource) && activeAt(starts, o, minute)) count++;
+        }
+        if (count > limitOf(kitchen, resource)) return d - 1;
+      }
+    }
+  }
+}
+
+export function startsOf(steps: readonly ScheduledStep[]): Starts {
+  const out: Starts = {};
+  for (const s of steps) out[s.id] = s.startMin;
+  return out;
+}
+"""
+open(p,'w').write(s)
+EOF
+npx prettier --write test/support/oracles.ts >/dev/null; npx vitest run --project examples test/meta/oracles.test.ts 2>&1 | grep -E "×|Tests|Test Files|Error" | head -40
+         × oracles.ts has no import of schedule, passes or timeline, and only type or schema imports from core 3ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    AssertionError: expected 'import type { Kitchen, Plan, Schedule…' not to match /schedule\.js|passes\/|ti…/|timeline\.js
+     Test Files  1 failed (1)
+          Tests  1 failed | 88 passed (89)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && grep -n "not.toMatch" test/meta/oracles.test.ts
+    733:    expect(source).not.toMatch(/schedule\.js|passes\/|timeline\.js/);
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/meta/oracles.test.ts'
+s=open(p).read()
+s=s.replace("    expect(source).not.toMatch(/schedule\\.js|passes\\/|timeline\\.js/);","    // no dynamic import or require that could reach them\n    expect(source).not.toMatch(/import\\(|require\\(/);")
+open(p,'w').write(s)
+EOF
+npx vitest run --project examples test/meta/oracles.test.ts 2>&1 | grep -E "×|Tests|Test Files|Error"
+     Test Files  1 passed (1)
+          Tests  89 passed (89)
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/support/arbitraries.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/meta/arbitraries.test.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/support/arbitraries.ts'
+s=open(p).read()
+marker="/** The same plan with `steps`, `dishes` and every `after` list in another order. */"
+stub="""/** STUB (red phase of T2.4). */
+export function fitUnlimited(plan: Plan): Plan {
+  return plan;
+}
+/** STUB (red phase of T2.4). */
+export function arbUnlimitedKitchen(_plan: Plan): fc.Arbitrary<Kitchen> {
+  return fc.constant({ burners: 1, ovens: 1, cooks: 1 });
+}
+/** STUB (red phase of T2.4). */
+export function arbUnlimitedPair(): fc.Arbitrary<{ plan: Plan; kitchen: Kitchen }> {
+  return arbPlanAndKitchen();
+}
+/** STUB (red phase of T2.4). */
+export function arbHandsFreePair(): fc.Arbitrary<{ plan: Plan; kitchen: Kitchen }> {
+  return arbPlanAndKitchen();
+}
+
+"""
+assert marker in s
+s=s.replace(marker,stub+marker,1)
+open(p,'w').write(s)
+
+p='test/meta/arbitraries.test.ts'
+s=open(p).read()
+s=s.replace("""import {
+  arbBrokenPlan,
+  arbKitchen,
+""","""import {
+  arbBrokenPlan,
+  arbHandsFreePair,
+  arbKitchen,
+""",1)
+s=s.replace("""  arbShuffledPlan,
+} from '../support/arbitraries.js';""","""  arbShuffledPlan,
+  arbUnlimitedKitchen,
+  arbUnlimitedPair,
+  fitUnlimited,
+} from '../support/arbitraries.js';""",1)
+s=s.replace("""import { fcParams } from '../support/fc-params.js';
+""","""import { fcParams } from '../support/fc-params.js';
+import { SUNDAY_ROAST } from '../support/fixtures.js';
+import { checkKitchen, checkPlan } from '../../src/core/sanity.js';
+""",1)
+s+="""
+// ---------------------------------------------------------------------------------------
+// Scheduler spec, T2.4: arbUnlimitedKitchen, fitUnlimited, arbUnlimitedPair, arbHandsFreePair
+
+const needs = (plan: Plan) => ({
+  burners: plan.steps.filter((s) => s.appliance === 'burner').length,
+  ovens: plan.steps.filter((s) => s.appliance === 'oven').length,
+  cooks: plan.steps.filter((s) => s.handsOn).length,
+});
+
+/** A plan of `n` steps `t.s01`..`t.sNN` with the given appliance and handsOn, no prerequisites. */
+function uniformPlan(n: number, appliance: 'burner' | 'oven' | 'none', handsOn: boolean): Plan {
+  return {
+    title: 'Uniform',
+    dishes: [{ id: 't', name: 'Test' }],
+    steps: Array.from({ length: n }, (_, i) => ({
+      id: `t.s${String(i + 1).padStart(2, '0')}`,
+      dish: 't',
+      title: 'Prepare the thing',
+      minutes: 5,
+      appliance,
+      handsOn,
+      after: [],
+      holdMin: null,
+    })),
+  };
+}
+
+describe('R10.2 arbUnlimitedKitchen', () => {
+  it('SUNDAY_ROAST needs 3 burners, 1 oven and 6 cooks, so those are the lowest counts drawn', () => {
+    const kitchens = sampleOf(arbUnlimitedKitchen(SUNDAY_ROAST), 300);
+    for (const k of kitchens) {
+      expect(KitchenSchema.safeParse(k).success).toBe(true);
+      expect(k.burners).toBeGreaterThanOrEqual(3);
+      expect(k.ovens).toBeGreaterThanOrEqual(1);
+      expect(k.cooks).toBe(6);
+    }
+    expect(kitchens.some((k) => k.burners === 3)).toBe(true);
+    expect(kitchens.some((k) => k.burners === 8)).toBe(true);
+    expect(kitchens.some((k) => k.ovens === 1)).toBe(true);
+    expect(kitchens.some((k) => k.ovens === 4)).toBe(true);
+  });
+  it('a plan that needs nothing still gets at least one cook', () => {
+    const kitchens = sampleOf(arbUnlimitedKitchen(uniformPlan(2, 'none', false)), 200);
+    for (const k of kitchens) expect(k.cooks).toBeGreaterThanOrEqual(1);
+    expect(kitchens.some((k) => k.burners === 0)).toBe(true);
+  });
+});
+
+describe('R10.2 fitUnlimited', () => {
+  it('changes nothing in a plan within the bounds', () => {
+    expect(fitUnlimited(SUNDAY_ROAST)).toEqual(SUNDAY_ROAST);
+  });
+  it('8 hands-on steps: the first 6 by id stay hands-on, s07 and s08 become hands-free', () => {
+    const fitted = fitUnlimited(uniformPlan(8, 'none', true));
+    expect(fitted.steps.filter((s) => s.handsOn).map((s) => s.id)).toEqual([
+      't.s01',
+      't.s02',
+      't.s03',
+      't.s04',
+      't.s05',
+      't.s06',
+    ]);
+  });
+  it('10 burner steps keep 8 burner steps; 6 oven steps keep 4; the rest use no appliance', () => {
+    const burners = fitUnlimited(uniformPlan(10, 'burner', false));
+    expect(burners.steps.filter((s) => s.appliance === 'burner').map((s) => s.id)).toEqual(
+      ['01', '02', '03', '04', '05', '06', '07', '08'].map((n) => `t.s${n}`),
+    );
+    expect(burners.steps.filter((s) => s.appliance === 'none').map((s) => s.id)).toEqual([
+      't.s09',
+      't.s10',
+    ]);
+    const ovens = fitUnlimited(uniformPlan(6, 'oven', false));
+    expect(ovens.steps.filter((s) => s.appliance === 'oven')).toHaveLength(4);
+    expect(ovens.steps.filter((s) => s.appliance === 'none').map((s) => s.id)).toEqual([
+      't.s05',
+      't.s06',
+    ]);
+  });
+  it('keeps the step order of the input and every other field', () => {
+    const plan = uniformPlan(8, 'none', true);
+    const reversed: Plan = { ...plan, steps: [...plan.steps].reverse() };
+    const fitted = fitUnlimited(reversed);
+    expect(fitted.steps.map((s) => s.id)).toEqual(reversed.steps.map((s) => s.id));
+    expect(fitted.steps.map((s) => s.handsOn)).toEqual([false, false, true, true, true, true, true, true]);
+    expect(fitted.steps.every((s) => s.minutes === 5 && s.title === 'Prepare the thing')).toBe(true);
+  });
+});
+
+describe('R10.2 arbUnlimitedPair', () => {
+  const pairs = sampleOf(arbUnlimitedPair(), 300);
+  it('every kitchen has counts at least the burner, oven and hands-on step counts and passes KitchenSchema', () => {
+    expect(pairs).toHaveLength(300);
+    for (const { plan, kitchen } of pairs) {
+      const need = needs(plan);
+      expect(KitchenSchema.safeParse(kitchen).success).toBe(true);
+      expect(kitchen.burners).toBeGreaterThanOrEqual(need.burners);
+      expect(kitchen.ovens).toBeGreaterThanOrEqual(need.ovens);
+      expect(kitchen.cooks).toBeGreaterThanOrEqual(need.cooks);
+    }
+  });
+  it('every plan passes PlanSchema, has no checkPlan error and fits its kitchen', () => {
+    for (const { plan, kitchen } of pairs) {
+      expect(PlanSchema.safeParse(plan).success).toBe(true);
+      expect(checkPlan(plan).filter((i) => i.severity === 'error')).toEqual([]);
+      expect(checkKitchen(plan, kitchen)).toEqual([]);
+    }
+  });
+  it('reaches the schema maxima: 6 cooks needed, 8 burners and 4 ovens available', () => {
+    expect(pairs.some((p) => needs(p.plan).cooks === 6)).toBe(true);
+    expect(pairs.some((p) => p.kitchen.burners === 8)).toBe(true);
+    expect(pairs.some((p) => p.kitchen.ovens === 4)).toBe(true);
+    expect(pairs.some((p) => needs(p.plan).burners > 0)).toBe(true);
+  });
+});
+
+describe('R10.2 arbHandsFreePair', () => {
+  const pairs = sampleOf(arbHandsFreePair(), 300);
+  it('no step is hands-on', () => {
+    expect(pairs).toHaveLength(300);
+    for (const { plan } of pairs) expect(plan.steps.some((s) => s.handsOn)).toBe(false);
+  });
+  it('plans pass the schema, kitchens have every needed appliance, no error', () => {
+    for (const { plan, kitchen } of pairs) {
+      expect(PlanSchema.safeParse(plan).success).toBe(true);
+      expect(KitchenSchema.safeParse(kitchen).success).toBe(true);
+      expect(checkPlan(plan).filter((i) => i.severity === 'error')).toEqual([]);
+      expect(checkKitchen(plan, kitchen)).toEqual([]);
+    }
+  });
+  it('still varies the kitchen: cooks of 1 and of 6, with and without burners', () => {
+    expect(pairs.some((p) => p.kitchen.cooks === 1)).toBe(true);
+    expect(pairs.some((p) => p.kitchen.cooks === 6)).toBe(true);
+    expect(pairs.some((p) => p.kitchen.burners === 0)).toBe(true);
+    expect(pairs.some((p) => p.plan.steps.some((s) => s.appliance === 'burner'))).toBe(true);
+  });
+});
+"""
+open(p,'w').write(s)
+EOF
+npx prettier --write test/meta/arbitraries.test.ts test/support/arbitraries.ts >/dev/null; npx vitest run --project examples test/meta/arbitraries.test.ts 2>&1 | grep -E "×|Tests|Test Files|Error" | head -30
+         × SUNDAY_ROAST needs 3 burners, 1 oven and 6 cooks, so those are the lowest counts drawn 2ms
+         × a plan that needs nothing still gets at least one cook 5ms
+         × 8 hands-on steps: the first 6 by id stay hands-on, s07 and s08 become hands-free 1ms
+         × 10 burner steps keep 8 burner steps; 6 oven steps keep 4; the rest use no appliance 0ms
+         × keeps the step order of the input and every other field 0ms
+         × every kitchen has counts at least the burner, oven and hands-on step counts and passes KitchenSchema 0ms
+         × no step is hands-on 0ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+    AssertionError: expected 1 to be greater than or equal to 3
+    AssertionError: expected false to be true // Object.is equality
+    AssertionError: expected [ 't.s01', 't.s02', 't.s03', …(5) ] to deeply equal [ 't.s01', 't.s02', 't.s03', …(3) ]
+    AssertionError: expected [ 't.s01', 't.s02', 't.s03', …(7) ] to deeply equal [ 't.s01', 't.s02', 't.s03', …(5) ]
+    AssertionError: expected [ true, true, true, true, true, …(3) ] to deeply equal [ Array(8) ]
+    AssertionError: expected 1 to be greater than or equal to 2
+    AssertionError: expected true to be false // Object.is equality
+     Test Files  1 failed (1)
+          Tests  7 failed | 103 passed (110)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+import re
+p='test/support/arbitraries.ts'
+s=open(p).read()
+i=s.index("/** STUB (red phase of T2.4). */\nexport function fitUnlimited")
+j=s.index("/** The same plan with `steps`, `dishes` and every `after` list in another order. */")
+new='''/**
+ * Makes a plan small enough for an "unlimited" kitchen to exist (C1): in step-id order, every
+ * hands-on step after the 6th becomes hands-free, every burner step after the 8th and every
+ * oven step after the 4th uses no appliance. Step order and all other fields stay. Only fields
+ * that no error rule reads change, so a valid plan stays valid (warnings may appear).
+ */
+export function fitUnlimited(plan: Plan): Plan {
+  const ordered = [...plan.steps].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const changed = new Map<string, Step>();
+  let hands = 0;
+  let burners = 0;
+  let ovens = 0;
+  for (const step of ordered) {
+    let next = step;
+    if (step.handsOn) {
+      hands++;
+      if (hands > 6) next = { ...next, handsOn: false };
+    }
+    if (step.appliance === 'burner') {
+      burners++;
+      if (burners > 8) next = { ...next, appliance: 'none' };
+    }
+    if (step.appliance === 'oven') {
+      ovens++;
+      if (ovens > 4) next = { ...next, appliance: 'none' };
+    }
+    changed.set(step.id, next);
+  }
+  return { ...plan, steps: plan.steps.map((s) => changed.get(s.id) ?? s) };
+}
+
+/**
+ * Counts at least the steps needing each resource; only for plans with at most 8 burner, 4
+ * oven and 6 hands-on steps (see C1). Each count is drawn from the number needed up to the
+ * schema maximum (and cooks from at least 1).
+ */
+export function arbUnlimitedKitchen(plan: Plan): fc.Arbitrary<Kitchen> {
+  const burners = plan.steps.filter((s) => s.appliance === 'burner').length;
+  const ovens = plan.steps.filter((s) => s.appliance === 'oven').length;
+  const cooks = plan.steps.filter((s) => s.handsOn).length;
+  return fc.record({
+    burners: fc.integer({ min: burners, max: 8 }),
+    ovens: fc.integer({ min: ovens, max: 4 }),
+    cooks: fc.integer({ min: Math.max(1, cooks), max: 6 }),
+  });
+}
+
+/** `arbPlan()` fitted by `fitUnlimited`, then a kitchen from `arbUnlimitedKitchen`. */
+export function arbUnlimitedPair(): fc.Arbitrary<{ plan: Plan; kitchen: Kitchen }> {
+  return arbPlan()
+    .map(fitUnlimited)
+    .chain((plan) => arbUnlimitedKitchen(plan).map((kitchen) => ({ plan, kitchen })));
+}
+
+/** `arbPlanAndKitchen()` with every step's `handsOn` set to false. */
+export function arbHandsFreePair(): fc.Arbitrary<{ plan: Plan; kitchen: Kitchen }> {
+  return arbPlanAndKitchen().map(({ plan, kitchen }) => ({
+    plan: { ...plan, steps: plan.steps.map((s) => ({ ...s, handsOn: false })) },
+    kitchen,
+  }));
+}
+
+'''
+s=s[:i]+new+s[j:]
+open(p,'w').write(s)
+EOF
+npx prettier --write test/support/arbitraries.ts >/dev/null; npx vitest run --project examples test/meta/arbitraries.test.ts 2>&1 | grep -E "×|Tests|Test Files|Error" | head -30; npm run typecheck 2>&1 | tail -15
+     Test Files  1 passed (1)
+          Tests  110 passed (110)
+    
+    > make-dinner@0.0.0 typecheck
+    > tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && grep -rnE "\b(it|test)\(" test --include=*.pbt.ts -A1 | grep -E "it\(|test\(|'|\`" | head -50; ls .kiro/specs/*/
+    zsh:1: no matches found: --include=*.pbt.ts
+    .kiro/specs/dinnerfile/:
+    design.md
+    requirements.md
+    tasks.md
+    
+    .kiro/specs/recipe-graph/:
+    design.md
+    requirements.md
+    tasks.md
+    
+    .kiro/specs/recipe-reader/:
+    design.md
+    requirements.md
+    tasks.md
+    
+    .kiro/specs/scheduler/:
+    design.md
+    requirements.md
+    tasks.md
+    exit 0
+[tool:search] Grep Search
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/test/meta/guarantee-claims.ts
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/test/meta/guarantees.test.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx prettier --write test/meta/guarantees.test.ts test/meta/guarantee-claims.ts >/dev/null; npx vitest run --project examples test/meta/guarantees.test.ts 2>&1 | grep -vE "^\s*$" | head -50
+    … (10 earlier lines not shown)
+    + [
+    +   "G1",
+    +   "G2",
+    +   "G3",
+    +   "G4",
+    +   "G4.1",
+    +   "G4.2",
+    +   "G4.3",
+    +   "G5",
+    +   "G5.1",
+    +   "G5.2",
+    +   "G5.3",
+    +   "G6",
+    +   "G7",
+    +   "G7.1",
+    +   "G7.2",
+    +   "G8",
+    + ]
+     ❯ test/meta/guarantees.test.ts:287:77
+        285|   it('coverage: every id of every required family has a property whose…
+        286|     const missing = uncoveredIds(steeringIds, titles, required);
+        287|     expect(missing, `no property title starts with: ${missing.join(', …
+           |                                                                             ^
+        288|   });
+        289| });
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+     Test Files  1 failed (1)
+          Tests  1 failed | 18 passed (19)
+       Start at  14:22:50
+       Duration  100ms (transform 48%, tests 25%, import 22%, worker 5%)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx vitest run --project examples test/meta/guarantees.test.ts -t "parser|unknown|claims" 2>&1 | tail -8
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+    
+    
+     Test Files  1 passed (1)
+          Tests  11 passed | 8 skipped (19)
+       Start at  14:22:54
+       Duration  105ms (import 47%, tests 20%, transform 20%, worker 12%)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat > src/core/timeline.ts <<'EOF'
+import type { Kitchen, Step } from './schema.js';
+
+// STUB (red phase of T4.1): placeholder bodies of the right types.
+
+export type Resource = 'burner' | 'oven' | 'cook';
+export const RESOURCES: readonly Resource[] = ['burner', 'oven', 'cook'];
+export type Capacity = Readonly<Record<Resource, number>>;
+
+export function capacityOf(_kitchen: Kitchen): Capacity {
+  return { burner: 0, oven: 0, cook: 0 };
+}
+
+export function resourcesOf(_step: Pick<Step, 'appliance' | 'handsOn'>): Resource[] {
+  return [];
+}
+
+export interface Timeline {
+  usage(r: Resource, minute: number): number;
+  add(rs: readonly Resource[], startMin: number, endMin: number): void;
+  remove(rs: readonly Resource[], startMin: number, endMin: number): void;
+  lastFull(rs: readonly Resource[], startMin: number, endMin: number): number | null;
+  firstFull(rs: readonly Resource[], startMin: number, endMin: number): number | null;
+}
+
+export function createTimeline(_capacity: Capacity): Timeline {
+  return {
+    usage: () => 0,
+    add: () => undefined,
+    remove: () => undefined,
+    lastFull: () => null,
+    firstFull: () => null,
+  };
+}
+
+export function latestFit(
+  _tl: Timeline,
+  _rs: readonly Resource[],
+  _minutes: number,
+  upper: number,
+  _floorMin: number,
+): number {
+  return upper;
+}
+
+export function earliestFit(
+  _tl: Timeline,
+  _rs: readonly Resource[],
+  _minutes: number,
+  lower: number,
+  _ceilMin: number,
+): number {
+  return lower;
+}
+EOF
+cat > test/core/timeline.test.ts <<'EOF'
+import { describe, expect, it } from 'vitest';
+import {
+  capacityOf,
+  createTimeline,
+  earliestFit,
+  latestFit,
+  RESOURCES,
+  resourcesOf,
+} from '../../src/core/timeline.js';
+import type { Capacity, Resource } from '../../src/core/timeline.js';
+
+const ONE_EACH: Capacity = { burner: 1, oven: 1, cook: 1 };
+
+describe('R3.5 capacityOf and resourcesOf', () => {
+  it('RESOURCES lists burner, oven, cook in that order', () => {
+    expect(RESOURCES).toEqual(['burner', 'oven', 'cook']);
+  });
+  it('capacityOf reads burners, ovens and cooks', () => {
+    expect(capacityOf({ burners: 4, ovens: 1, cooks: 2 })).toEqual({
+      burner: 4,
+      oven: 1,
+      cook: 2,
+    });
+    expect(capacityOf({ burners: 0, ovens: 0, cooks: 1 })).toEqual({
+      burner: 0,
+      oven: 0,
+      cook: 1,
+    });
+  });
+  it.each([
+    ['burner', true, ['burner', 'cook']],
+    ['burner', false, ['burner']],
+    ['oven', true, ['oven', 'cook']],
+    ['oven', false, ['oven']],
+    ['none', true, ['cook']],
+    ['none', false, []],
+  ] as const)('resourcesOf(%s, handsOn %s) is %j', (appliance, handsOn, expected) => {
+    expect(resourcesOf({ appliance, handsOn })).toEqual(expected);
+  });
+});
+
+describe('R3.4 Timeline usage, add and remove', () => {
+  it('an empty timeline has usage 0 everywhere', () => {
+    const tl = createTimeline(ONE_EACH);
+    for (const r of RESOURCES) expect(tl.usage(r, -7)).toBe(0);
+  });
+  it('add counts one use per minute of [start, end) for each listed resource only', () => {
+    const tl = createTimeline({ burner: 2, oven: 2, cook: 2 });
+    tl.add(['burner', 'cook'], -10, -5);
+    for (const minute of [-10, -9, -8, -7, -6]) {
+      expect([minute, tl.usage('burner', minute), tl.usage('cook', minute)]).toEqual([
+        minute,
+        1,
+        1,
+      ]);
+    }
+    expect([tl.usage('burner', -11), tl.usage('burner', -5)]).toEqual([0, 0]);
+    expect(tl.usage('oven', -8)).toBe(0);
+  });
+  it('uses add up and remove takes them off again', () => {
+    const tl = createTimeline({ burner: 2, oven: 2, cook: 2 });
+    tl.add(['oven'], -6, -2);
+    tl.add(['oven'], -4, 0);
+    expect([-6, -5, -4, -3, -2, -1].map((t) => tl.usage('oven', t))).toEqual([1, 1, 2, 2, 1, 1]);
+    tl.remove(['oven'], -4, 0);
+    expect([-6, -5, -4, -3, -2, -1].map((t) => tl.usage('oven', t))).toEqual([1, 1, 1, 1, 0, 0]);
+    tl.remove(['oven'], -6, -2);
+    expect([-6, -3, -1].map((t) => tl.usage('oven', t))).toEqual([0, 0, 0]);
+  });
+});
+
+describe('R3.4 lastFull and firstFull', () => {
+  it('a minute is full when one more use would pass the capacity', () => {
+    const tl = createTimeline({ burner: 2, oven: 1, cook: 1 });
+    tl.add(['burner'], -10, -5);
+    // One use of two burners: not full.
+    expect(tl.lastFull(['burner'], -20, 0)).toBeNull();
+    tl.add(['burner'], -8, -6);
+    // Two uses at -8 and -7: full.
+    expect(tl.firstFull(['burner'], -20, 0)).toBe(-8);
+    expect(tl.lastFull(['burner'], -20, 0)).toBe(-7);
+  });
+  it('finds the first and last full minute of the window, and only inside it', () => {
+    const tl = createTimeline(ONE_EACH);
+    tl.add(['burner'], -10, -5);
+    expect(tl.firstFull(['burner'], -20, 0)).toBe(-10);
+    expect(tl.lastFull(['burner'], -20, 0)).toBe(-6);
+    expect(tl.firstFull(['burner'], -8, 0)).toBe(-8);
+    expect(tl.lastFull(['burner'], -20, -8)).toBe(-9);
+    expect(tl.lastFull(['burner'], -4, 0)).toBeNull();
+    expect(tl.firstFull(['burner'], -20, -10)).toBeNull();
+  });
+  it('looks at the listed resources only, any one of them being full counts', () => {
+    const tl = createTimeline(ONE_EACH);
+    tl.add(['oven'], -3, -1);
+    expect(tl.lastFull(['burner'], -10, 0)).toBeNull();
+    expect(tl.lastFull(['burner', 'oven'], -10, 0)).toBe(-2);
+    expect(tl.firstFull(['cook', 'oven'], -10, 0)).toBe(-3);
+  });
+  it('an empty resource list and an empty window have no full minute', () => {
+    const tl = createTimeline(ONE_EACH);
+    tl.add(['burner'], -10, 0);
+    expect(tl.lastFull([], -10, 0)).toBeNull();
+    expect(tl.firstFull([], -10, 0)).toBeNull();
+    expect(tl.lastFull(['burner'], -5, -5)).toBeNull();
+    expect(tl.firstFull(['burner'], -5, -5)).toBeNull();
+  });
+  it('a resource with capacity 0 is full everywhere', () => {
+    const tl = createTimeline({ burner: 0, oven: 1, cook: 1 });
+    expect(tl.firstFull(['burner'], -3, 0)).toBe(-3);
+    expect(tl.lastFull(['burner'], -3, 0)).toBe(-1);
+  });
+});
+
+describe('R3.4 latestFit and earliestFit', () => {
+  const busyBurner = () => {
+    const tl = createTimeline(ONE_EACH);
+    tl.add(['burner'], -10, -5);
+    return tl;
+  };
+
+  it('latestFit returns the upper end when the window is free', () => {
+    expect(latestFit(busyBurner(), ['burner'], 3, -2, -100)).toBe(-2);
+    expect(latestFit(busyBurner(), ['burner'], 3, 0, -100)).toBe(0);
+  });
+  it('latestFit steps over a busy block: 8 minutes ending at 0 must end at -10', () => {
+    // Busy minutes -10..-6. A window of 8 ending after -5 would pass 0, so it ends at -10.
+    expect(latestFit(busyBurner(), ['burner'], 8, 0, -100)).toBe(-10);
+  });
+  it('latestFit fits into a gap between two blocks', () => {
+    const tl = createTimeline(ONE_EACH);
+    tl.add(['burner'], -20, -12);
+    tl.add(['burner'], -6, -2);
+    // Free minutes -12..-7 (6 of them): 4 minutes end at -7 at the latest... -7 is free, so end -6.
+    expect(latestFit(tl, ['burner'], 4, -2, -100)).toBe(-6);
+    // 7 minutes do not fit between the blocks, so it ends before the first one.
+    expect(latestFit(tl, ['burner'], 7, -2, -100)).toBe(-20);
+  });
+  it('earliestFit returns the lower start when the window is free', () => {
+    expect(earliestFit(busyBurner(), ['burner'], 2, -20, 0)).toBe(-20);
+    expect(earliestFit(busyBurner(), ['burner'], 5, -5, 0)).toBe(-5);
+  });
+  it('earliestFit steps over a busy block: 3 minutes from -12 start at -5', () => {
+    expect(earliestFit(busyBurner(), ['burner'], 3, -12, 0)).toBe(-5);
+  });
+  it('an empty resource list returns the first candidate', () => {
+    const tl = busyBurner();
+    expect(latestFit(tl, [], 5, -3, -100)).toBe(-3);
+    expect(earliestFit(tl, [], 5, -50, 0)).toBe(-50);
+  });
+  it('two resources: the window must be free on both', () => {
+    const tl = createTimeline(ONE_EACH);
+    tl.add(['burner'], -10, -8);
+    tl.add(['cook'], -6, -4);
+    expect(latestFit(tl, ['burner', 'cook'], 3, -3, -100)).toBe(-6);
+    expect(latestFit(tl, ['burner', 'cook'], 3, -4, -100)).toBe(-6);
+    expect(earliestFit(tl, ['burner', 'cook'], 3, -11, 0)).toBe(-8);
+  });
+
+  it('latestFit throws when the start would be below the floor, not when it equals it', () => {
+    expect(() => latestFit(busyBurner(), ['burner'], 8, 0, -17)).toThrow();
+    expect(latestFit(busyBurner(), ['burner'], 8, 0, -18)).toBe(-10);
+  });
+  it('latestFit throws instead of looping when the resource has capacity 0', () => {
+    const tl = createTimeline({ burner: 0, oven: 1, cook: 1 });
+    expect(() => latestFit(tl, ['burner'], 2, 0, -50)).toThrow();
+  });
+  it('earliestFit throws when the start would be above the ceiling, not when it equals it', () => {
+    expect(() => earliestFit(busyBurner(), ['burner'], 3, -12, -6)).toThrow();
+    expect(earliestFit(busyBurner(), ['burner'], 3, -12, -5)).toBe(-5);
+  });
+  it('earliestFit throws instead of looping when the resource has capacity 0', () => {
+    const tl = createTimeline({ burner: 0, oven: 1, cook: 1 });
+    expect(() => earliestFit(tl, ['burner'], 2, -50, 0)).toThrow();
+  });
+});
+
+describe('R3.4, N2 the jump gives the same answer as trying every candidate', () => {
+  // Every pattern of busy minutes in [-6, 0) for one burner and one cook (capacity 1 each),
+  // every length 1..3, every upper end -6..0 and lower start -6..0, against a plain scan.
+  const MINUTES = [-6, -5, -4, -3, -2, -1];
+  const patternsFor = (mask: number): number[] => MINUTES.filter((_m, i) => (mask >> i) & 1);
+
+  function timelineOf(burnerMask: number, cookMask: number) {
+    const tl = createTimeline(ONE_EACH);
+    for (const m of patternsFor(burnerMask)) tl.add(['burner'], m, m + 1);
+    for (const m of patternsFor(cookMask)) tl.add(['cook'], m, m + 1);
+    return { tl, burner: new Set(patternsFor(burnerMask)), cook: new Set(patternsFor(cookMask)) };
+  }
+
+  const free = (busy: Record<Resource, Set<number>>, rs: Resource[], from: number, to: number) => {
+    for (let t = from; t < to; t++) {
+      if (rs.some((r) => busy[r].has(t))) return false;
+    }
+    return true;
+  };
+
+  it('latestFit and earliestFit agree with a scan over all 64 x 64 patterns', () => {
+    const rs: Resource[] = ['burner', 'cook'];
+    let checked = 0;
+    for (let burnerMask = 0; burnerMask < 64; burnerMask++) {
+      for (let cookMask = 0; cookMask < 64; cookMask++) {
+        const { tl, burner, cook } = timelineOf(burnerMask, cookMask);
+        const busy = { burner, cook, oven: new Set<number>() };
+        for (let minutes = 1; minutes <= 3; minutes++) {
+          for (let edge = -6; edge <= 0; edge++) {
+            // Latest end at or below `edge`: the window sits wholly below `edge`.
+            let expectedEnd = edge;
+            while (!free(busy, rs, expectedEnd - minutes, expectedEnd)) expectedEnd--;
+            expect(latestFit(tl, rs, minutes, edge, -100)).toBe(expectedEnd);
+            // Earliest start at or above `edge`.
+            let expectedStart = edge;
+            while (!free(busy, rs, expectedStart, expectedStart + minutes)) expectedStart++;
+            expect(earliestFit(tl, rs, minutes, edge, 100)).toBe(expectedStart);
+            checked++;
+          }
+        }
+      }
+    }
+    expect(checked).toBe(64 * 64 * 3 * 7);
+  });
+});
+EOF
+npx prettier --write test/core/timeline.test.ts src/core/timeline.ts >/dev/null; npx vitest run --project examples test/core/timeline.test.ts 2>&1 | grep -E "×|Tests|Test Files" | head -30
+         × capacityOf reads burners, ovens and cooks 3ms
+         × resourcesOf(burner, handsOn true) is ["burner","cook"] 0ms
+         × resourcesOf(burner, handsOn false) is ["burner"] 0ms
+         × resourcesOf(oven, handsOn true) is ["oven","cook"] 0ms
+         × resourcesOf(oven, handsOn false) is ["oven"] 0ms
+         × resourcesOf(none, handsOn true) is ["cook"] 0ms
+         × add counts one use per minute of [start, end) for each listed resource only 0ms
+         × uses add up and remove takes them off again 0ms
+         × a minute is full when one more use would pass the capacity 0ms
+         × finds the first and last full minute of the window, and only inside it 0ms
+         × looks at the listed resources only, any one of them being full counts 0ms
+         × a resource with capacity 0 is full everywhere 0ms
+         × latestFit steps over a busy block: 8 minutes ending at 0 must end at -10 0ms
+         × latestFit fits into a gap between two blocks 0ms
+         × earliestFit steps over a busy block: 3 minutes from -12 start at -5 0ms
+         × two resources: the window must be free on both 0ms
+         × latestFit throws when the start would be below the floor, not when it equals it 1ms
+         × latestFit throws instead of looping when the resource has capacity 0 0ms
+         × earliestFit throws when the start would be above the ceiling, not when it equals it 0ms
+         × earliestFit throws instead of looping when the resource has capacity 0 0ms
+         × latestFit and earliestFit agree with a scan over all 64 x 64 patterns 0ms
+    ⎯⎯⎯⎯⎯⎯ Failed Tests 21 ⎯⎯⎯⎯⎯⎯⎯
+     Test Files  1 failed (1)
+          Tests  21 failed | 7 passed (28)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/core/timeline.test.ts'
+s=open(p).read()
+old_start=s.index("  it('two resources: the window must be free on both'")
+old_end=s.index("  it('latestFit throws when the start would be below the floor")
+new="""  it('two resources: the window must be free on both', () => {
+    // Burner busy at -10 and -9, cook busy at -6 and -5.
+    const tl = createTimeline(ONE_EACH);
+    tl.add(['burner'], -10, -8);
+    tl.add(['cook'], -6, -4);
+    // 3 minutes ending at or before -3: every end from -3 down to -9 has a busy minute in its
+    // window; [-13, -10) is the first free one.
+    expect(latestFit(tl, ['burner', 'cook'], 3, -3, -100)).toBe(-10);
+    expect(latestFit(tl, ['burner'], 3, -3, -100)).toBe(-3);
+    // Starting at -11 or later: the first free window starts at -4.
+    expect(earliestFit(tl, ['burner', 'cook'], 3, -11, 0)).toBe(-4);
+    expect(earliestFit(tl, ['burner'], 3, -11, 0)).toBe(-8);
+  });
+"""
+s=s[:old_start]+new+s[old_end:]
+s=s.replace("""    // Free minutes -12..-7 (6 of them): 4 minutes end at -7 at the latest... -7 is free, so end -6.
+""","""    // Busy minutes are -20..-13 and -6..-3, so -12..-7 are free: 4 minutes fit ending at -6.
+""")
+open(p,'w').write(s)
+
+p='src/core/timeline.ts'
+open(p,'w').write('''import type { Kitchen, Step } from './schema.js';
+
+export type Resource = 'burner' | 'oven' | 'cook';
+export const RESOURCES: readonly Resource[] = ['burner', 'oven', 'cook'];
+export type Capacity = Readonly<Record<Resource, number>>;
+
+export function capacityOf(kitchen: Kitchen): Capacity {
+  return { burner: kitchen.burners, oven: kitchen.ovens, cook: kitchen.cooks };
+}
+
+/** In RESOURCES order: the appliance (unless 'none'), then 'cook' iff handsOn. */
+export function resourcesOf(step: Pick<Step, 'appliance' | 'handsOn'>): Resource[] {
+  const out: Resource[] = [];
+  if (step.appliance !== 'none') out.push(step.appliance);
+  if (step.handsOn) out.push('cook');
+  return out;
+}
+
+export interface Timeline {
+  usage(r: Resource, minute: number): number;
+  add(rs: readonly Resource[], startMin: number, endMin: number): void;
+  remove(rs: readonly Resource[], startMin: number, endMin: number): void;
+  /** Largest t in [startMin, endMin) with usage(r, t) + 1 > cap(r) for some r in rs; else null. */
+  lastFull(rs: readonly Resource[], startMin: number, endMin: number): number | null;
+  /** Smallest such t; else null. */
+  firstFull(rs: readonly Resource[], startMin: number, endMin: number): number | null;
+}
+
+/**
+ * Local mutable state inside one `schedule` call: one map per resource, minute to count,
+ * a missing minute meaning 0. Nothing outside holds a reference to it.
+ */
+export function createTimeline(capacity: Capacity): Timeline {
+  const counts: Record<Resource, Map<number, number>> = {
+    burner: new Map(),
+    oven: new Map(),
+    cook: new Map(),
+  };
+  const usage = (r: Resource, minute: number): number => counts[r].get(minute) ?? 0;
+  const isFull = (rs: readonly Resource[], minute: number): boolean =>
+    rs.some((r) => usage(r, minute) + 1 > capacity[r]);
+  const change = (rs: readonly Resource[], startMin: number, endMin: number, by: 1 | -1): void => {
+    for (const r of rs) {
+      for (let minute = startMin; minute < endMin; minute++) {
+        counts[r].set(minute, usage(r, minute) + by);
+      }
+    }
+  };
+  return {
+    usage,
+    add: (rs, startMin, endMin) => change(rs, startMin, endMin, 1),
+    remove: (rs, startMin, endMin) => change(rs, startMin, endMin, -1),
+    lastFull(rs, startMin, endMin) {
+      for (let minute = endMin - 1; minute >= startMin; minute--) {
+        if (isFull(rs, minute)) return minute;
+      }
+      return null;
+    },
+    firstFull(rs, startMin, endMin) {
+      for (let minute = startMin; minute < endMin; minute++) {
+        if (isFull(rs, minute)) return minute;
+      }
+      return null;
+    },
+  };
+}
+
+/**
+ * Latest end e <= upper such that [e - minutes, e) fits; throws when the start would fall
+ * below floorMin (a bug: the caller's floor is below every busy minute).
+ *
+ * Jump: if minute t is full in the window ending at e, the windows ending at t + 1 .. e all
+ * contain t when t is the last full minute of the window ending at e (they start no later than
+ * the current one and end after t), so none fits; the next candidate is e = t. This gives the
+ * same answer as trying every end one by one.
+ */
+export function latestFit(
+  tl: Timeline,
+  rs: readonly Resource[],
+  minutes: number,
+  upper: number,
+  floorMin: number,
+): number {
+  let end = upper;
+  for (;;) {
+    if (end - minutes < floorMin) {
+      throw new Error(`latestFit: no room at or above minute ${floorMin}`);
+    }
+    const full = tl.lastFull(rs, end - minutes, end);
+    if (full === null) return end;
+    end = full;
+  }
+}
+
+/**
+ * Earliest start s >= lower such that [s, s + minutes) fits; throws when the start would pass
+ * ceilMin (a bug). Mirror of `latestFit`: a full minute t in the window starting at s rules out
+ * every start from s to t, so the next candidate is s = t + 1.
+ */
+export function earliestFit(
+  tl: Timeline,
+  rs: readonly Resource[],
+  minutes: number,
+  lower: number,
+  ceilMin: number,
+): number {
+  let start = lower;
+  for (;;) {
+    if (start > ceilMin) {
+      throw new Error(`earliestFit: no room at or below minute ${ceilMin}`);
+    }
+    const full = tl.firstFull(rs, start, start + minutes);
+    if (full === null) return start;
+    start = full + 1;
+  }
+}
+''')
+EOF
+npx prettier --write test/core/timeline.test.ts src/core/timeline.ts >/dev/null; npx vitest run --project examples test/core/timeline.test.ts 2>&1 | grep -E "×|Tests|Test Files|Error" | head -30
+     Test Files  1 passed (1)
+          Tests  28 passed (28)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && unset ANTHROPIC_API_KEY; (npx vitest run --project examples test/core/schema.test.ts && npm run typecheck) 2>&1 | grep -E "Tests|Test Files|error" ; echo ---; npx vitest run --project examples test/meta/oracles.test.ts 2>&1 | grep -E "Tests|Test Files"; npx vitest run --project examples test/meta/arbitraries.test.ts 2>&1 | grep -E "Tests|Test Files"; npx vitest run --project examples test/meta/guarantees.test.ts -t "parser|unknown|claims" 2>&1 | grep -E "Tests|Test Files"; npx vitest run --project examples test/core/timeline.test.ts 2>&1 | grep -E "Tests|Test Files"
+     Test Files  1 passed (1)
+          Tests  261 passed (261)
+    ---
+     Test Files  1 passed (1)
+          Tests  89 passed (89)
+     Test Files  1 passed (1)
+          Tests  110 passed (110)
+     Test Files  1 passed (1)
+          Tests  11 passed | 8 skipped (19)
+     Test Files  1 passed (1)
+          Tests  28 passed (28)
+    exit 0
+
+Now the wide suite.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && unset ANTHROPIC_API_KEY; npm test 2>&1 | grep -E "×|Tests |Test Files|FAIL" | head; echo ---PROPS; npm run test:props 2>&1 | grep -E "×|Tests |Test Files|FAIL" | head; echo ---TC; npm run typecheck >/tmp/tc.txt 2>&1; echo exit $?; echo ---LINT; npm run lint 2>&1 | tail -25; echo ---FMT; npx prettier --check . 2>&1 | tail -8
+         × coverage: every id of every required family has a property whose title starts with it 3ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+     FAIL  |examples| test/meta/guarantees.test.ts > coverage of the guarantees by properties > coverage: every id of every required family has a property whose title starts with it
+     Test Files  1 failed | 16 passed (17)
+          Tests  1 failed | 715 passed (716)
+    ---PROPS
+     Test Files  4 passed (4)
+          Tests  32 passed (32)
+    ---TC
+    exit 0
+    ---LINT
+    
+    > make-dinner@0.0.0 lint
+    > eslint .
+    
+    ---FMT
+    Checking formatting...
+    All matched files use Prettier code style!
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='.kiro/specs/scheduler/tasks.md'
+s=open(p).read()
+for t in ['T1.1','T1.2','T2.1','T2.2','T2.3','T2.4','T2.5','T3.1','T4.1','T4.2']:
+    a=f"- [ ] {t} "
+    assert s.count(a)==1,t
+    s=s.replace(a,f"- [x] {t} ")
+open(p,'w').write(s)
+EOF
+grep -n "^- \[x\]" .kiro/specs/scheduler/tasks.md | cut -c1-30; npx prettier --check .kiro 2>&1 | tail -2; git status --short | grep -v kiro-evidence
+    23:- [x] T1.1 Example tests fo
+    32:- [x] T1.2 Implement the th
+    40:- [x] T2.1 Add `PREP_AHEAD`
+    49:- [x] T2.2 Example tests fo
+    57:- [x] T2.3 Implement the or
+    63:- [x] T2.4 Example tests fr
+    70:- [x] T2.5 Implement `arbUn
+    78:- [x] T3.1 Write `CLAIMS` a
+    89:- [x] T4.1 Example tests fo
+    96:- [x] T4.2 Implement `src/c
+    Checking formatting...
+    All matched files use Prettier code style!
+     M .kiro/specs/scheduler/tasks.md
+     M src/core/schema.ts
+     M test/core/schema.test.ts
+     M test/meta/arbitraries.test.ts
+     M test/meta/oracles.test.ts
+     M test/support/arbitraries.ts
+     M test/support/fixtures.ts
+     M test/support/oracles.ts
+    ?? src/core/timeline.ts
+    ?? test/core/timeline.test.ts
+    ?? test/meta/guarantee-claims.ts
+    ?? test/meta/guarantees.test.ts
+    exit 0
+
+T1, T2, T3.1 and T4 are done and ticked in `.kiro/specs/scheduler/tasks.md`. `npm test` has one failure, and it's the T3 coverage check, which is meant to fail until T8 adds the G properties. Nothing is committed.
+
+## Files changed
+- **Modified:**
+  - `src/core/schema.ts`
+  - `test/core/schema.test.ts`
+  - `test/meta/oracles.test.ts`
+  - `test/meta/arbitraries.test.ts`
+  - `test/support/fixtures.ts`
+  - `test/support/oracles.ts`
+  - `test/support/arbitraries.ts`
+  - `.kiro/specs/scheduler/tasks.md`
+- **New:**
+  - `src/core/timeline.ts`
+  - `test/core/timeline.test.ts`
+  - `test/meta/guarantee-claims.ts`
+  - `test/meta/guarantees.test.ts`
+
+## What each task added
+- **T1:** `StepLanesSchema`, `ScheduledStepSchema`, `ScheduleSchema` and their types. Also `HoldExceededIssue` and the `hold_exceeded` warning, appended to `WARNING_CODES`.
+- **T2:** the fixtures `PREP_AHEAD`, `SOLO_BURNER`, `SOLO_KEEPS`, `HANDS_FREE`, `TWO_CHOPS`, `LONG_DAY` and `COLD_SAUCE`, plus five kitchens. The H1–H5 tables are in the fixture comments (H6 sits on its own fixtures). I added the scheduler oracles and the generators `fitUnlimited`, `arbUnlimitedKitchen`, `arbUnlimitedPair` and `arbHandsFreePair`.
+- **T3.1:** `CLAIMS` and the coverage check with checks 1–6 of the design.
+- **T4:** `src/core/timeline.ts`, with an exhaustive example test that compares `latestFit` and `earliestFit` to a plain scan over 64×64 busy patterns.
+
+## Checks run in this session
+All with `ANTHROPIC_API_KEY` unset.
+
+| Command | Result |
+| --- | --- |
+| `npx vitest run --project examples test/core/schema.test.ts && npm run typecheck` | 261 passed; typecheck clean |
+| `npx vitest run --project examples test/meta/oracles.test.ts` | 89 passed |
+| `npx vitest run --project examples test/meta/arbitraries.test.ts` | 110 passed |
+| `npx vitest run --project examples test/meta/guarantees.test.ts -t "parser\|unknown\|claims"` | 11 passed, 8 skipped (skipped only by the `-t` filter) |
+| `npx vitest run --project examples test/core/timeline.test.ts` | 28 passed |
+| `npm test` | 715 passed, **1 failed**, 0 skipped (17 files, 1 failed) |
+| `npm run test:props` | 32 passed, 0 failed, 0 skipped (4 files) |
+| `npm run typecheck` | exit 0 |
+| `npm run lint` | exit 0, no findings |
+| `npx prettier --check .` | all files formatted |
+
+The one failure in `npm test` is "coverage: every id of every required family has a property whose title starts with it". It reports no property title for G1, G2, G3, G4, G4.1–G4.3, G5, G5.1–G5.3, G6, G7, G7.1, G7.2 and G8. S1 and S2 are covered. The check can't pass vacuously: inline tests show every id is reported when there are no titles, and nothing is reported when every id has a title. I ticked T3.1 on the other checks, as the task says. T9.1 ticks the coverage check.
+
+## Decisions I made
+- Stubs were used so the red phases failed on assertions. For the fixtures I wrote the test against missing names, so some of those failures were `TypeError`s on `undefined` rather than assertion failures. The first assertion in most of them still failed.
+- `ScheduleSchema.warnings` is an array of the `hold_exceeded` schema only, so a stored schedule can't carry other warning codes.
+- The existing "rejects an unknown code" test in `schema.test.ts` used `hold_exceeded` as its unknown code. I changed it to `burnt_toast`, since `hold_exceeded` is now a real code.
+- Oracle violation strings (`missing:<id>`, `lane_clash:cook:1:a:b` and so on) are my own format. The design leaves it open.
+- In `test/meta/oracles.test.ts` the H1–H5 tables are written out as data, so later tasks will have to reuse or copy them.
+
+## Not done or not verified
+- Nothing beyond T4 was started, so no pass, `schedule` or G-property exists yet. The hand tables H1–H5 are only checked against my oracles and the waits and slack I worked by hand. No scheduler code has been compared to them yet.
+- `test:e2e`, `build` and `check:contrast` were not run.
+- The first draft of my timeline test had a wrong expected value in a two-resource case. I reworked it by hand (the answers are −10 and −4, not −6 and −8) and the exhaustive scan agrees. This was my test error, not an error in the design tables.
+
+## Open questions
+None blocking. The design's open conflicts C1 and C2 are unchanged. C2's resolution (`slackMin === oracleSlack`) is already built into `oracleSlack`, and a test pins the C2 example at 2.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && unset ANTHROPIC_API_KEY; npm test 2>&1 | grep -E "×|Tests |Test Files"; npm run test:props 2>&1 | grep -E "Tests |Test Files"; npm run typecheck >/dev/null 2>&1; echo tc $?; npm run lint >/dev/null 2>&1; echo lint $?; npx prettier --check . >/dev/null 2>&1; echo fmt $?
+         × coverage: every id of every required family has a property whose title starts with it 4ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+     Test Files  1 failed | 16 passed (17)
+          Tests  1 failed | 715 passed (716)
+     Test Files  4 passed (4)
+          Tests  32 passed (32)
+    tc 0
+    lint 0
+    fmt 0
+    exit 0
+
+The stop hook's failure is the one expected `npm test` failure. I re-ran everything and nothing else is failing.
+
+- **`npm test`:** 715 passed, 1 failed, 0 skipped. The failing test is "coverage: every id of every required family has a property whose title starts with it" in `test/meta/guarantees.test.ts`. It reports no property for G1, G2, G3, G4, G4.1–G4.3, G5, G5.1–G5.3, G6, G7, G7.1, G7.2 and G8.
+- **`npm run test:props`:** 32 passed, 0 failed.
+- **`npm run typecheck`, `npm run lint`, `npx prettier --check .`:** all exit 0.
+
+I'm leaving the failure in place. The only ways to make it pass now would be skipping the check or giving it a stub property, and both are banned. It has to stay red until T8.3–T8.15 add the real G properties, and T9.1 ticks the coverage check once they exist. I ticked T3.1 on the parser, unknown-id and claims checks, as the task says.
+
+To keep the hook green in the meantime, you could scope it to leave out `test/meta/guarantees.test.ts`. I haven't changed any hook or config.
+
+--- run success (end_turn); credits reported by this session: 23.12 ---
