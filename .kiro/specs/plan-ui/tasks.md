@@ -108,7 +108,7 @@ design's copy tables give it, in the task that first shows it.
 
 ## T3. Plan screen with the plan list
 
-- [ ] T3.1 Example tests for `scheduleView`, `stepMark` (critical with a hold, critical that keeps,
+- [x] T3.1 Example tests for `scheduleView`, `stepMark` (critical with a hold, critical that keeps,
   slack > 0) and `planListGroups`: the design's H1 table at Wed 19:30, the H3 warning text, the
   midnight headings at Thu 00:30, a `RebuiltSchedule`-shaped input with `servingMin: 15` built by
   hand (serving and `spanMin` from it); the copy functions `listWait` and `formatDuration` uses.
@@ -116,20 +116,20 @@ design's copy tables give it, in the task that first shows it.
   `src/web/components/plan-list-items.ts`, `src/web/copy.ts` (stubs).
   Covers: R6.6, R7.1, R7.2, R7.3, R7.4.
   Command: `npx vitest run --project examples test/web/components/plan-list-items.test.ts`
-- [ ] T3.2 Implement them until T3.1 passes; add property P-UI4 over `arbPlanAndKitchen()` with
+- [x] T3.2 Implement them until T3.1 passes; add property P-UI4 over `arbPlanAndKitchen()` with
   `schedule`.
   Files: `src/web/state/schedule-view.ts`, `src/web/components/plan-list-items.ts`,
   `src/web/copy.ts`, `test/web/components/plan-list-items.pbt.ts`.
   Covers: R6.6, R7.1–R7.4.
   Command: `npx vitest run --project examples test/web/components/plan-list-items.test.ts && npx vitest run --project props test/web/components/plan-list-items.pbt.ts && npm run typecheck`
-- [ ] T3.3 Example tests, then implementation, for `kitchen/set` (a value failing `parseKitchen`
+- [x] T3.3 Example tests, then implementation, for `kitchen/set` (a value failing `parseKitchen`
   ignored), `serving/set-time`, `serving/set-instant`, `plan/enter` (fills a null serving, keeps a
   set one), and `selectSchedule` (the same result object for the same plan and kitchen, a new one
   after `kitchen/set`, none recomputed by `serving/*`).
   Files: `test/web/state/store.test.ts`, `src/web/state/store.ts`.
   Covers: R4.11, R5.2, R5.3.
   Command: `npx vitest run --project examples test/web/state/store.test.ts && npm run typecheck`
-- [ ] T3.4 Plan screen: `KitchenControls`, `Stepper`, `ServingTime`, `PlanSummary`,
+- [x] T3.4 Plan screen: `KitchenControls`, `Stepper`, `ServingTime`, `PlanSummary`,
   `WarningList`, `PlanList`, `MissingAppliance`, the invalid-plan message; `seedDinner` in
   `e2e/support.ts`. E2E first, seeded H1 at 19:30: `Start at 17:40`, `Serve at 19:30`, `Takes 1 h
   50 min`, the list equal to the design's H1 table; burners 4 → 1 → `Make a roux in the roasting
@@ -141,7 +141,7 @@ design's copy tables give it, in the task that first shows it.
   `src/web/copy.ts`, `src/web/styles/components.css`, `e2e/support.ts`, `e2e/plan.spec.ts`.
   Covers: R5.1, R5.2, R5.4, R5.6, R5.7, R5.8, R7.1–R7.4, R10.1.
   Command: `npx playwright test e2e/plan.spec.ts && npm run typecheck && npm run lint`
-- [ ] T3.5 The past-start note with `useNow(systemClock, 30_000)`. E2E first: clock at 17:41
+- [x] T3.5 The past-start note with `useNow(systemClock, 30_000)`. E2E first: clock at 17:41
   with seeded H1 at 19:30 shows `This dinner needs 1 h 50 min. Earliest serving time 19:35.`;
   "Serve at 19:35" sets it and the note goes; at 17:39:30 there is no note and after
   `runFor(60_000)` there is.
@@ -152,19 +152,19 @@ design's copy tables give it, in the task that first shows it.
 
 ## T4. Timeline
 
-- [ ] T4.1 Example tests for `layoutTimeline`: the design's H1 table (origin, end, width, ticks,
+- [x] T4.1 Example tests for `layoutTimeline`: the design's H1 table (origin, end, width, ticks,
   serve line, every bar), the midnight ticks, `HANDS_FREE`-style two overlapping hands-free steps
   giving `Hands-free 1` and `Hands-free 2`, a 9-minute bar (54 px, label) and an 8-minute bar
   (48 px, no label), a serving minute of 15 from a hand-built rebuilt schedule.
   Files: `test/web/components/timeline-layout.test.ts`, `src/web/components/timeline-layout.ts` (stubs).
   Covers: R6.1–R6.6.
   Command: `npx vitest run --project examples test/web/components/timeline-layout.test.ts`
-- [ ] T4.2 Implement `layoutTimeline` until T4.1 passes; add property P-UI3 with an oracle loop
+- [x] T4.2 Implement `layoutTimeline` until T4.1 passes; add property P-UI3 with an oracle loop
   over minutes in the test file.
   Files: `src/web/components/timeline-layout.ts`, `test/web/components/timeline-layout.pbt.ts`.
   Covers: R6.1–R6.6.
   Command: `npx vitest run --project examples test/web/components/timeline-layout.test.ts && npx vitest run --project props test/web/components/timeline-layout.pbt.ts && npm run typecheck`
-- [ ] T4.3 `Timeline.tsx` and its styles. E2E first, seeded H1: rows `Cook 1`, `Burner 1`,
+- [x] T4.3 `Timeline.tsx` and its styles. E2E first, seeded H1: rows `Cook 1`, `Burner 1`,
   `Burner 2`, `Oven 1`, `Hands-free` in that order; the timeline has `aria-hidden="true"` and no
   focusable descendant; "Skip to the plan list" moves focus to the list; tapping the Oven 1 bar
   focuses the `Roast the chicken` item; on the phone the timeline scrolls (`scrollWidth >

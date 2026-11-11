@@ -1,6 +1,6 @@
 import { createContext, createElement } from 'preact';
 import type { ComponentChildren } from 'preact';
-import { useContext, useEffect, useReducer, useRef } from 'preact/hooks';
+import { useContext, useEffect, useReducer, useRef, useState } from 'preact/hooks';
 import { systemClock } from './clock.js';
 import type { Clock } from './clock.js';
 import type { Action, AppState, Store } from './store.js';
@@ -47,4 +47,15 @@ export function useDispatch(): (action: Action) => void {
 /** The clock that components read when they dispatch an action carrying `nowMs`. */
 export function useClock(): Clock {
   return systemClock;
+}
+
+/** The clock's time in ms, read again every `everyMs`; the component re-renders when it does. */
+export function useNow(clock: Clock, everyMs: number): number {
+  const [now, setNow] = useState(() => clock.nowMs());
+  useEffect(() => {
+    setNow(clock.nowMs());
+    const id = setInterval(() => setNow(clock.nowMs()), everyMs);
+    return () => clearInterval(id);
+  }, [clock, everyMs]);
+  return now;
 }

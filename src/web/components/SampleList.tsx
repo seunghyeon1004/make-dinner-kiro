@@ -2,6 +2,7 @@ import type { VNode } from 'preact';
 import { COPY, dishesLine } from '../copy.js';
 import type { SampleItem } from '../state/api.js';
 import { useAppState, useClock, useDispatch } from '../state/hooks.js';
+import { sampleLoad } from '../state/store.js';
 
 /** The sample cards, or the loading or failed state (R1.1, R1.2). */
 export function SampleList(): VNode {
@@ -28,19 +29,7 @@ export function SampleList(): VNode {
   }
 
   const choose = (sample: SampleItem): void => {
-    dispatch({
-      type: 'dinner/load',
-      nowMs: clock.nowMs(),
-      load: {
-        plan: sample.plan,
-        source: { kind: 'sample', sampleId: sample.id },
-        kitchen: sample.kitchen,
-        serve: null,
-        suggested: sample.servingTime,
-        route: 'plan',
-        notice: null,
-      },
-    });
+    dispatch({ type: 'dinner/load', nowMs: clock.nowMs(), load: sampleLoad(sample) });
   };
 
   return (

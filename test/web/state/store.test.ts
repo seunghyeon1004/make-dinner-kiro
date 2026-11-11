@@ -5,6 +5,7 @@ import {
   initialState,
   reachable,
   reduce,
+  sampleLoad,
   selectCheck,
   selectSchedule,
 } from '../../../src/web/state/store.js';
@@ -333,5 +334,145 @@ describe('samples and dinner loading (T2.2)', () => {
     const state = withDinner();
     expect(reduce(state, { type: 'dinner/replace', nowMs: 0 })).toBe(state);
     expect(reduce(state, { type: 'dinner/keep' })).toBe(state);
+  });
+});
+
+describe('sampleLoad (answer to the T2 open question)', () => {
+  it('R1.3 the dinner is titled with the sample title, not the title inside the recorded plan', () => {
+    const item = {
+      id: 'sunday-roast',
+      title: 'Sunday roast',
+      blurb: 'A chicken, gravy and greens.',
+      dishes: ['Roast chicken', 'Gravy', 'Spring greens'],
+      kitchen: HOME_KITCHEN,
+      servingTime: '13:30',
+      text: '',
+      plan: { ...SUNDAY_ROAST, title: 'Roast chicken with gravy and greens' },
+      issues: [],
+    } as unknown as SampleItem;
+    const load = sampleLoad(item);
+    expect(load.plan.title).toBe('Sunday roast');
+    expect(load.plan.steps).toEqual(SUNDAY_ROAST.steps);
+    expect(load.plan.dishes).toEqual(SUNDAY_ROAST.dishes);
+    expect(item.plan.title).toBe('Roast chicken with gravy and greens');
+    expect(load).toMatchObject({
+      source: { kind: 'sample', sampleId: 'sunday-roast' },
+      kitchen: HOME_KITCHEN,
+      serve: null,
+      suggested: '13:30',
+      route: 'plan',
+      notice: null,
+    });
+  });
+});
+
+describe('kitchen, serving and plan/enter (T3.3)', () => {
+  const originalZone = process.env['TZ'];
+  beforeAll(() => {
+    process.env['TZ'] = 'Europe/London';
+    expect(new Date(2026, 6, 1).getTimezoneOffset()).toBe(-60);
+  });
+  afterAll(() => {
+    if (originalZone === undefined) delete process.env['TZ'];
+    else process.env['TZ'] = originalZone;
+  });
+  const at = (iso: string): number => Date.parse(iso);
+  const served = (): AppState => ({
+    ...stateWith(SUNDAY_ROAST, { route: 'plan' }),
+    dinner: {
+      ...dinnerOf(SUNDAY_ROAST),
+      serving: { time: '19:30', atMs: at('2026-11-11T19:30:00Z') },
+    },
+  });
+
+  it('R5.1 kitchen/set replaces the kitchen', () => {
+    const next = reduce(served(), {
+      type: 'kitchen/set',
+      kitchen: { burners: 1, ovens: 1, cooks: 1 },
+    });
+    expect(next.dinner?.kitchen).toEqual({ burners: 1, ovens: 1, cooks: 1 });
+    expect(next.dinner?.plan).toBe(SUNDAY_ROAST);
+  });
+  it('R5.1 kitchen/set ignores a value that fails parseKitchen and returns the same state', () => {
+    const state = served();
+    for (const kitchen of [
+      { burners: 9, ovens: 1, cooks: 1 },
+      { burners: 4, ovens: 1, cooks: 0 },
+      { burners: 4, ovens: -1, cooks: 1 },
+      { burners: 4.5, ovens: 1, cooks: 1 },
+    ]) {
+      expect(reduce(state, { type: 'kitchen/set', kitchen })).toBe(state);
+    }
+  });
+  it('R5.1 kitchen/set with no dinner is a no-op', () => {
+    const state = initialState();
+    expect(
+      reduce(state, { type: 'kitchen/set', kitchen: { burners: 1, ovens: 1, cooks: 1 } }),
+    ).toBe(state);
+  });
+  it('R5.3 serving/set-time resolves the time: later today stays today, 00:30 is tomorrow', () => {
+    const now = at('2026-11-11T18:00:00Z');
+    expect(
+      reduce(served(), { type: 'serving/set-time', time: '20:00', nowMs: now }).dinner?.serving,
+    ).toEqual({ time: '20:00', atMs: at('2026-11-11T20:00:00Z') });
+    expect(
+      reduce(served(), { type: 'serving/set-time', time: '00:30', nowMs: now }).dinner?.serving,
+    ).toEqual({ time: '00:30', atMs: at('2026-11-12T00:30:00Z') });
+  });
+  it('R5.3 serving/set-instant stores the instant and its local clock time', () => {
+    const next = reduce(served(), {
+      type: 'serving/set-instant',
+      atMs: at('2026-11-11T19:35:00Z'),
+    });
+    expect(next.dinner?.serving).toEqual({ time: '19:35', atMs: at('2026-11-11T19:35:00Z') });
+  });
+  it('serving actions with no dinner are no-ops', () => {
+    const state = initialState();
+    expect(reduce(state, { type: 'serving/set-time', time: '19:30', nowMs: 0 })).toBe(state);
+    expect(reduce(state, { type: 'serving/set-instant', atMs: 0 })).toBe(state);
+  });
+  it('R4.11 plan/enter fills a null serving time (Wed 18:00:20, span 110 -> 20:30) and opens Plan', () => {
+    const state = stateWith(SUNDAY_ROAST, { route: 'steps' });
+    const next = reduce(state, { type: 'plan/enter', nowMs: at('2026-11-11T18:00:20Z') });
+    expect(next.route).toBe('plan');
+    expect(next.dinner?.serving).toEqual({ time: '20:30', atMs: at('2026-11-11T20:30:00Z') });
+  });
+  it('R4.11 plan/enter keeps a serving time that is set', () => {
+    const state = { ...served(), route: 'steps' as const };
+    const next = reduce(state, { type: 'plan/enter', nowMs: at('2026-11-11T18:00:20Z') });
+    expect(next.route).toBe('plan');
+    expect(next.dinner?.serving).toEqual({ time: '19:30', atMs: at('2026-11-11T19:30:00Z') });
+  });
+  it('R4.11 plan/enter on a plan with an error stays on Steps', () => {
+    const state = stateWith(BROKEN_ROAST, { route: 'steps' });
+    expect(reduce(state, { type: 'plan/enter', nowMs: 0 }).route).toBe('steps');
+  });
+
+  it('R5.2 selectSchedule gives the same result for the same plan and kitchen', () => {
+    const state = served();
+    expect(selectSchedule(state)).toBe(selectSchedule({ ...state, route: 'steps' }));
+  });
+  it('R5.2 a kitchen change gives a new result; the new kitchen shows in it', () => {
+    const state = served();
+    const before = selectSchedule(state);
+    const next = reduce(state, {
+      type: 'kitchen/set',
+      kitchen: { burners: 1, ovens: 1, cooks: 1 },
+    });
+    const after = selectSchedule(next);
+    expect(after).not.toBe(before);
+    expect(after?.ok === true ? after.value.kitchen.burners : null).toBe(1);
+  });
+  it('R5.2 serving changes do not recompute the schedule', () => {
+    const state = served();
+    const before = selectSchedule(state);
+    const a = reduce(state, {
+      type: 'serving/set-time',
+      time: '21:00',
+      nowMs: at('2026-11-11T18:00:00Z'),
+    });
+    const b = reduce(a, { type: 'serving/set-instant', atMs: at('2026-11-11T21:05:00Z') });
+    expect(selectSchedule(a)).toBe(before);
+    expect(selectSchedule(b)).toBe(before);
   });
 });

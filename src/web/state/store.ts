@@ -1,4 +1,10 @@
-import { hasErrors, longestChainMinutes, schedule, validatePlan } from '../../core/index.js';
+import {
+  hasErrors,
+  longestChainMinutes,
+  parseKitchen,
+  schedule,
+  validatePlan,
+} from '../../core/index.js';
 import type {
   Kitchen,
   Plan,
@@ -11,7 +17,7 @@ import type {
 import type { ParseFailure, SampleItem } from './api.js';
 import type { CookAction, CookState } from './cook-slot.js';
 import { reduceCook } from './cook-slot.js';
-import { defaultServing, resolveServing } from './clock.js';
+import { defaultServing, resolveServing, toServeTime } from './clock.js';
 import type { Serving } from './clock.js';
 import { COPY } from '../copy.js';
 
@@ -100,9 +106,29 @@ export type PlanUiAction =
   | { type: 'samples/failed' }
   | { type: 'dinner/load'; load: DinnerLoad; nowMs: number }
   | { type: 'dinner/replace'; nowMs: number }
-  | { type: 'dinner/keep' };
+  | { type: 'dinner/keep' }
+  | { type: 'kitchen/set'; kitchen: Kitchen }
+  | { type: 'serving/set-time'; time: ServeTime; nowMs: number }
+  | { type: 'serving/set-instant'; atMs: number }
+  | { type: 'plan/enter'; nowMs: number };
 
 export type Action = PlanUiAction | CookAction;
+
+/**
+ * The load of a chosen sample (R1.3). The dinner's title is the sample's own title from
+ * `samples/index.json`, not the title inside the recorded plan (decided with the user).
+ */
+export function sampleLoad(sample: SampleItem): DinnerLoad {
+  return {
+    plan: { ...sample.plan, title: sample.title },
+    source: { kind: 'sample', sampleId: sample.id },
+    kitchen: sample.kitchen,
+    serve: null,
+    suggested: sample.servingTime,
+    route: 'plan',
+    notice: null,
+  };
+}
 
 /** Minutes the plan takes: the schedule's span, else its longest chain, else 0. */
 function spanOf(plan: Plan, kitchen: Kitchen): number {
@@ -169,6 +195,30 @@ export function reduce(state: AppState, action: Action): AppState {
         : { ...applyLoad(state, state.pendingLoad, action.nowMs), cook: null };
     case 'dinner/keep':
       return state.pendingLoad === null ? state : { ...state, pendingLoad: null };
+    case 'kitchen/set': {
+      if (state.dinner === null || !parseKitchen(action.kitchen).ok) return state;
+      return { ...state, dinner: { ...state.dinner, kitchen: action.kitchen } };
+    }
+    case 'serving/set-time': {
+      if (state.dinner === null) return state;
+      const serving = { time: action.time, atMs: resolveServing(action.time, action.nowMs) };
+      return { ...state, dinner: { ...state.dinner, serving } };
+    }
+    case 'serving/set-instant': {
+      if (state.dinner === null) return state;
+      const serving = { time: toServeTime(action.atMs), atMs: action.atMs };
+      return { ...state, dinner: { ...state.dinner, serving } };
+    }
+    case 'plan/enter': {
+      if (state.dinner === null) return state;
+      const { plan, kitchen } = state.dinner;
+      const serving =
+        state.dinner.serving ?? defaultServing(action.nowMs, spanOf(plan, kitchen), null);
+      return reduce(
+        { ...state, dinner: { ...state.dinner, serving } },
+        { type: 'navigate', route: 'plan', cookRegistered: false },
+      );
+    }
     default:
       return reduceCook(state, action);
   }

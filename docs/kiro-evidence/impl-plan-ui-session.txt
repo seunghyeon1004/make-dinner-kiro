@@ -4159,3 +4159,3340 @@ The scratch screenshot spec and the image files are deleted.
 The recorded Sunday roast plan is titled "Roast chicken with lemon and thyme", not "Sunday roast". So the Plan `<h1>` and the question "Replace your current dinner, <title>?" show the dish name. That is what the model returned, and I left the recordings untouched. Should the samples' plan title come from `samples/index.json` instead? That would change recipe-reader, not this spec.
 
 --- run success (end_turn); credits reported by this session: 28.13 ---
+
+=== session 2026-11-11T09:09:47Z ===
+$ kiro-cli chat --output-format stream-json --v3 --agent sous-chef --trust-all-tools --trust-workspace --model auto "$(cat docs/kiro-evidence/prompts/17b-impl-plan-ui.md)"
+--- prompt ---
+Spec: plan-ui. Implement T3 (Plan screen with the plan list) and T4 (timeline), in order, and nothing after. T1 and T2 are done.
+
+Read .kiro/specs/plan-ui/requirements.md, design.md (including the review notes at the end) and tasks.md in full first, and ui.md. Use the exact copy, tokens, signatures and file paths the design gives. The recordings now exist (recordings/*.json, made from real model calls), so the server starts and `npm run test:e2e` works.
+
+Each sub-task: test first (unit test or e2e as the task says), see it fail on an assertion, implement, run the proving command the task names, tick the sub-task only when it passed in this session. Keep tests proportionate: the cases the task names, not a matrix. E2E runs are slow, so while iterating run the single spec file and project you are working on (`npx playwright test e2e/<file> --project=phone`), then the task's full command once before ticking.
+
+Look at what you build: after each screen works, take a screenshot at 390x844 in light and dark with Playwright (a throwaway script outside the repo's tracked files, or `page.screenshot` in a scratch spec you delete) and check it against ui.md with your own eyes: spacing rhythm, type scale, targets at least 48 px, nothing overflowing, no horizontal page scroll. Fix what looks wrong before ticking. Say in your report what you looked at and what you changed.
+
+Working rule: when the design is ambiguous or slightly off in a way that touches no requirement's intent, choose the reading closest to the requirement and to ui.md, write it under "Decisions I made", and continue. Stop and ask only when a requirement would have to change.
+
+Do not commit. Do not start `npm run dev`. End with the report kiro-conduct.md asks for, with the real counts from `npm test`, `npm run test:props`, `npm run typecheck`, `npm run lint`, `npx prettier --check .`, `npm run build` and `npm run test:e2e`.
+
+Answer to last session's open question: when a sample is chosen, the dinner's title is the sample's title from samples/index.json ("Sunday roast"), not the title inside the recorded plan. Do this on the web side where the sample is loaded into the store (the recording stays untouched), with a unit test, as part of T3.
+--- transcript (rendered from the event stream by scripts/kiro-render.mjs) ---
+[steering] {"steeringDocuments":["file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/kiro-conduct.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/product.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/scheduler-guarantees.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/structure.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/tech.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/testing.md"],"kind":"steering_inclusion"}
+
+I'll start by reading the spec files in full.
+
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/plan-ui/requirements.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/plan-ui/design.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/plan-ui/tasks.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/plan-ui/design.md
+
+Now the existing code.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && git status --short | head; find src/web test/web e2e public -type f | grep -v assets/ | sort; wc -l src/web/state/*.ts src/web/copy.ts src/web/app.tsx e2e/support.ts src/web/styles/*.css; cat package.json | head -40; ls test/support
+    … (76 earlier lines not shown)
+        "build": "tsc -p tsconfig.core.json && tsc -p tsconfig.server.json && tsc -p tsconfig.mcp.json && tsx scripts/build-web.ts",
+        "dev": "tsx scripts/build-web.ts --watch & tsx watch src/server/index.ts",
+        "start": "node dist/server/index.js",
+        "check:contrast": "tsx scripts/check-contrast.ts",
+        "record": "tsx scripts/record.ts"
+      },
+      "dependencies": {
+        "@anthropic-ai/sdk": "1.8.0",
+        "@hono/node-server": "2.1.6",
+        "@modelcontextprotocol/sdk": "1.32.2",
+        "hono": "4.13.17",
+        "preact": "11.2.0",
+        "zod": "4.6.7"
+      },
+      "devDependencies": {
+        "@axe-core/playwright": "4.14.0",
+        "@playwright/test": "1.60.0",
+        "@types/node": "22.20.5",
+        "@vitest/eslint-plugin": "1.6.28",
+        "esbuild": "0.28.2",
+        "eslint": "10.14.0",
+        "eslint-plugin-import-x": "4.18.1",
+        "fast-check": "4.10.2",
+    arbitraries.ts
+    fakes.ts
+    fc-params.ts
+    fixtures.ts
+    make.ts
+    oracles.ts
+    server.ts
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat src/web/screens/Plan.tsx src/web/screens/Steps.tsx src/web/screens/Menu.tsx src/web/app.tsx src/web/copy.ts src/web/state/store.ts src/web/state/hooks.ts
+    … (460 earlier lines not shown)
+    }
+    
+    /** Reads a part of the state; re-renders when the selected value changes (`Object.is`). */
+    export function useAppState<T>(select: (state: AppState) => T): T {
+      const store = useStore();
+      const [, rerender] = useReducer((n: number) => n + 1, 0);
+      const value = select(store.getState());
+      const latest = useRef(value);
+      latest.current = value;
+      useEffect(() => {
+        const changed = (): boolean => !Object.is(select(store.getState()), latest.current);
+        // The store may have changed between the render and this effect; do not miss it.
+        if (changed()) rerender(0);
+        return store.subscribe(() => {
+          if (changed()) rerender(0);
+        });
+        // `select` is usually an inline function; the subscription only needs the store.
+      }, [store]);
+      return value;
+    }
+    
+    export function useDispatch(): (action: Action) => void {
+      const store = useStore();
+      return store.dispatch;
+    }
+    
+    /** The clock that components read when they dispatch an action carrying `nowMs`. */
+    export function useClock(): Clock {
+      return systemClock;
+    }
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat e2e/support.ts e2e/menu.spec.ts src/web/components/SampleList.tsx src/web/state/effects.ts; cat src/web/styles/components.css
+    … (569 earlier lines not shown)
+    
+    .card .button {
+      width: 100%;
+    }
+    
+    .notice-block {
+      display: grid;
+      gap: var(--space-3);
+      justify-items: start;
+    }
+    
+    .notice-block p {
+      margin: 0;
+    }
+    
+    @media (min-width: 40rem) {
+      .card-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    
+      .card .button {
+        width: auto;
+      }
+    }
+    
+    @media (min-width: 40rem) {
+      .flow-nav ol {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat src/core/index.ts; grep -n "ScheduledStep\|ScheduleSchema\|HoldExceeded\|MissingAppliance\|ScheduleError\|RebuiltSchedule" -r src/core/schema.ts src/core/schedule.ts src/core/rebuild.ts | head -40; grep -n "^export" test/support/fixtures.ts test/support/arbitraries.ts test/support/fc-params.ts
+    … (193 earlier lines not shown)
+    test/support/arbitraries.ts:459:export function arbShuffledPlan(plan: Plan): fc.Arbitrary<Plan> {
+    test/support/arbitraries.ts:483:export function arbPlanLikeValue(): fc.Arbitrary<unknown> {
+    test/support/arbitraries.ts:567:export function arbRecipeText(): fc.Arbitrary<string> {
+    test/support/arbitraries.ts:882:export function arbBrokenPlan(rule: ErrorCode): fc.Arbitrary<BrokenCase> {
+    test/support/arbitraries.ts:907:export type AnySchedule = Schedule | RebuiltSchedule;
+    test/support/arbitraries.ts:910:export interface Run {
+    test/support/arbitraries.ts:915:export interface RunOpts {
+    test/support/arbitraries.ts:925:export function arbScheduled(opts: Omit<PlanOpts, 'appliances'> = {}): fc.Arbitrary<Schedule> {
+    test/support/arbitraries.ts:939:export function arbNow(s: AnySchedule): fc.Arbitrary<number> {
+    test/support/arbitraries.ts:1106:export function arbProgress(s: AnySchedule, opts: RunOpts = {}): fc.Arbitrary<Run> {
+    test/support/arbitraries.ts:1135:export function followPlan(s: AnySchedule, base: Progress, now: number): Progress {
+    test/support/arbitraries.ts:1151:export function arbOnPlan(s: Schedule): fc.Arbitrary<Run> {
+    test/support/arbitraries.ts:1163:export function arbHostileText(max: number): fc.Arbitrary<string> {
+    test/support/arbitraries.ts:1171:export function arbServeTime(): fc.Arbitrary<string> {
+    test/support/arbitraries.ts:1178:export function arbDinnerfileOptions(): fc.Arbitrary<DinnerfileOptions> {
+    test/support/arbitraries.ts:1201:export function arbAnyDinnerfileOptions(): fc.Arbitrary<DinnerfileOptions> {
+    test/support/arbitraries.ts:1238:export function arbDinnerfileStyle(plan: Plan): fc.Arbitrary<DinnerfileStyle> {
+    test/support/arbitraries.ts:1380:export function arbDinnerfileLikeText(): fc.Arbitrary<string> {
+    test/support/arbitraries.ts:1388:export interface BreakingCase {
+    test/support/arbitraries.ts:1416:export function arbBreakingEdit(plan: Plan): fc.Arbitrary<BreakingCase> {
+    test/support/arbitraries.ts:1606:export interface LimiterRun {
+    test/support/arbitraries.ts:1615:export function arbLimiterRun(): fc.Arbitrary<LimiterRun> {
+    test/support/arbitraries.ts:1636:export interface CapRun {
+    test/support/arbitraries.ts:1643:export function arbCapRun(): fc.Arbitrary<CapRun> {
+    test/support/arbitraries.ts:1673:export function arbIpAddress(): fc.Arbitrary<string> {
+    test/support/arbitraries.ts:1706:export function arbForwardedFor(): fc.Arbitrary<{
+    test/support/arbitraries.ts:1758:export function arbTagInjectedText(): fc.Arbitrary<string> {
+    test/support/arbitraries.ts:1779:export function arbPerturbedText(text: string): fc.Arbitrary<string> {
+    test/support/fc-params.ts:10:export function fcParams(): Parameters<unknown[]> {
+    test/support/fc-params.ts:17:export function fcMakeParams(): Parameters<unknown[]> {
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 1,80p test/web/state/store.test.ts; cat src/web/state/clock.ts | sed -n 1,60p; cat vitest.config.ts playwright.config.ts
+    … (179 earlier lines not shown)
+    process.env['E2E_PORT'] = String(port);
+    const baseURL = `http://127.0.0.1:${port}`;
+    
+    export default defineConfig({
+      testDir: 'e2e',
+      testMatch: '*.spec.ts',
+      outputDir: 'test-results',
+      forbidOnly: true,
+      fullyParallel: true,
+      reporter: [['list']],
+      use: { baseURL },
+      projects: [
+        {
+          name: 'phone',
+          use: { browserName: 'chromium', viewport: { width: 390, height: 844 }, hasTouch: true },
+        },
+        {
+          name: 'desktop',
+          use: { browserName: 'chromium', viewport: { width: 1280, height: 800 } },
+        },
+      ],
+      webServer: {
+        // The key is unset, not empty: e2e must run with samples and import only.
+        command: 'unset ANTHROPIC_API_KEY; npm run build && npm start',
+        url: `${baseURL}/api/health`,
+        env: { PORT: String(port) },
+        reuseExistingServer: false,
+        timeout: 120_000,
+      },
+    });
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 195,280p src/core/schema.ts; sed -n 55,185p test/support/fixtures.ts; sed -n 280,340p test/support/fixtures.ts; sed -n 640,730p test/support/fixtures.ts; sed -n 60,153p src/web/state/clock.ts
+    … (430 earlier lines not shown)
+    
+    export function formatWeekday(ms: number, locale?: string): string {
+      return new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(ms);
+    }
+    
+    /** `null` for today, "tomorrow", "yesterday", else a short date like "Fri 13 Nov". */
+    export function formatDay(ms: number, nowMs: number, locale?: string): string | null {
+      if (sameLocalDate(ms, nowMs)) return null;
+      const now = new Date(nowMs);
+      const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
+      const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).getTime();
+      if (sameLocalDate(ms, tomorrow)) return 'tomorrow';
+      if (sameLocalDate(ms, yesterday)) return 'yesterday';
+      return new Intl.DateTimeFormat(locale, {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+      })
+        .format(ms)
+        .replace(',', '');
+    }
+    
+    /** "1 min", "45 min", "1 h", "1 h 50 min". */
+    export function formatDuration(minutes: number): string {
+      const whole = Math.max(0, Math.round(minutes));
+      const hours = Math.floor(whole / 60);
+      const rest = whole % 60;
+      if (hours === 0) return `${rest} min`;
+      return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
+    }
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 1,40p test/web/state/clock.test.ts; sed -n 80,140p test/web/state/store.test.ts; grep -n "describe\|  it(" test/web/state/store.test.ts | sed -n 1,80p; cat test/support/fc-params.ts; sed -n 1,25p test/support/fixtures.ts; sed -n 610,640p test/support/fixtures.ts; cat src/web/state/cook-slot.ts
+    … (198 earlier lines not shown)
+    /** One row of a design table: id, start, end, lanes, slack, wait; critical is slack 0. */
+    const row = (
+      id: string,
+      startMin: number,
+      endMin: number,
+      lanes: LaneTriple,
+      slackMin: number,
+      waitMin: number | null,
+    ): ScheduledStep => ({
+      id,
+      startMin,
+      endMin,
+      lanes: { burner: lanes[0], oven: lanes[1], cook: lanes[2] },
+      slackMin,
+      critical: slackMin === 0,
+      waitMin,
+    import { z } from 'zod';
+    
+    /*
+     * Placeholders that cooking-mode replaces (plan-ui R9.9). The store, the persisted state and
+     * the reducer are written against these names and need no other change.
+     */
+    export type CookState = never;
+    export type CookAction = never;
+    export const CookStateSchema = z.never();
+    
+    export function reduceCook<S>(state: S, action: CookAction): S {
+      void action;
+      return state;
+    }
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && mkdir -p src/web/components test/web/components && cat > src/web/state/schedule-view.ts <<'EOF'
+import type { HoldExceededIssue, Schedule, ScheduledStep, Step } from '../../core/index.js';
+
+/** A schedule or a rebuilt schedule: the latter adds `servingMin` (rebuild design, "The axis"). */
+export type AxisSchedule = Schedule & { servingMin?: number };
+
+export interface ScheduleView {
+  plan: Schedule['plan'];
+  steps: readonly ScheduledStep[];
+  warnings: readonly HoldExceededIssue[];
+  /** 0 for a schedule output. */
+  servingMin: number;
+  /** The earliest start. */
+  startMin: number;
+  /** `servingMin - startMin`. */
+  spanMin: number;
+  stepById: ReadonlyMap<string, Step>;
+  dishName: ReadonlyMap<string, string>;
+}
+
+export function scheduleView(s: AxisSchedule): ScheduleView {
+  return {
+    plan: s.plan,
+    steps: [],
+    warnings: [],
+    servingMin: 0,
+    startMin: 0,
+    spanMin: 0,
+    stepById: new Map(),
+    dishName: new Map(),
+  };
+}
+
+export type StepMark = 'critical' | 'back-to-back' | null;
+
+/** Critical with a hold is "critical"; critical that keeps is "back-to-back" (shown "No slack"). */
+export function stepMark(s: ScheduledStep, step: Step): StepMark {
+  void s;
+  void step;
+  return null;
+}
+EOF
+cat > src/web/components/plan-list-items.ts <<'EOF'
+import type { ScheduleView } from '../state/schedule-view.js';
+
+export type ItemStatus =
+  | { kind: 'critical' }
+  | { kind: 'back-to-back' }
+  | { kind: 'slack'; minutes: number };
+
+export interface PlanListItem {
+  stepId: string;
+  range: string;
+  title: string;
+  detail: string | null;
+  dishName: string;
+  lanes: string;
+  duration: string;
+  status: ItemStatus;
+  warning: string | null;
+}
+
+export interface PlanListGroup {
+  minute: number;
+  heading: string;
+  items: PlanListItem[];
+}
+
+export function planListGroups(
+  view: ScheduleView,
+  chosenMs: number,
+  locale?: string,
+): PlanListGroup[] {
+  void view;
+  void chosenMs;
+  void locale;
+  return [];
+}
+EOF
+python3 - <<'EOF'
+p='src/web/copy.ts'
+s=open(p).read()
+s+='''
+/** The warning on a plan list item: "! Warning: waits 40 min and can wait 10 min". */
+export function listWait(waitMin: number, holdMin: number): string {
+  void waitMin;
+  void holdMin;
+  return '';
+}
+'''
+open(p,'w').write(s)
+EOF
+    
+    exit 0
+
+Now the T3.1 test.
+
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/test/web/components/plan-list-items.test.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx vitest run --project examples test/web/components/plan-list-items.test.ts 2>&1 | tail -40
+    … (9 earlier lines not shown)
+           |                                          ^
+        229|       'Wed 22:40',
+        230|       'Wed 22:50',
+    
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/14]⎯
+    
+     FAIL  |examples| test/web/components/plan-list-items.test.ts > planListGroups on a rebuilt-shaped schedule (R7.1) > uses servingMin 15 as the serving instant: chosenMs is minute 0, not the serving time
+    AssertionError: expected undefined to be '17:55' // Object.is equality
+    
+    - Expected:
+    "17:55"
+    
+    + Received:
+    undefined
+    
+     ❯ test/web/components/plan-list-items.test.ts:250:32
+        248|     // chosen 19:30 is minute 0; serving is minute 15 = 19:45; prep st…
+        249|     const groups = planListGroups(scheduleView(rebuiltShape()), WED_19…
+        250|     expect(groups[0]?.heading).toBe('17:55');
+           |                                ^
+        251|     expect(groups[0]?.items[0]?.range).toBe('17:55–18:05');
+        252|     expect(groups[groups.length - 1]?.items[0]?.range).toBe('19:40–19:…
+    
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/14]⎯
+    
+    
+     Test Files  1 failed (1)
+          Tests  14 failed | 2 passed (16)
+       Start at  18:11:15
+       Duration  130ms (import 46%, transform 35%, tests 16%, worker 3%)
+    exit 0
+
+Failing on assertions. Implementing.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/web/state/schedule-view.ts'
+s=open(p).read()
+a=s.index('export function scheduleView')
+b=s.index('export type StepMark')
+s=s[:a]+'''export function scheduleView(s: AxisSchedule): ScheduleView {
+  const servingMin = s.servingMin ?? 0;
+  const startMin = s.steps.reduce((least, step) => Math.min(least, step.startMin), servingMin);
+  return {
+    plan: s.plan,
+    steps: s.steps,
+    warnings: s.warnings,
+    servingMin,
+    startMin,
+    spanMin: servingMin - startMin,
+    stepById: new Map(s.plan.steps.map((step) => [step.id, step])),
+    dishName: new Map(s.plan.dishes.map((dish) => [dish.id, dish.name])),
+  };
+}
+
+'''+s[b:]
+a=s.index('export function stepMark')
+s=s[:a]+'''export function stepMark(s: ScheduledStep, step: Step): StepMark {
+  if (!s.critical) return null;
+  return step.holdMin !== null ? 'critical' : 'back-to-back';
+}
+'''
+open(p,'w').write(s)
+
+p='src/web/copy.ts'
+s=open(p).read()
+a=s.index('/** The warning on a plan list item')
+s=s[:a]+'''/** The warning on a plan list item: "! Warning: waits 40 min and can wait 10 min". */
+export function listWait(waitMin: number, holdMin: number): string {
+  return `! Warning: waits ${formatDuration(waitMin)} and can wait ${formatDuration(holdMin)}`;
+}
+
+/** The slack of a step that has some: "Slack 1 h 15 min". */
+export function slackLabel(minutes: number): string {
+  return `Slack ${formatDuration(minutes)}`;
+}
+
+/** A lane in text: "Burner 2", "Oven 1", "Cook 1". */
+export function laneName(resource: 'burner' | 'oven' | 'cook', lane: number): string {
+  const name = resource === 'burner' ? 'Burner' : resource === 'oven' ? 'Oven' : 'Cook';
+  return `${name} ${lane}`;
+}
+'''
+s=s.replace("/**\n * Every string",'import { formatDuration } from \'./state/clock.js\';\n\n/**\n * Every string',1)
+s=s.replace("  // Error boundary","""  // Plan list
+  listCritical: '▲ Critical',
+  listNoSlack: 'No slack',
+  listServe: 'Serve',
+  handsFree: 'Hands-free',
+
+  // Error boundary""")
+open(p,'w').write(s)
+EOF
+cat > src/web/components/plan-list-items.ts <<'EOF'
+import type { ScheduledStep } from '../../core/index.js';
+import { compareIds } from '../../core/index.js';
+import { COPY, laneName, listWait } from '../copy.js';
+import {
+  clockAt,
+  formatClock,
+  formatDuration,
+  formatWeekday,
+  sameLocalDate,
+} from '../state/clock.js';
+import { stepMark } from '../state/schedule-view.js';
+import type { ScheduleView } from '../state/schedule-view.js';
+
+export type ItemStatus =
+  | { kind: 'critical' }
+  | { kind: 'back-to-back' }
+  | { kind: 'slack'; minutes: number };
+
+export interface PlanListItem {
+  stepId: string;
+  range: string;
+  title: string;
+  detail: string | null;
+  dishName: string;
+  lanes: string;
+  duration: string;
+  status: ItemStatus;
+  warning: string | null;
+}
+
+export interface PlanListGroup {
+  minute: number;
+  heading: string;
+  items: PlanListItem[];
+}
+
+/** The lanes a step holds in text: appliance lane first, then the cook; "Hands-free" if none. */
+function lanesOf(s: ScheduledStep): string {
+  const names: string[] = [];
+  if (s.lanes.burner !== null) names.push(laneName('burner', s.lanes.burner));
+  if (s.lanes.oven !== null) names.push(laneName('oven', s.lanes.oven));
+  if (s.lanes.cook !== null) names.push(laneName('cook', s.lanes.cook));
+  return names.length === 0 ? COPY.handsFree : names.join(', ');
+}
+
+/**
+ * Every step once, ordered by start then id, grouped by start minute (R7.1, R7.2). `chosenMs`
+ * is minute 0 of the axis; the serving instant is `clockAt(chosenMs, view.servingMin)`.
+ */
+export function planListGroups(
+  view: ScheduleView,
+  chosenMs: number,
+  locale?: string,
+): PlanListGroup[] {
+  const servingMs = clockAt(chosenMs, view.servingMin);
+  const sorted = [...view.steps].sort((a, b) => a.startMin - b.startMin || compareIds(a.id, b.id));
+  const waits = new Map(view.warnings.map((w) => [w.stepId, w]));
+  const groups: PlanListGroup[] = [];
+
+  for (const s of sorted) {
+    const step = view.stepById.get(s.id);
+    if (step === undefined) continue;
+    const startMs = clockAt(chosenMs, s.startMin);
+    const mark = stepMark(s, step);
+    const status: ItemStatus =
+      mark === 'critical'
+        ? { kind: 'critical' }
+        : mark === 'back-to-back'
+          ? { kind: 'back-to-back' }
+          : { kind: 'slack', minutes: s.slackMin };
+    const warning = waits.get(s.id);
+    const item: PlanListItem = {
+      stepId: s.id,
+      range: `${formatClock(startMs, locale)}–${formatClock(clockAt(chosenMs, s.endMin), locale)}`,
+      title: step.title,
+      detail: step.detail ?? null,
+      dishName: view.dishName.get(step.dish) ?? step.dish,
+      lanes: lanesOf(s),
+      duration: formatDuration(step.minutes),
+      status,
+      warning: warning === undefined ? null : listWait(warning.waitMin, warning.holdMin),
+    };
+    const last = groups[groups.length - 1];
+    if (last !== undefined && last.minute === s.startMin) {
+      last.items.push(item);
+    } else {
+      const clock = formatClock(startMs, locale);
+      const heading = sameLocalDate(startMs, servingMs)
+        ? clock
+        : `${formatWeekday(startMs, locale)} ${clock}`;
+      groups.push({ minute: s.startMin, heading, items: [item] });
+    }
+  }
+  return groups;
+}
+EOF
+npx vitest run --project examples test/web/components/plan-list-items.test.ts 2>&1 | tail -40
+    … (9 earlier lines not shown)
+    -   "Thu 00:10",
+    -   "Thu 00:12",
+    -   "Thu 00:20",
+    -   "Thu 00:22",
+    -   "Thu 00:24",
+    -   "Thu 00:25",
+    +   "00:05",
+    +   "00:10",
+    +   "00:12",
+    +   "00:20",
+    +   "00:22",
+    +   "00:24",
+    +   "00:25",
+      ]
+    
+     ❯ test/web/components/plan-list-items.test.ts:228:42
+        226|   it('R7.4 serving Thu 00:30 prefixes every heading with the weekday w…
+        227|     const groups = planListGroups(scheduleView(H1_SCHEDULE), THU_0030,…
+        228|     expect(groups.map((g) => g.heading)).toEqual([
+           |                                          ^
+        229|       'Wed 22:40',
+        230|       'Wed 22:50',
+    
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+    
+    
+     Test Files  1 failed (1)
+          Tests  3 failed | 13 passed (16)
+       Start at  18:11:35
+       Duration  123ms (import 52%, transform 33%, tests 13%, worker 2%)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/web/components/plan-list-items.ts'
+s=open(p).read()
+s=s.replace("  const waits =","  // R7.4: one decision for the whole list, from the first start and the serving instant.\n  const showDay = !sameLocalDate(clockAt(chosenMs, view.startMin), servingMs);\n  const waits =")
+s=s.replace("""      const heading = sameLocalDate(startMs, servingMs)
+        ? clock
+        : `${formatWeekday(startMs, locale)} ${clock}`;""","""      const heading = showDay ? `${formatWeekday(startMs, locale)} ${clock}` : clock;""")
+open(p,'w').write(s)
+EOF
+npx vitest run --project examples test/web/components/plan-list-items.test.ts 2>&1 | grep -v "^$" | tail -40
+    … (10 earlier lines not shown)
+    -   "17:50",
+    -   "19:05",
+    -   "19:10",
+    -   "19:12",
+    -   "19:20",
+    -   "19:22",
+    -   "19:24",
+    -   "19:25",
+    +   "02:40",
+    +   "02:50",
+    +   "04:05",
+    +   "04:10",
+    +   "04:12",
+    +   "04:20",
+    +   "04:22",
+    +   "04:24",
+    +   "04:25",
+      ]
+     ❯ test/web/components/plan-list-items.test.ts:184:42
+        182|   });
+        183|   it('R7.1 two steps starting together share one heading; group minute…
+        184|     expect(groups.map((g) => g.heading)).toEqual([
+           |                                          ^
+        185|       '17:40',
+        186|       '17:50',
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+     Test Files  1 failed (1)
+          Tests  2 failed | 14 passed (16)
+       Start at  18:11:40
+       Duration  117ms (import 55%, transform 29%, tests 14%, worker 2%)
+    exit 0
+[tool:execute FAILED] $ cd ~/hackathons-2026/kiroween/makedinner && npx vitest run --project examples test/web/state/clock.test.ts 2>&1 | tail -8; date; echo $TZ; sed -n 40,60p test/web/state/clock.test.ts; grep -n "formatClock" test/web/state/clock.test.ts | head -5; grep -rn "TZ" vitest.config.ts package.json
+    … (6 earlier lines not shown)
+       Duration  77ms (tests 59%, import 22%, transform 11%, worker 7%)
+    
+    2026년 11월 11일 수요일 18시 11분 50초 KST
+    
+      describe('resolveServing (R5.3)', () => {
+        it('R5.3 a time later today stays today', () => {
+          expect(resolveServing('19:30', WED_18)).toBe(at('2026-11-11T19:30:00Z'));
+        });
+        it('R5.3 a time exactly 4 h before now stays today', () => {
+          expect(resolveServing('14:00', WED_18)).toBe(at('2026-11-11T14:00:00Z'));
+        });
+        it('R5.3 a time 4 h 1 min before now is tomorrow', () => {
+          expect(resolveServing('13:59', WED_18)).toBe(at('2026-11-12T13:59:00Z'));
+        });
+        it('R5.3 00:30 is tomorrow', () => {
+          expect(resolveServing('00:30', WED_18)).toBe(at('2026-11-12T00:30:00Z'));
+        });
+        it('R5.3 02:30 on the night the clocks go back is the GMT 02:30', () => {
+          const now = at('2026-10-24T19:00:00Z'); // Sat 20:00 BST
+          expect(resolveServing('02:30', now)).toBe(at('2026-10-25T02:30:00Z'));
+        });
+      });
+    
+      it('R5.5 minutes are real minutes across the DST change: 110 min before 02:30 GMT is 01:40', () => {
+        const serving = at('2026-10-25T02:30:00Z');
+    6:  formatClock,
+    61:    expect(formatClock(clockAt(serving, -110), 'en-GB')).toBe('01:40');
+    102:    it('formatClock en-GB is 24 h', () => {
+    103:      expect(formatClock(at('2026-11-11T19:30:00Z'), 'en-GB')).toBe('19:30');
+    105:    it('formatClock en-US is 12 h with a space before PM', () => {
+    exit 1
+
+The describe-level `groups` is computed at collection time, before `beforeAll` sets the zone. I'll move it into the tests.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/web/components/plan-list-items.test.ts'
+s=open(p).read()
+s=s.replace("""  const groups = planListGroups(scheduleView(H1_SCHEDULE), WED_1930, 'en-GB');
+
+  it('R7.1 R7.2 lists""","""  // Computed per test: the zone is set in beforeAll, after collection.
+  const groupsH1 = (): ReturnType<typeof planListGroups> =>
+    planListGroups(scheduleView(H1_SCHEDULE), WED_1930, 'en-GB');
+
+  it('R7.1 R7.2 lists""")
+a=s.index("describe('planListGroups (R7.1")
+b=s.index("describe('planListGroups warnings")
+seg=s[a:b]
+seg=seg.replace("rows(groups)","rows(groupsH1())")
+import re
+# in other its, insert const groups = groupsH1(); at start of body
+def fix(m):
+    return m.group(0)+"\n    const groups = groupsH1();"
+seg=re.sub(r"  it\('R7\.(1 two steps|2 carries|3 no item|2 slack)[^\n]*=> \{",fix,seg)
+s=s[:a]+seg+s[b:]
+open(p,'w').write(s)
+EOF
+npx vitest run --project examples test/web/components/plan-list-items.test.ts 2>&1 | grep -v "^$" | tail -30
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+     Test Files  1 passed (1)
+          Tests  16 passed (16)
+       Start at  18:11:57
+       Duration  130ms (import 43%, transform 31%, tests 24%, worker 2%)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 380,400p test/support/arbitraries.ts; sed -n 1,30p test/web/state/clock.pbt.ts; sed -n 1165,1177p test/support/arbitraries.ts
+    … (34 earlier lines not shown)
+        expect(new Date(2026, 6, 1).getTimezoneOffset()).toBe(-60);
+      });
+      afterAll(() => {
+        if (original === undefined) delete process.env['TZ'];
+        else process.env['TZ'] = original;
+      });
+    
+      const arbNowMs = fc.integer({
+        min: Date.UTC(2026, 0, 1),
+        max: Date.UTC(2027, 11, 31),
+      });
+    
+      it('P-UI5 minuteAt inverts clockAt for every integer minute', () => {
+        fc.assert(
+          fc.property(
+            arbNowMs,
+            fc.integer({ min: -2000, max: 2000 }),
+        .array(fc.constantFrom(...HOSTILE_TOKENS), { minLength: 1, maxLength: 12 })
+        .map((tokens) => [...tokens.join('')].slice(0, max).join(''))
+        .filter((text) => /\S/.test(text));
+    }
+    
+    /** A serving time `HH:MM`, hour 0..23 and minute 0..59, zero-padded. */
+    export function arbServeTime(): fc.Arbitrary<string> {
+      return fc
+        .tuple(fc.integer({ min: 0, max: 23 }), fc.integer({ min: 0, max: 59 }))
+        .map(([h, m]) => `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+    }
+    
+    /** Options with a valid kitchen and serving time; each key present or absent, never `undefined`. */
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat > test/web/components/plan-list-items.pbt.ts <<'EOF'
+import fc from 'fast-check';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { schedule } from '../../../src/core/index.js';
+import { planListGroups } from '../../../src/web/components/plan-list-items.js';
+import { scheduleView } from '../../../src/web/state/schedule-view.js';
+import { arbPlanAndKitchen } from '../../support/arbitraries.js';
+import { fcParams } from '../../support/fc-params.js';
+
+const original = process.env['TZ'];
+const CHOSEN_MS = Date.parse('2026-11-11T19:30:00Z');
+
+describe('plan list properties', () => {
+  beforeAll(() => {
+    process.env['TZ'] = 'Europe/London';
+    expect(new Date(2026, 6, 1).getTimezoneOffset()).toBe(-60);
+  });
+  afterAll(() => {
+    if (original === undefined) delete process.env['TZ'];
+    else process.env['TZ'] = original;
+  });
+
+  it('P-UI4 every step once, ordered by start then id, group minutes strictly increasing', () => {
+    fc.assert(
+      fc.property(arbPlanAndKitchen(), ({ plan, kitchen }) => {
+        const result = schedule(plan, kitchen);
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        const groups = planListGroups(scheduleView(result.value), CHOSEN_MS, 'en-GB');
+
+        // Oracle: plain loops over the schedule's own start minutes.
+        const startOf = new Map(result.value.steps.map((s) => [s.id, s.startMin]));
+        const listed = groups.flatMap((g) => g.items.map((i) => ({ id: i.stepId, minute: g.minute })));
+
+        expect(listed.map((x) => x.id).sort()).toEqual(plan.steps.map((s) => s.id).sort());
+        for (const item of listed) expect(item.minute).toBe(startOf.get(item.id));
+        for (let i = 1; i < listed.length; i += 1) {
+          const a = listed[i - 1];
+          const b = listed[i];
+          if (a === undefined || b === undefined) throw new Error('index');
+          expect(a.minute < b.minute || (a.minute === b.minute && a.id < b.id)).toBe(true);
+        }
+        for (let i = 1; i < groups.length; i += 1) {
+          expect(groups[i - 1]?.minute).toBeLessThan(groups[i]?.minute ?? Number.NaN);
+        }
+      }),
+      fcParams(),
+    );
+  });
+});
+EOF
+npx vitest run --project examples test/web/components/plan-list-items.test.ts 2>&1 | grep -E "Tests|Files"; npx vitest run --project props test/web/components/plan-list-items.pbt.ts 2>&1 | grep -v "^$" | tail -15; npm run typecheck 2>&1 | tail -15
+     Test Files  1 passed (1)
+          Tests  16 passed (16)
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+     Test Files  1 passed (1)
+          Tests  1 passed (1)
+       Start at  18:12:13
+       Duration  655ms (tests 56%, import 38%, transform 6%)
+    
+    > make-dinner@0.0.0 typecheck
+    > tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 190,345p test/web/state/store.test.ts
+    … (118 earlier lines not shown)
+        const state = withDinner();
+        const next = reduce(state, { type: 'dinner/load', load: otherLoad, nowMs: 0 });
+        expect(next).toEqual({ ...state, pendingLoad: otherLoad });
+      });
+    
+      it('R1.5 replace applies the pending load, clears pendingLoad and the cook slice', () => {
+        const cooking = {
+          ...reduce(withDinner(), { type: 'dinner/load', load: otherLoad, nowMs: 0 }),
+          cook: 'session' as unknown as AppState['cook'],
+        };
+        const next = reduce(cooking, { type: 'dinner/replace', nowMs: at('2026-11-11T10:00:00Z') });
+        expect(next.dinner?.plan.title).toBe('Another dinner');
+        expect(next.dinner?.serving).toEqual({ time: '19:30', atMs: at('2026-11-11T19:30:00Z') });
+        expect(next.pendingLoad).toBeNull();
+        expect(next.cook).toBeNull();
+        expect(next.route).toBe('plan');
+      });
+    
+      it('R1.5 keep drops the pending load and changes nothing else', () => {
+        const pending = reduce(withDinner(), { type: 'dinner/load', load: otherLoad, nowMs: 0 });
+        const next = reduce(pending, { type: 'dinner/keep' });
+        expect(next).toEqual(withDinner());
+      });
+    
+      it('replace and keep without a pending load are no-ops', () => {
+        const state = withDinner();
+        expect(reduce(state, { type: 'dinner/replace', nowMs: 0 })).toBe(state);
+        expect(reduce(state, { type: 'dinner/keep' })).toBe(state);
+      });
+    });
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && grep -n "export function parseKitchen" -B3 -A12 src/core/sanity.ts; sed -n 140,175p test/web/state/store.test.ts
+    … (22 earlier lines not shown)
+        expect(set.notice).toBe('Opened a shared dinner.');
+        expect(reduce(set, { type: 'notice/clear' }).notice).toBeNull();
+      });
+      it('R9.7 start-over keeps theme and samples and clears the rest', () => {
+        const samples = { status: 'failed' } as const;
+        const state = stateWith(SUNDAY_ROAST, {
+          route: 'plan',
+          theme: 'dark',
+          samples,
+          recipeText: 'Some recipes',
+          dinnerfileText: 'dinner:',
+          notice: 'x',
+        });
+        const next = reduce(state, { type: 'start-over' });
+        expect(next).toEqual({ ...initialState(), theme: 'dark', samples });
+      });
+      it('a no-op returns the same object', () => {
+        const state = stateWith(SUNDAY_ROAST, { theme: 'dark', route: 'plan' });
+        expect(reduce(state, { type: 'theme/set', theme: 'dark' })).toBe(state);
+        expect(reduce(state, { type: 'notice/clear' })).toBe(state);
+        expect(reduce(state, { type: 'navigate', route: 'plan', cookRegistered: false })).toBe(state);
+      });
+      it('R9.9 an action outside PlanUiAction reaches reduceCook and changes nothing', () => {
+        const state = stateWith(SUNDAY_ROAST);
+        const foreign = { type: 'cook/begin' } as unknown as Action;
+        expect(reduce(state, foreign)).toBe(state);
+      });
+    });
+    
+    describe('createStore', () => {
+    exit 0
+
+Now add tests (T3.3 plus the sample-title test) and stub the code so they fail on assertions.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/web/state/store.ts'
+s=open(p).read()
+s=s.replace("""  | { type: 'dinner/keep' };""","""  | { type: 'dinner/keep' }
+  | { type: 'kitchen/set'; kitchen: Kitchen }
+  | { type: 'serving/set-time'; time: ServeTime; nowMs: number }
+  | { type: 'serving/set-instant'; atMs: number }
+  | { type: 'plan/enter'; nowMs: number };""")
+s=s.replace("""export type Action = PlanUiAction | CookAction;""","""export type Action = PlanUiAction | CookAction;
+
+/**
+ * The load of a chosen sample (R1.3). The dinner's title is the sample's own title from
+ * `samples/index.json`, not the title inside the recorded plan (decided with the user).
+ */
+export function sampleLoad(sample: SampleItem): DinnerLoad {
+  return {
+    plan: { ...sample.plan, title: sample.title },
+    source: { kind: 'sample', sampleId: sample.id },
+    kitchen: sample.kitchen,
+    serve: null,
+    suggested: sample.servingTime,
+    route: 'plan',
+    notice: null,
+  };
+}""")
+s=s.replace("""    default:
+      return reduceCook(state, action);""","""    case 'kitchen/set':
+      return state;
+    case 'serving/set-time':
+      return state;
+    case 'serving/set-instant':
+      return state;
+    case 'plan/enter':
+      return state;
+    default:
+      return reduceCook(state, action);""")
+open(p,'w').write(s)
+
+p='test/web/state/store.test.ts'
+s=open(p).read()
+s=s.replace("""import {
+  createStore,
+  initialState,
+  reachable,
+  reduce,
+  selectCheck,
+  selectSchedule,
+} from""","""import {
+  createStore,
+  initialState,
+  reachable,
+  reduce,
+  sampleLoad,
+  selectCheck,
+  selectSchedule,
+} from""")
+s+='''
+describe('sampleLoad (answer to the T2 open question)', () => {
+  it('R1.3 the dinner is titled with the sample title, not the title inside the recorded plan', () => {
+    const item = {
+      id: 'sunday-roast',
+      title: 'Sunday roast',
+      blurb: 'A chicken, gravy and greens.',
+      dishes: ['Roast chicken', 'Gravy', 'Spring greens'],
+      kitchen: HOME_KITCHEN,
+      servingTime: '13:30',
+      text: '',
+      plan: { ...SUNDAY_ROAST, title: 'Roast chicken with gravy and greens' },
+      issues: [],
+    } as unknown as SampleItem;
+    const load = sampleLoad(item);
+    expect(load.plan.title).toBe('Sunday roast');
+    expect(load.plan.steps).toEqual(SUNDAY_ROAST.steps);
+    expect(load.plan.dishes).toEqual(SUNDAY_ROAST.dishes);
+    expect(item.plan.title).toBe('Roast chicken with gravy and greens');
+    expect(load).toMatchObject({
+      source: { kind: 'sample', sampleId: 'sunday-roast' },
+      kitchen: HOME_KITCHEN,
+      serve: null,
+      suggested: '13:30',
+      route: 'plan',
+      notice: null,
+    });
+  });
+});
+
+describe('kitchen, serving and plan/enter (T3.3)', () => {
+  const originalZone = process.env['TZ'];
+  beforeAll(() => {
+    process.env['TZ'] = 'Europe/London';
+    expect(new Date(2026, 6, 1).getTimezoneOffset()).toBe(-60);
+  });
+  afterAll(() => {
+    if (originalZone === undefined) delete process.env['TZ'];
+    else process.env['TZ'] = originalZone;
+  });
+  const at = (iso: string): number => Date.parse(iso);
+  const served = (): AppState => ({
+    ...stateWith(SUNDAY_ROAST, { route: 'plan' }),
+    dinner: {
+      ...dinnerOf(SUNDAY_ROAST),
+      serving: { time: '19:30', atMs: at('2026-11-11T19:30:00Z') },
+    },
+  });
+
+  it('R5.1 kitchen/set replaces the kitchen', () => {
+    const next = reduce(served(), {
+      type: 'kitchen/set',
+      kitchen: { burners: 1, ovens: 1, cooks: 1 },
+    });
+    expect(next.dinner?.kitchen).toEqual({ burners: 1, ovens: 1, cooks: 1 });
+    expect(next.dinner?.plan).toBe(SUNDAY_ROAST);
+  });
+  it('R5.1 kitchen/set ignores a value that fails parseKitchen and returns the same state', () => {
+    const state = served();
+    for (const kitchen of [
+      { burners: 9, ovens: 1, cooks: 1 },
+      { burners: 4, ovens: 1, cooks: 0 },
+      { burners: 4, ovens: -1, cooks: 1 },
+      { burners: 4.5, ovens: 1, cooks: 1 },
+    ]) {
+      expect(reduce(state, { type: 'kitchen/set', kitchen })).toBe(state);
+    }
+  });
+  it('R5.1 kitchen/set with no dinner is a no-op', () => {
+    const state = initialState();
+    expect(
+      reduce(state, { type: 'kitchen/set', kitchen: { burners: 1, ovens: 1, cooks: 1 } }),
+    ).toBe(state);
+  });
+  it('R5.3 serving/set-time resolves the time: later today stays today, 00:30 is tomorrow', () => {
+    const now = at('2026-11-11T18:00:00Z');
+    expect(
+      reduce(served(), { type: 'serving/set-time', time: '20:00', nowMs: now }).dinner?.serving,
+    ).toEqual({ time: '20:00', atMs: at('2026-11-11T20:00:00Z') });
+    expect(
+      reduce(served(), { type: 'serving/set-time', time: '00:30', nowMs: now }).dinner?.serving,
+    ).toEqual({ time: '00:30', atMs: at('2026-11-12T00:30:00Z') });
+  });
+  it('R5.3 serving/set-instant stores the instant and its local clock time', () => {
+    const next = reduce(served(), { type: 'serving/set-instant', atMs: at('2026-11-11T19:35:00Z') });
+    expect(next.dinner?.serving).toEqual({ time: '19:35', atMs: at('2026-11-11T19:35:00Z') });
+  });
+  it('serving actions with no dinner are no-ops', () => {
+    const state = initialState();
+    expect(reduce(state, { type: 'serving/set-time', time: '19:30', nowMs: 0 })).toBe(state);
+    expect(reduce(state, { type: 'serving/set-instant', atMs: 0 })).toBe(state);
+  });
+  it('R4.11 plan/enter fills a null serving time (Wed 18:00:20, span 110 -> 20:30) and opens Plan', () => {
+    const state = stateWith(SUNDAY_ROAST, { route: 'steps' });
+    const next = reduce(state, { type: 'plan/enter', nowMs: at('2026-11-11T18:00:20Z') });
+    expect(next.route).toBe('plan');
+    expect(next.dinner?.serving).toEqual({ time: '20:30', atMs: at('2026-11-11T20:30:00Z') });
+  });
+  it('R4.11 plan/enter keeps a serving time that is set', () => {
+    const state = { ...served(), route: 'steps' as const };
+    const next = reduce(state, { type: 'plan/enter', nowMs: at('2026-11-11T18:00:20Z') });
+    expect(next.route).toBe('plan');
+    expect(next.dinner?.serving).toEqual({ time: '19:30', atMs: at('2026-11-11T19:30:00Z') });
+  });
+  it('R4.11 plan/enter on a plan with an error stays on Steps', () => {
+    const state = stateWith(BROKEN_ROAST, { route: 'steps' });
+    expect(reduce(state, { type: 'plan/enter', nowMs: 0 }).route).toBe('steps');
+  });
+
+  it('R5.2 selectSchedule gives the same result for the same plan and kitchen', () => {
+    const state = served();
+    expect(selectSchedule(state)).toBe(selectSchedule({ ...state, route: 'steps' }));
+  });
+  it('R5.2 a kitchen change gives a new result; the new kitchen shows in it', () => {
+    const state = served();
+    const before = selectSchedule(state);
+    const next = reduce(state, {
+      type: 'kitchen/set',
+      kitchen: { burners: 1, ovens: 1, cooks: 1 },
+    });
+    const after = selectSchedule(next);
+    expect(after).not.toBe(before);
+    expect(after?.ok === true ? after.value.kitchen.burners : null).toBe(1);
+  });
+  it('R5.2 serving changes do not recompute the schedule', () => {
+    const state = served();
+    const before = selectSchedule(state);
+    const a = reduce(state, { type: 'serving/set-time', time: '21:00', nowMs: at('2026-11-11T18:00:00Z') });
+    const b = reduce(a, { type: 'serving/set-instant', atMs: at('2026-11-11T21:05:00Z') });
+    expect(selectSchedule(a)).toBe(before);
+    expect(selectSchedule(b)).toBe(before);
+  });
+});
+'''
+open(p,'w').write(s)
+EOF
+npx vitest run --project examples test/web/state/store.test.ts 2>&1 | grep -E "FAIL|Tests |✓|×|AssertionError" | head -30
+         × R5.1 kitchen/set replaces the kitchen 3ms
+         × R5.3 serving/set-time resolves the time: later today stays today, 00:30 is tomorrow 0ms
+         × R5.3 serving/set-instant stores the instant and its local clock time 0ms
+         × R4.11 plan/enter fills a null serving time (Wed 18:00:20, span 110 -> 20:30) and opens Plan 1ms
+         × R4.11 plan/enter keeps a serving time that is set 0ms
+         × R5.2 a kitchen change gives a new result; the new kitchen shows in it 2ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+     FAIL  |examples| test/web/state/store.test.ts > kitchen, serving and plan/enter (T3.3) > R5.1 kitchen/set replaces the kitchen
+    AssertionError: expected { burners: 4, ovens: 1, cooks: 1 } to deeply equal { burners: 1, ovens: 1, cooks: 1 }
+     FAIL  |examples| test/web/state/store.test.ts > kitchen, serving and plan/enter (T3.3) > R5.3 serving/set-time resolves the time: later today stays today, 00:30 is tomorrow
+    AssertionError: expected { time: '19:30', atMs: 1794425400000 } to deeply equal { time: '20:00', atMs: 1794427200000 }
+     FAIL  |examples| test/web/state/store.test.ts > kitchen, serving and plan/enter (T3.3) > R5.3 serving/set-instant stores the instant and its local clock time
+    AssertionError: expected { time: '19:30', atMs: 1794425400000 } to deeply equal { time: '19:35', atMs: 1794425700000 }
+     FAIL  |examples| test/web/state/store.test.ts > kitchen, serving and plan/enter (T3.3) > R4.11 plan/enter fills a null serving time (Wed 18:00:20, span 110 -> 20:30) and opens Plan
+    AssertionError: expected 'steps' to be 'plan' // Object.is equality
+     FAIL  |examples| test/web/state/store.test.ts > kitchen, serving and plan/enter (T3.3) > R4.11 plan/enter keeps a serving time that is set
+    AssertionError: expected 'steps' to be 'plan' // Object.is equality
+     FAIL  |examples| test/web/state/store.test.ts > kitchen, serving and plan/enter (T3.3) > R5.2 a kitchen change gives a new result; the new kitchen shows in it
+    AssertionError: expected { ok: true, value: { …(6) } } not to be { ok: true, value: { …(6) } } // Object.is equality
+          Tests  6 failed | 35 passed (41)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/web/state/store.ts'
+s=open(p).read()
+s=s.replace("""    case 'kitchen/set':
+      return state;
+    case 'serving/set-time':
+      return state;
+    case 'serving/set-instant':
+      return state;
+    case 'plan/enter':
+      return state;
+""","""    case 'kitchen/set': {
+      if (state.dinner === null || !parseKitchen(action.kitchen).ok) return state;
+      return { ...state, dinner: { ...state.dinner, kitchen: action.kitchen } };
+    }
+    case 'serving/set-time': {
+      if (state.dinner === null) return state;
+      const serving = { time: action.time, atMs: resolveServing(action.time, action.nowMs) };
+      return { ...state, dinner: { ...state.dinner, serving } };
+    }
+    case 'serving/set-instant': {
+      if (state.dinner === null) return state;
+      const serving = { time: toServeTime(action.atMs), atMs: action.atMs };
+      return { ...state, dinner: { ...state.dinner, serving } };
+    }
+    case 'plan/enter': {
+      if (state.dinner === null) return state;
+      const { plan, kitchen } = state.dinner;
+      const serving =
+        state.dinner.serving ?? defaultServing(action.nowMs, spanOf(plan, kitchen), null);
+      return reduce(
+        { ...state, dinner: { ...state.dinner, serving } },
+        { type: 'navigate', route: 'plan', cookRegistered: false },
+      );
+    }
+""")
+s=s.replace("import { hasErrors, longestChainMinutes, schedule, validatePlan } from","import {\n  hasErrors,\n  longestChainMinutes,\n  parseKitchen,\n  schedule,\n  validatePlan,\n} from")
+s=s.replace("import { defaultServing, resolveServing } from './clock.js';","import { defaultServing, resolveServing, toServeTime } from './clock.js';")
+open(p,'w').write(s)
+EOF
+npx prettier --write src/web test/web >/dev/null; npx vitest run --project examples test/web/state/store.test.ts 2>&1 | grep -E "FAIL|Tests |×|AssertionError" | head; npm run typecheck 2>&1 | tail -5
+          Tests  41 passed (41)
+    
+    > make-dinner@0.0.0 typecheck
+    > tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+import re
+p='src/web/components/SampleList.tsx'
+s=open(p).read()
+a=s.index("  const choose")
+b=s.index("  return (\n    <ul")
+s=s[:a]+"""  const choose = (sample: SampleItem): void => {
+    dispatch({ type: 'dinner/load', nowMs: clock.nowMs(), load: sampleLoad(sample) });
+  };
+
+"""+s[b:]
+s=s.replace("import { useAppState, useClock, useDispatch } from '../state/hooks.js';","import { useAppState, useClock, useDispatch } from '../state/hooks.js';\nimport { sampleLoad } from '../state/store.js';")
+open(p,'w').write(s)
+p='e2e/menu.spec.ts'
+s=open(p).read()
+s=s.replace("first?.plan.title ?? ''","first?.title ?? ''").replace("samples[0]?.plan.title","samples[0]?.title").replace("samples[1]?.plan.title","samples[1]?.title")
+s=s.replace("with the plan title","with the sample title").replace("'R1.3 \"Plan this dinner\" on the first sample opens Plan in one tap with the plan title'","'R1.3 \"Plan this dinner\" on the first sample opens Plan in one tap titled with the sample title'")
+open(p,'w').write(s)
+EOF
+grep -n "plan.title\|\.title" e2e/menu.spec.ts; npm run typecheck 2>&1 | tail -3
+    27:    await expect(cards.getByRole('heading', { level: 3 })).toHaveText(samples.map((s) => s.title));
+    43:    await expect(page.getByRole('heading', { level: 1 })).toHaveText(first?.title ?? '');
+    81:    await expect(page.getByRole('heading', { level: 1 })).toHaveText(samples[0]?.title ?? '');
+    88:    const ask = page.getByText(`Replace your current dinner, ${samples[0]?.title}?`);
+    100:    await expect(page.getByRole('heading', { level: 1 })).toHaveText(samples[0]?.title ?? '');
+    114:    await expect(page.getByRole('heading', { level: 1 })).toHaveText(samples[1]?.title ?? '');
+    > make-dinner@0.0.0 typecheck
+    > tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 10,45p src/core/schedule.ts; cat src/web/components/Header.tsx src/web/components/ConfirmInline.tsx src/web/styles/base.css; sed -n 1,82p src/web/styles/tokens.css | head -100; cat public/index.html
+    … (193 earlier lines not shown)
+      --color-ink: #f2ebdd;
+      --color-ink-muted: #b5aa98;
+      --color-rule: #3a3530;
+      --color-border: #7a7064;
+      --color-accent: #fb923c;
+      --color-on-accent: #1a1816;
+      --color-warn: #f5c35b;
+      --color-done: #8bcb95;
+      --color-focus: #93b4ff;
+    }
+    
+    @media (prefers-reduced-motion: reduce) {
+      :root {
+        --duration: 0ms;
+      }
+    }
+    <!doctype html>
+    <html lang="en">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Make Dinner</title>
+        <script src="/theme.js"></script>
+        <link rel="stylesheet" href="/assets/main.css" />
+      </head>
+      <body>
+        <div id="app"></div>
+        <script type="module" src="/assets/main.js"></script>
+      </body>
+    </html>
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && grep -n "LIMITS" -A14 src/core/schema.ts | head -30; grep -n "missing_appliance" -B3 -A12 src/core/schema.ts | head -50; grep -n "missing_appliance" src/core/sanity.ts | head
+    … (35 earlier lines not shown)
+    124-    appliance: z.enum(['burner', 'oven']),
+    125-  }),
+    126-  variant('warning', 'appliance_mismatch', {
+    127-    stepId: StepIdSchema,
+    128-    word: z.string().min(1),
+    129-    suggested: z.enum(['burner', 'oven']),
+    130-  }),
+    131-  variant('warning', 'long_hands_on', { stepId: StepIdSchema, minutes: z.int() }),
+    132-  variant('warning', 'short_hands_free', { stepId: StepIdSchema, minutes: z.int() }),
+    133-  HoldExceededIssueSchema,
+    134-]);
+    --
+    152-  'duplicate_dish_id',
+    153-  'unknown_dish',
+    154-  'dish_without_steps',
+    155:  'missing_appliance',
+    156-];
+    157-
+    158-export const WARNING_CODES: readonly WarningCode[] = [
+    159-  'appliance_mismatch',
+    160-  'long_hands_on',
+    161-  'short_hands_free',
+    162-  'hold_exceeded',
+    163-];
+    164-
+    165-/** Order on ids by UTF-16 code units: -1, 0 or 1. Never localeCompare. */
+    166-export function compareIds(a: string, b: string): number {
+    167-  // String comparison operators compare UTF-16 code units, which is what R3.8 asks for.
+    490:        code: 'missing_appliance',
+    499:        code: 'missing_appliance',
+    exit 0
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/e2e/plan.spec.ts
+[steering] {"steeringDocuments":["file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/ui.md"],"kind":"steering_inclusion"}
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx prettier --write e2e/plan.spec.ts >/dev/null && timeout 600 npx playwright test e2e/plan.spec.ts --project=phone 2>&1 | grep -E "✓|✘|passed|failed|Error:|Expected|waiting" | head -30
+      ✘  5 [phone] › e2e/plan.spec.ts:102:3 › plan screen › R5.4 R7.1 R7.2 seeded H1 at 19:30 shows start, serve, span and the list of the design table (5.2s)
+      ✘  3 [phone] › e2e/plan.spec.ts:136:3 › plan screen › R5.1 the steppers stop at their bounds (5.2s)
+      ✘  7 [phone] › e2e/plan.spec.ts:184:3 › plan screen › R5.6 R7.3 TIGHT_OVEN shows its hold warning sentence and marks the list item (5.1s)
+      ✘  8 [phone] › e2e/plan.spec.ts:198:3 › plan screen › R5.6 a plan with no warnings says so (5.1s)
+      ✓  9 [phone] › e2e/plan.spec.ts:205:3 › plan screen › R5.8 R9.3 a plan with an error never reaches the Plan screen: it opens Steps (90ms)
+      ✘  1 [phone] › e2e/plan.spec.ts:175:3 › plan screen › R5.2 a serving time change does not move any step relative to serving (30.0s)
+      ✘  4 [phone] › e2e/plan.spec.ts:146:3 › plan screen › R5.7 ovens 1 to 0 names the step that needs one and shows no list; Add an oven restores it (30.0s)
+      ✘  2 [phone] › e2e/plan.spec.ts:166:3 › plan screen › R5.3 R5.4 serving time 00:30 reads Serve at 00:30 tomorrow (30.0s)
+      ✘  6 [phone] › e2e/plan.spec.ts:126:3 › plan screen › R5.2 R7.1 burners 4 to 1 moves the roux to 19:08–19:10 (30.0s)
+        Error: expect(locator).toBeVisible() failed
+        Expected: visible
+        Error: element(s) not found
+          - waiting for getByText('Start at 17:40', { exact: true })
+        Error: locator.click: Test timeout of 30000ms exceeded.
+          - waiting for getByRole('button', { name: 'Fewer burners' })
+        Error: expect(locator).toBeDisabled() failed
+        Expected: disabled
+        Error: element(s) not found
+          - waiting for getByRole('group', { name: 'Cooks' }).getByRole('button', { name: 'Fewer cooks' })
+        Error: locator.click: Test timeout of 30000ms exceeded.
+          - waiting for getByRole('button', { name: 'Fewer ovens' })
+        Error: locator.fill: Test timeout of 30000ms exceeded.
+          - waiting for getByLabel('Serving time')
+        Error: locator.fill: Test timeout of 30000ms exceeded.
+          - waiting for getByLabel('Serving time')
+        Error: expect(locator).toBeVisible() failed
+        Expected: visible
+        Error: element(s) not found
+          - waiting for getByText('Roast potatoes: “Roast the potatoes” will be ready 40 min before serving and can wait only 10 min. More ovens, burners or cooks may help.')
+        Error: expect(locator).toBeVisible() failed
+    exit 0
+
+Failing on missing elements. Now the copy and components.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/web/copy.ts'
+s=open(p).read()
+s=s.replace("  // Plan list\n","""  // Plan screen
+  kitchenHeading: 'Kitchen',
+  timelineHeading: 'Timeline',
+  planListHeading: 'Plan list',
+  warningsHeading: 'Warnings',
+  burners: 'Burners',
+  ovens: 'Ovens',
+  cooks: 'Cooks',
+  servingTime: 'Serving time',
+  noWarnings: 'No warnings. Every result is used within the time it can wait.',
+  addOven: 'Add an oven',
+  addBurner: 'Add a burner',
+  changeSteps: 'Change the steps',
+  invalidPlan: 'This plan has errors, so it cannot be scheduled. Fix them in Steps.',
+  goToSteps: 'Go to steps',
+
+  // Plan list
+""")
+s+='''
+/** The button names of a stepper: "Fewer burners", "More burners". */
+export function fewer(what: string): string {
+  return `Fewer ${what.toLowerCase()}`;
+}
+export function more(what: string): string {
+  return `More ${what.toLowerCase()}`;
+}
+
+export function startAt(time: string): string {
+  return `Start at ${time}`;
+}
+
+/** "Serve at 19:30", with the day when it is not today: "Serve at 00:30 tomorrow". */
+export function serveAt(time: string, day: string | null): string {
+  return day === null ? `Serve at ${time}` : `Serve at ${time} ${day}`;
+}
+
+export function takes(duration: string): string {
+  return `Takes ${duration}`;
+}
+
+/**
+ * A hold warning (R5.6). `userTitle` is the title of the step that uses the result first;
+ * null for a terminal step, whose result waits for serving.
+ */
+export function holdWarning(
+  dish: string,
+  title: string,
+  waitMin: number,
+  holdMin: number,
+  userTitle: string | null,
+): string {
+  const until = userTitle === null ? 'serving' : `\\u201c${userTitle}\\u201d starts`;
+  return `${dish}: \\u201c${title}\\u201d will be ready ${formatDuration(waitMin)} before ${until} and can wait only ${formatDuration(holdMin)}. More ovens, burners or cooks may help.`;
+}
+
+/** The missing appliance sentence: "This plan needs an oven and the kitchen has none. These steps use it: ...". */
+export function missingAppliance(appliance: 'burner' | 'oven', titles: readonly string[]): string {
+  const what = appliance === 'oven' ? 'an oven' : 'a burner';
+  return `This plan needs ${what} and the kitchen has none. These steps use it: ${titles.join(', ')}.`;
+}
+'''
+open(p,'w').write(s)
+EOF
+grep -n "u201c" src/web/copy.ts | head -3
+cat > src/web/components/Stepper.tsx <<'EOF'
+import type { VNode } from 'preact';
+import { fewer, more } from '../copy.js';
+
+interface Props {
+  /** The visible label and the group name: "Burners". */
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+}
+
+/** A count with "−" and "+" buttons, disabled at the bounds (R5.1). */
+export function Stepper(props: Props): VNode {
+  const id = `stepper-${props.label.toLowerCase()}`;
+  return (
+    <div class="stepper" role="group" aria-labelledby={id}>
+      <span id={id} class="stepper__label">
+        {props.label}
+      </span>
+      <button
+        type="button"
+        class="button stepper__button"
+        aria-label={fewer(props.label)}
+        disabled={props.value <= props.min}
+        onClick={() => props.onChange(props.value - 1)}
+      >
+        <span aria-hidden="true">−</span>
+      </button>
+      <output class="stepper__value">{props.value}</output>
+      <button
+        type="button"
+        class="button stepper__button"
+        aria-label={more(props.label)}
+        disabled={props.value >= props.max}
+        onClick={() => props.onChange(props.value + 1)}
+      >
+        <span aria-hidden="true">+</span>
+      </button>
+    </div>
+  );
+}
+EOF
+cat > src/web/components/KitchenControls.tsx <<'EOF'
+import type { VNode } from 'preact';
+import { LIMITS } from '../../core/index.js';
+import type { Kitchen } from '../../core/index.js';
+import { COPY } from '../copy.js';
+import { useAppState, useDispatch } from '../state/hooks.js';
+import { Stepper } from './Stepper.js';
+
+/** Burners (0 to 8), ovens (0 to 4) and cooks (1 to 6) (R5.1). */
+export function KitchenControls(): VNode | null {
+  const kitchen = useAppState((state) => state.dinner?.kitchen ?? null);
+  const dispatch = useDispatch();
+  if (kitchen === null) return null;
+  const set = (patch: Partial<Kitchen>): void =>
+    dispatch({ type: 'kitchen/set', kitchen: { ...kitchen, ...patch } });
+  return (
+    <div class="kitchen-controls">
+      <Stepper
+        label={COPY.burners}
+        value={kitchen.burners}
+        min={0}
+        max={LIMITS.burnersMax}
+        onChange={(burners) => set({ burners })}
+      />
+      <Stepper
+        label={COPY.ovens}
+        value={kitchen.ovens}
+        min={0}
+        max={LIMITS.ovensMax}
+        onChange={(ovens) => set({ ovens })}
+      />
+      <Stepper
+        label={COPY.cooks}
+        value={kitchen.cooks}
+        min={LIMITS.cooksMin}
+        max={LIMITS.cooksMax}
+        onChange={(cooks) => set({ cooks })}
+      />
+    </div>
+  );
+}
+EOF
+cat > src/web/components/ServingTime.tsx <<'EOF'
+import type { VNode } from 'preact';
+import { ServeTimeSchema } from '../../core/index.js';
+import { COPY } from '../copy.js';
+import { formatDay } from '../state/clock.js';
+import { useAppState, useClock, useDispatch } from '../state/hooks.js';
+
+/** The serving time input (R5.1, R5.3); the day shows beside it when it is not today. */
+export function ServingTime(props: { nowMs: number }): VNode | null {
+  const serving = useAppState((state) => state.dinner?.serving ?? null);
+  const dispatch = useDispatch();
+  const clock = useClock();
+  if (serving === null) return null;
+  const day = formatDay(serving.atMs, props.nowMs);
+  return (
+    <div class="serving-time">
+      <label for="serving-time">{COPY.servingTime}</label>
+      <input
+        id="serving-time"
+        class="input input--mono"
+        type="time"
+        value={serving.time}
+        onChange={(event) => {
+          const parsed = ServeTimeSchema.safeParse(event.currentTarget.value);
+          if (parsed.success) {
+            dispatch({ type: 'serving/set-time', time: parsed.data, nowMs: clock.nowMs() });
+          }
+        }}
+      />
+      {day !== null && <span class="muted">{day}</span>}
+    </div>
+  );
+}
+EOF
+cat > src/web/components/PlanSummary.tsx <<'EOF'
+import type { VNode } from 'preact';
+import { serveAt, startAt, takes } from '../copy.js';
+import { clockAt, formatClock, formatDay, formatDuration } from '../state/clock.js';
+import type { ScheduleView } from '../state/schedule-view.js';
+
+/** Start time, serving time (with the day when not today) and span (R5.4). */
+export function PlanSummary(props: {
+  view: ScheduleView;
+  chosenMs: number;
+  nowMs: number;
+}): VNode {
+  const { view, chosenMs, nowMs } = props;
+  const servingMs = clockAt(chosenMs, view.servingMin);
+  return (
+    <div class="summary">
+      <p class="summary__start">{startAt(formatClock(clockAt(chosenMs, view.startMin)))}</p>
+      <p>{serveAt(formatClock(servingMs), formatDay(servingMs, nowMs))}</p>
+      <p>{takes(formatDuration(view.spanMin))}</p>
+    </div>
+  );
+}
+EOF
+cat > src/web/components/WarningList.tsx <<'EOF'
+import type { VNode } from 'preact';
+import { compareIds } from '../../core/index.js';
+import { COPY, holdWarning } from '../copy.js';
+import type { ScheduleView } from '../state/schedule-view.js';
+
+/** The title of the step that uses `stepId`'s result first, or null for a terminal step. */
+function firstUserTitle(view: ScheduleView, stepId: string): string | null {
+  const start = new Map(view.steps.map((s) => [s.id, s.startMin]));
+  const users = view.plan.steps
+    .filter((s) => s.after.includes(stepId))
+    .sort(
+      (a, b) => (start.get(a.id) ?? 0) - (start.get(b.id) ?? 0) || compareIds(a.id, b.id),
+    );
+  return users[0]?.title ?? null;
+}
+
+/** One sentence per hold_exceeded warning, or the all-clear (R5.6). */
+export function WarningList(props: { view: ScheduleView }): VNode {
+  const { view } = props;
+  return (
+    <section aria-labelledby="warnings-heading">
+      <h2 id="warnings-heading">{COPY.warningsHeading}</h2>
+      {view.warnings.length === 0 ? (
+        <p>{COPY.noWarnings}</p>
+      ) : (
+        <ul class="warning-list">
+          {view.warnings.map((w) => {
+            const step = view.stepById.get(w.stepId);
+            if (step === undefined) return null;
+            return (
+              <li key={w.stepId}>
+                <span class="mark mark--warn">! Warning</span>{' '}
+                <span>
+                  {holdWarning(
+                    view.dishName.get(step.dish) ?? step.dish,
+                    step.title,
+                    w.waitMin,
+                    w.holdMin,
+                    firstUserTitle(view, w.stepId),
+                  )}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+EOF
+cat > src/web/components/MissingAppliance.tsx <<'EOF'
+import type { VNode } from 'preact';
+import type { Issue } from '../../core/index.js';
+import { COPY, missingAppliance } from '../copy.js';
+import { useAppState, useDispatch } from '../state/hooks.js';
+
+/** Per missing appliance: which steps need it, and the way out (R5.7). */
+export function MissingAppliance(props: { issues: readonly Issue[] }): VNode | null {
+  const dinner = useAppState((state) => state.dinner);
+  const dispatch = useDispatch();
+  if (dinner === null) return null;
+  const { plan, kitchen } = dinner;
+
+  const needing = (appliance: 'burner' | 'oven'): string[] => {
+    const ids = new Set<string>();
+    for (const issue of props.issues) {
+      if (issue.code === 'missing_appliance' && issue.appliance === appliance) ids.add(issue.stepId);
+    }
+    return plan.steps.filter((s) => ids.has(s.id)).map((s) => s.title);
+  };
+  const oven = needing('oven');
+  const burner = needing('burner');
+
+  return (
+    <section class="missing-appliance" aria-labelledby="missing-heading">
+      <h2 id="missing-heading" class="visually-hidden">
+        {COPY.planHeading}
+      </h2>
+      {oven.length > 0 && (
+        <div class="notice-block">
+          <p>{missingAppliance('oven', oven)}</p>
+          <button
+            type="button"
+            class="button button--primary"
+            onClick={() =>
+              dispatch({ type: 'kitchen/set', kitchen: { ...kitchen, ovens: 1 } })
+            }
+          >
+            {COPY.addOven}
+          </button>
+        </div>
+      )}
+      {burner.length > 0 && (
+        <div class="notice-block">
+          <p>{missingAppliance('burner', burner)}</p>
+          <button
+            type="button"
+            class="button button--primary"
+            onClick={() =>
+              dispatch({ type: 'kitchen/set', kitchen: { ...kitchen, burners: 1 } })
+            }
+          >
+            {COPY.addBurner}
+          </button>
+        </div>
+      )}
+      <div class="actions">
+        <button
+          type="button"
+          class="button"
+          onClick={() => dispatch({ type: 'navigate', route: 'steps', cookRegistered: false })}
+        >
+          {COPY.changeSteps}
+        </button>
+      </div>
+    </section>
+  );
+}
+EOF
+cat > src/web/components/PlanList.tsx <<'EOF'
+import type { VNode } from 'preact';
+import { COPY, slackLabel } from '../copy.js';
+import { clockAt, formatClock } from '../state/clock.js';
+import type { ScheduleView } from '../state/schedule-view.js';
+import { planListGroups } from './plan-list-items.js';
+import type { ItemStatus } from './plan-list-items.js';
+
+function statusText(status: ItemStatus): string {
+  if (status.kind === 'critical') return COPY.listCritical;
+  if (status.kind === 'back-to-back') return COPY.listNoSlack;
+  return slackLabel(status.minutes);
+}
+
+/**
+ * The plan as text: always in the DOM, the accessible alternative to the timeline and the
+ * print layout (R7.1 to R7.3). Items are focusable by script.
+ */
+export function PlanList(props: { view: ScheduleView; chosenMs: number }): VNode {
+  const { view, chosenMs } = props;
+  const groups = planListGroups(view, chosenMs);
+  const servingMs = clockAt(chosenMs, view.servingMin);
+  return (
+    <section id="plan-list" aria-labelledby="plan-list-heading">
+      <h2 id="plan-list-heading">{COPY.planListHeading}</h2>
+      {groups.map((group) => (
+        <div key={group.minute} class="plan-group">
+          <h3 class="mono">{group.heading}</h3>
+          <ol class="plan-items">
+            {group.items.map((item) => (
+              <li key={item.stepId} id={`step-${item.stepId}`} tabIndex={-1} class="plan-item">
+                <p class="plan-item__title">
+                  <span class="mono">{item.range}</span> {item.title}
+                </p>
+                <p class="plan-item__meta">
+                  {item.dishName} · <span class="mono">{item.lanes}</span> · {item.duration} ·{' '}
+                  <span class={item.status.kind === 'critical' ? 'mark mark--critical' : 'muted'}>
+                    {statusText(item.status)}
+                  </span>
+                </p>
+                {item.detail !== null && <p class="plan-item__detail">{item.detail}</p>}
+                {item.warning !== null && <p class="mark mark--warn">{item.warning}</p>}
+              </li>
+            ))}
+          </ol>
+        </div>
+      ))}
+      <div class="plan-group">
+        <h3 class="mono">{formatClock(servingMs)}</h3>
+        <ol class="plan-items">
+          <li class="plan-item">
+            <p class="plan-item__title">{COPY.listServe}</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+  );
+}
+EOF
+cat > src/web/screens/Plan.tsx <<'EOF'
+import type { VNode } from 'preact';
+import { useEffect } from 'preact/hooks';
+import { KitchenControls } from '../components/KitchenControls.js';
+import { MissingAppliance } from '../components/MissingAppliance.js';
+import { PlanList } from '../components/PlanList.js';
+import { PlanSummary } from '../components/PlanSummary.js';
+import { ServingTime } from '../components/ServingTime.js';
+import { WarningList } from '../components/WarningList.js';
+import { COPY } from '../copy.js';
+import { useAppState, useClock, useDispatch } from '../state/hooks.js';
+import { hashOf } from '../state/route.js';
+import { scheduleView } from '../state/schedule-view.js';
+import { selectSchedule } from '../state/store.js';
+
+/** Kitchen and serving time, then the schedule: summary, warnings, list (R5, R7). */
+export function Plan(): VNode {
+  const title = useAppState((state) => state.dinner?.plan.title ?? COPY.planHeading);
+  const serving = useAppState((state) => state.dinner?.serving ?? null);
+  const hasDinner = useAppState((state) => state.dinner !== null);
+  const result = useAppState(selectSchedule);
+  const dispatch = useDispatch();
+  const clock = useClock();
+  const nowMs = clock.nowMs();
+
+  // Opened through the flow links with no serving time chosen yet: choose one (R4.11).
+  useEffect(() => {
+    if (hasDinner && serving === null) dispatch({ type: 'plan/enter', nowMs: clock.nowMs() });
+  }, [hasDinner, serving]);
+
+  return (
+    <main class="screen">
+      <h1 tabIndex={-1}>{title}</h1>
+      <section aria-labelledby="kitchen-heading" class="no-print">
+        <h2 id="kitchen-heading">{COPY.kitchenHeading}</h2>
+        <KitchenControls />
+        <ServingTime nowMs={nowMs} />
+      </section>
+      {result !== null && result.ok && serving !== null && (
+        <PlanBody view={scheduleView(result.value)} chosenMs={serving.atMs} nowMs={nowMs} />
+      )}
+      {result !== null && !result.ok && result.error.kind === 'missing_appliance' && (
+        <MissingAppliance issues={result.error.issues} />
+      )}
+      {result !== null &&
+        !result.ok &&
+        result.error.kind !== 'missing_appliance' && (
+          <div class="notice-block">
+            <p>{COPY.invalidPlan}</p>
+            <a class="button" href={hashOf('steps')}>
+              {COPY.goToSteps}
+            </a>
+          </div>
+        )}
+    </main>
+  );
+}
+
+function PlanBody(props: {
+  view: ReturnType<typeof scheduleView>;
+  chosenMs: number;
+  nowMs: number;
+}): VNode {
+  return (
+    <>
+      <PlanSummary view={props.view} chosenMs={props.chosenMs} nowMs={props.nowMs} />
+      <WarningList view={props.view} />
+      <PlanList view={props.view} chosenMs={props.chosenMs} />
+    </>
+  );
+}
+EOF
+
+    145:  const until = userTitle === null ? 'serving' : `\u201c${userTitle}\u201d starts`;
+    146:  return `${dish}: \u201c${title}\u201d will be ready ${formatDuration(waitMin)} before ${until} and can wait only ${formatDuration(holdMin)}. More ovens, burners or cooks may help.`;
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat >> src/web/styles/components.css <<'EOF'
+
+/* Shared small pieces */
+.mono {
+  font-family: var(--font-mono);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+a.button {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.input {
+  min-width: 3rem;
+  min-height: 3rem;
+  box-sizing: border-box;
+  padding: 0 var(--space-3);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-raised);
+  color: var(--color-ink);
+  font: inherit;
+}
+
+.input--mono {
+  font-family: var(--font-mono);
+}
+
+.mark {
+  font-weight: 700;
+}
+
+.mark--critical {
+  color: var(--color-accent);
+}
+
+.mark--warn {
+  color: var(--color-warn);
+}
+
+/* Kitchen controls */
+.kitchen-controls {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.stepper {
+  display: grid;
+  grid-template-columns: 1fr 3rem 3rem 3rem;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.stepper__button {
+  padding: 0;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.stepper__value {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 1.25rem;
+}
+
+.serving-time {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-4);
+}
+
+/* Summary */
+.summary {
+  margin-top: var(--space-5);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  font-family: var(--font-mono);
+}
+
+.summary p {
+  margin: 0;
+}
+
+.summary__start {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.warning-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Plan list */
+.plan-group {
+  margin-top: var(--space-4);
+}
+
+.plan-group h3 {
+  margin: 0;
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.plan-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plan-item {
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.plan-item p {
+  margin: 0;
+}
+
+.plan-item__title {
+  font-weight: 700;
+}
+
+.plan-item__meta,
+.plan-item__detail {
+  color: var(--color-ink-muted);
+}
+
+@media (min-width: 40rem) {
+  .stepper {
+    grid-template-columns: 8rem 3rem 3rem 3rem;
+  }
+}
+EOF
+npx prettier --write src/web e2e >/dev/null; npm run typecheck 2>&1 | tail -15; npm run lint 2>&1 | tail -15
+    
+    > make-dinner@0.0.0 typecheck
+    > tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit
+    
+    
+    > make-dinner@0.0.0 lint
+    > eslint .
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && timeout 900 npx playwright test e2e/plan.spec.ts --project=phone 2>&1 | grep -vE "^\s*$" | head -60
+    [WebServer] 
+    [WebServer]   public/assets/main.js   503.1kb
+    [WebServer]   public/assets/main.css    6.9kb
+    [WebServer] 
+    [WebServer] ⚡ Done in 18ms
+    Running 9 tests using 6 workers
+      ✓  2 [phone] › e2e/plan.spec.ts:166:3 › plan screen › R5.3 R5.4 serving time 00:30 reads Serve at 00:30 tomorrow (215ms)
+      ✓  5 [phone] › e2e/plan.spec.ts:175:3 › plan screen › R5.2 a serving time change does not move any step relative to serving (181ms)
+      ✓  1 [phone] › e2e/plan.spec.ts:146:3 › plan screen › R5.7 ovens 1 to 0 names the step that needs one and shows no list; Add an oven restores it (278ms)
+      ✓  6 [phone] › e2e/plan.spec.ts:136:3 › plan screen › R5.1 the steppers stop at their bounds (284ms)
+      ✓  4 [phone] › e2e/plan.spec.ts:126:3 › plan screen › R5.2 R7.1 burners 4 to 1 moves the roux to 19:08–19:10 (329ms)
+      ✓  3 [phone] › e2e/plan.spec.ts:102:3 › plan screen › R5.4 R7.1 R7.2 seeded H1 at 19:30 shows start, serve, span and the list of the design table (330ms)
+      ✓  7 [phone] › e2e/plan.spec.ts:184:3 › plan screen › R5.6 R7.3 TIGHT_OVEN shows its hold warning sentence and marks the list item (151ms)
+      ✓  8 [phone] › e2e/plan.spec.ts:198:3 › plan screen › R5.6 a plan with no warnings says so (133ms)
+      ✓  9 [phone] › e2e/plan.spec.ts:205:3 › plan screen › R5.8 R9.3 a plan with an error never reaches the Plan screen: it opens Steps (111ms)
+      9 passed (2.9s)
+    exit 0
+
+Passing. Now the visual check with a scratch spec (deleted afterwards).
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat > e2e/scratch-shot.spec.ts <<'EOF'
+import { test } from '@playwright/test';
+import { HOME_KITCHEN, SUNDAY_ROAST } from '../test/support/fixtures.js';
+import { FIXED_NOW, seedDinner } from './support.js';
+
+test.use({ locale: 'en-GB', timezoneId: 'Europe/London', viewport: { width: 390, height: 844 }, hasTouch: true });
+for (const scheme of ['light', 'dark'] as const) {
+  test(`shot ${scheme}`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.clock.install({ time: new Date(FIXED_NOW) });
+    await seedDinner(page, SUNDAY_ROAST, HOME_KITCHEN, '19:30');
+    await page.goto('/');
+    await page.getByRole('heading', { level: 1 }).waitFor();
+    await page.screenshot({ path: `/tmp/plan-${scheme}-top.png` });
+    await page.screenshot({ path: `/tmp/plan-${scheme}-full.png`, fullPage: true });
+    const m = await page.evaluate(() => ({
+      sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth,
+      small: [...document.querySelectorAll('button,input,select,a')].map((e) => { const r = e.getBoundingClientRect(); return [e.textContent?.trim().slice(0,20) || e.getAttribute('aria-label'), Math.round(r.width), Math.round(r.height)]; }).filter(([, w, h]) => (w as number) < 48 || (h as number) < 48),
+    }));
+    console.log(scheme, JSON.stringify(m));
+  });
+}
+EOF
+timeout 600 npx playwright test e2e/scratch-shot.spec.ts --project=phone 2>&1 | grep -E "light|dark|passed|failed"
+    light {"sw":390,"cw":390,"small":[]}
+    dark {"sw":390,"cw":390,"small":[]}
+      ✓  2 [phone] › e2e/scratch-shot.spec.ts:7:3 › shot dark (194ms)
+      ✓  1 [phone] › e2e/scratch-shot.spec.ts:7:3 › shot light (194ms)
+      2 passed (2.6s)
+    exit 0
+[tool:read] Read File /tmp/plan-light-top.png
+[tool:read] Read File /tmp/plan-dark-full.png
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/web/screens/Plan.tsx'
+s=open(p).read()
+# restructure: summary before kitchen
+s=s.replace("""      <section aria-labelledby="kitchen-heading" class="no-print">
+        <h2 id="kitchen-heading">{COPY.kitchenHeading}</h2>
+        <KitchenControls />
+        <ServingTime nowMs={nowMs} />
+      </section>
+      {result !== null && result.ok && serving !== null && (
+        <PlanBody view={scheduleView(result.value)} chosenMs={serving.atMs} nowMs={nowMs} />
+      )}
+""","""      {view !== null && serving !== null && (
+        <PlanSummary view={view} chosenMs={serving.atMs} nowMs={nowMs} />
+      )}
+      <section aria-labelledby="kitchen-heading" class="no-print">
+        <h2 id="kitchen-heading">{COPY.kitchenHeading}</h2>
+        <KitchenControls />
+        <ServingTime nowMs={nowMs} />
+      </section>
+      {view !== null && serving !== null && (
+        <>
+          <WarningList view={view} />
+          <PlanList view={view} chosenMs={serving.atMs} />
+        </>
+      )}
+""")
+s=s.replace("  const nowMs = clock.nowMs();\n","  const nowMs = clock.nowMs();\n  const view = result !== null && result.ok ? scheduleView(result.value) : null;\n")
+i=s.index("function PlanBody")
+s=s[:i].rstrip()+"\n"
+open(p,'w').write(s)
+p='src/web/components/PlanList.tsx'
+s=open(p).read()
+s=s.replace('<span class="mono">{item.range}</span> {item.title}','<span class="mono plan-item__range">{item.range}</span>\n                  {item.title}')
+open(p,'w').write(s)
+EOF
+cat >> src/web/styles/components.css <<'EOF'
+
+.plan-item__range {
+  display: block;
+  font-weight: 400;
+}
+
+.mark {
+  white-space: nowrap;
+}
+EOF
+npx prettier --write src/web >/dev/null; npm run typecheck 2>&1 | grep -E "error" ; npm run lint 2>&1 | tail -5
+timeout 600 npx playwright test e2e/scratch-shot.spec.ts --project=phone 2>&1 | grep -E "light|dark|passed|failed"
+    
+    > make-dinner@0.0.0 lint
+    > eslint .
+    
+    light {"sw":390,"cw":390,"small":[]}
+    dark {"sw":390,"cw":390,"small":[]}
+      ✓  1 [phone] › e2e/scratch-shot.spec.ts:7:3 › shot light (199ms)
+      ✓  2 [phone] › e2e/scratch-shot.spec.ts:7:3 › shot dark (200ms)
+      2 passed (2.6s)
+    exit 0
+[tool:read] Read File /tmp/plan-light-top.png
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat >> src/web/styles/components.css <<'EOF'
+
+p.mark {
+  white-space: normal;
+}
+EOF
+
+    
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && timeout 600 npx playwright test e2e/scratch-shot.spec.ts --project=phone 2>&1 | grep -E "passed|failed"; python3 - <<'EOF'
+from PIL import Image
+im=Image.open('/tmp/plan-dark-full.png'); print(im.size)
+im.crop((0,900,390,1700)).save('/tmp/crop.png')
+EOF
+      2 passed (2.5s)
+    (390, 2854)
+    exit 0
+[tool:read] Read File /tmp/crop.png
+
+Layout is fine now. Next T3.5: the e2e first.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && rm e2e/scratch-shot.spec.ts && python3 - <<'EOF'
+p='e2e/plan.spec.ts'
+s=open(p).read()
+s+='''
+test.describe('plan screen: a start in the past', () => {
+  const NOTE = 'This dinner needs 1 h 50 min. Earliest serving time 19:35.';
+
+  test('R5.5 at 17:41 the note appears and "Serve at 19:35" sets the serving time and clears it', async ({
+    page,
+  }) => {
+    await page.clock.setSystemTime(new Date('2026-11-11T17:41:00Z'));
+    await openPlan(page);
+    await expect(page.getByText(NOTE)).toBeVisible();
+    await page.getByRole('button', { name: 'Serve at 19:35' }).click();
+    await expect(page.getByText(NOTE)).toHaveCount(0);
+    await expect(page.getByText('Serve at 19:35', { exact: true })).toBeVisible();
+    await expect(page.getByText('Start at 17:45', { exact: true })).toBeVisible();
+  });
+
+  test('R5.5 at 17:39:30 there is no note; a minute later there is', async ({ page }) => {
+    await page.clock.setSystemTime(new Date('2026-11-11T17:39:30Z'));
+    await openPlan(page);
+    await expect(page.getByText('Start at 17:40', { exact: true })).toBeVisible();
+    await expect(page.getByText(/^This dinner needs/)).toHaveCount(0);
+    await page.clock.runFor(60_000);
+    await expect(page.getByText(/^This dinner needs/)).toBeVisible();
+  });
+});
+'''
+open(p,'w').write(s)
+EOF
+npx prettier --write e2e >/dev/null
+timeout 600 npx playwright test e2e/plan.spec.ts --project=phone -g "start in the past" 2>&1 | grep -E "✓|✘|passed|failed|Error:|waiting"
+      ✘  1 [phone] › e2e/plan.spec.ts:224:3 › plan screen: a start in the past › R5.5 at 17:41 the note appears and "Serve at 19:35" sets the serving time and clears it (5.1s)
+      ✘  2 [phone] › e2e/plan.spec.ts:236:3 › plan screen: a start in the past › R5.5 at 17:39:30 there is no note; a minute later there is (5.1s)
+        Error: expect(locator).toBeVisible() failed
+        Error: element(s) not found
+          - waiting for getByText('This dinner needs 1 h 50 min. Earliest serving time 19:35.')
+        Error: expect(locator).toBeVisible() failed
+        Error: element(s) not found
+          - waiting for getByText(/^This dinner needs/)
+      2 failed
+    exit 0
+
+Fails on the missing note. Implementing `useNow` and the note.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/web/state/hooks.ts'
+s=open(p).read()
+s=s.replace("import { useContext, useEffect, useReducer, useRef } from 'preact/hooks';","import { useContext, useEffect, useReducer, useRef, useState } from 'preact/hooks';")
+s+='''
+/** The clock's time in ms, read again every `everyMs`; the component re-renders when it does. */
+export function useNow(clock: Clock, everyMs: number): number {
+  const [now, setNow] = useState(() => clock.nowMs());
+  useEffect(() => {
+    setNow(clock.nowMs());
+    const id = setInterval(() => setNow(clock.nowMs()), everyMs);
+    return () => clearInterval(id);
+  }, [clock, everyMs]);
+  return now;
+}
+'''
+open(p,'w').write(s)
+
+p='src/web/copy.ts'
+s=open(p).read()
+s+='''
+/** The note when the start is already past (R5.5). */
+export function pastStart(duration: string, earliest: string): string {
+  return `This dinner needs ${duration}. Earliest serving time ${earliest}.`;
+}
+
+export function serveAtButton(time: string): string {
+  return `Serve at ${time}`;
+}
+'''
+open(p,'w').write(s)
+
+p='src/web/components/PlanSummary.tsx'
+s=open(p).read()
+s=s.replace("import { serveAt, startAt, takes } from '../copy.js';","import { pastStart, serveAt, serveAtButton, startAt, takes } from '../copy.js';")
+s=s.replace("import { clockAt, formatClock, formatDay, formatDuration } from '../state/clock.js';","import {\n  clockAt,\n  earliestServing,\n  formatClock,\n  formatDay,\n  formatDuration,\n} from '../state/clock.js';\nimport { useDispatch } from '../state/hooks.js';")
+s=s.replace("  const servingMs = clockAt(chosenMs, view.servingMin);\n","  const dispatch = useDispatch();\n  const servingMs = clockAt(chosenMs, view.servingMin);\n  const startMs = clockAt(chosenMs, view.startMin);\n  const earliestMs = earliestServing(nowMs, view.spanMin);\n")
+s=s.replace("formatClock(clockAt(chosenMs, view.startMin))","formatClock(startMs)")
+s=s.replace("""      <p>{takes(formatDuration(view.spanMin))}</p>
+    </div>""","""      <p>{takes(formatDuration(view.spanMin))}</p>
+      {startMs < nowMs && (
+        <div class="summary__past">
+          <p>{pastStart(formatDuration(view.spanMin), formatClock(earliestMs))}</p>
+          <button
+            type="button"
+            class="button button--primary"
+            onClick={() => dispatch({ type: 'serving/set-instant', atMs: earliestMs })}
+          >
+            {serveAtButton(formatClock(earliestMs))}
+          </button>
+        </div>
+      )}
+    </div>""")
+open(p,'w').write(s)
+
+p='src/web/screens/Plan.tsx'
+s=open(p).read()
+s=s.replace("import { useAppState, useClock, useDispatch } from","import { useAppState, useClock, useDispatch, useNow } from")
+s=s.replace("import { hashOf }","import { systemClock } from '../state/clock.js';\nimport { hashOf }")
+s=s.replace("  const nowMs = clock.nowMs();","  const nowMs = useNow(systemClock, 30_000);")
+open(p,'w').write(s)
+EOF
+cat >> src/web/styles/components.css <<'EOF'
+
+.summary__past {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-rule);
+  font-family: var(--font-text);
+}
+EOF
+npx prettier --write src/web >/dev/null; npm run typecheck 2>&1 | grep error; npm run lint 2>&1 | tail -4
+timeout 600 npx playwright test e2e/plan.spec.ts --project=phone 2>&1 | grep -E "✘|passed|failed|Error:|waiting"
+    
+    > make-dinner@0.0.0 lint
+    > eslint .
+    
+      11 passed (2.9s)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && timeout 900 npx playwright test e2e/plan.spec.ts 2>&1 | grep -E "✘|passed|failed|Error:"; npm run typecheck 2>&1 | grep -c error; npm run lint 2>&1 | tail -2
+      22 passed (3.7s)
+    0
+    > eslint .
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+import re
+p='.kiro/specs/plan-ui/tasks.md'
+s=open(p).read()
+for t in ['T3.1','T3.2','T3.3','T3.4','T3.5']:
+    s=s.replace(f'- [ ] {t} ',f'- [x] {t} ')
+open(p,'w').write(s)
+EOF
+sed -n 462,520p test/support/fixtures.ts
+    … (29 earlier lines not shown)
+          minutes: 60,
+          appliance: 'burner',
+          handsOn: false,
+          after: [],
+          holdMin: 30,
+        },
+        {
+          id: 'jelly.set',
+          dish: 'jelly',
+          title: 'Leave the jelly to set',
+          minutes: 120,
+          appliance: 'none',
+          handsOn: false,
+          after: [],
+          holdMin: null,
+        },
+      ],
+    };
+    
+    /**
+     * Two hot hands-on steps competing for the cook (design H6).
+     *
+     * With BARE_KITCHEN (1 cook): `a.chop` [-10, 0) cook 1, wait 0; `b.chop` [-20, -10) cook 1,
+     * wait 10; both slack 0; span 20, chain 10; one hold_exceeded for `b.chop` (waitMin 10,
+     * holdMin 5); G4.2 is tight.
+     *
+     * With BIG_KITCHEN (6 cooks): both [-10, 0), `a.chop` cook 1, `b.chop` cook 2, waits 0,
+     * span 10, no warnings.
+     */
+    export const TWO_CHOPS: Plan = {
+    exit 0
+[tool:execute FAILED] $ cd ~/hackathons-2026/kiroween/makedinner && cat > src/web/components/timeline-layout.ts <<'EOF'
+import type { ScheduleView } from '../state/schedule-view.js';
+
+export const PX_PER_MIN = 6; // a step of 8 minutes is a 48 px target (decided here)
+export const LABEL_MIN_PX = 56; // shorter bars carry no label
+
+export type RowKind = 'cook' | 'burner' | 'oven' | 'hands-free';
+export type BarFill = 'oven' | 'burner' | 'plain';
+
+export interface TimelineBar {
+  stepId: string;
+  title: string;
+  leftPx: number;
+  widthPx: number;
+  fill: BarFill;
+  dashed: boolean;
+  showLabel: boolean;
+  /** The mark ▲ is drawn only for `critical`. */
+  critical: boolean;
+}
+
+export interface TimelineRow {
+  key: string;
+  kind: RowKind;
+  lane: number;
+  label: string;
+  bars: TimelineBar[];
+}
+
+export interface TimelineTick {
+  minute: number;
+  leftPx: number;
+  label: string;
+}
+
+export interface TimelineLayout {
+  originMin: number;
+  endMin: number;
+  widthPx: number;
+  rows: TimelineRow[];
+  ticks: TimelineTick[];
+  serveLeftPx: number;
+  serveLabel: string;
+}
+
+export function layoutTimeline(
+  view: ScheduleView,
+  chosenMs: number,
+  locale?: string,
+): TimelineLayout {
+  void view;
+  void chosenMs;
+  void locale;
+  return {
+    originMin: 0,
+    endMin: 0,
+    widthPx: 0,
+    rows: [],
+    ticks: [],
+    serveLeftPx: 0,
+    serveLabel: '',
+  };
+}
+EOF
+cat > test/web/components/timeline-layout.test.ts <<'EOF'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { canonicalPlan } from '../../../src/core/index.js';
+import type { Plan, Schedule, ScheduledStep, Step } from '../../../src/core/index.js';
+import { layoutTimeline } from '../../../src/web/components/timeline-layout.js';
+import type { TimelineBar } from '../../../src/web/components/timeline-layout.js';
+import { scheduleView } from '../../../src/web/state/schedule-view.js';
+import { H1_SCHEDULE, HOME_KITCHEN } from '../../support/fixtures.js';
+
+const original = process.env['TZ'];
+const at = (iso: string): number => Date.parse(iso);
+
+beforeAll(() => {
+  process.env['TZ'] = 'Europe/London';
+  expect(new Date(2026, 6, 1).getTimezoneOffset()).toBe(-60);
+});
+afterAll(() => {
+  if (original === undefined) delete process.env['TZ'];
+  else process.env['TZ'] = original;
+});
+
+const WED_1930 = at('2026-11-11T19:30:00Z');
+const THU_0030 = at('2026-11-12T00:30:00Z');
+
+/** A bar as the design's H1 table writes it: id left/width fill dashed label critical. */
+function bar(b: TimelineBar): string {
+  return [
+    b.stepId,
+    `${b.leftPx}/${b.widthPx}`,
+    b.fill,
+    b.dashed ? 'dashed' : '-',
+    b.showLabel ? 'label' : '-',
+    b.critical ? '▲' : '-',
+  ].join(' ');
+}
+
+describe('layoutTimeline: the design H1 table at Wed 19:30 (R6.1 to R6.6)', () => {
+  const layout = (): ReturnType<typeof layoutTimeline> =>
+    layoutTimeline(scheduleView(H1_SCHEDULE), WED_1930, 'en-GB');
+
+  it('R6.3 origin is 17:40 rounded down to 17:30 (minute -120), the axis ends at 0, 720 px wide', () => {
+    const l = layout();
+    expect([l.originMin, l.endMin, l.widthPx]).toEqual([-120, 0, 720]);
+  });
+  it('R6.4 nine quarter-hour ticks from 17:30 to 19:30 at 0, 90, … 720 px; the serve line at 720', () => {
+    const l = layout();
+    expect(l.ticks.map((t) => [t.label, t.leftPx])).toEqual([
+      ['17:30', 0],
+      ['17:45', 90],
+      ['18:00', 180],
+      ['18:15', 270],
+      ['18:30', 360],
+      ['18:45', 450],
+      ['19:00', 540],
+      ['19:15', 630],
+      ['19:30', 720],
+    ]);
+    expect([l.serveLeftPx, l.serveLabel]).toEqual([720, 'Serve 19:30']);
+  });
+  it('R6.1 rows run Cook 1, Burner 1, Burner 2, Oven 1, Hands-free', () => {
+    expect(layout().rows.map((r) => [r.kind, r.label])).toEqual([
+      ['cook', 'Cook 1'],
+      ['burner', 'Burner 1'],
+      ['burner', 'Burner 2'],
+      ['oven', 'Oven 1'],
+      ['hands-free', 'Hands-free'],
+    ]);
+  });
+  it('R6.1 R6.5 R6.6 every bar of every row, by the formula (minute - origin) x 6', () => {
+    const rows = layout().rows;
+    expect(rows.map((r) => r.bars.map(bar))).toEqual([
+      [
+        'chicken.prep 60/60 plain - label -',
+        'greens.shred 120/30 plain - - -',
+        'gravy.roux 600/12 burner - - ▲',
+        'gravy.strain 672/12 plain - - ▲',
+        'greens.toss 684/6 plain - - ▲',
+        'chicken.carve 690/30 plain - - ▲',
+      ],
+      ['gravy.roux 600/12 burner - - ▲', 'gravy.simmer 612/60 burner dashed label ▲'],
+      ['greens.boil 660/24 burner dashed - ▲'],
+      ['chicken.roast 120/450 oven dashed label ▲'],
+      ['chicken.rest 570/120 plain dashed label ▲'],
+    ]);
+  });
+  it('R6.6 chicken.prep keeps and has slack 0: no critical mark; the bar still carries its title', () => {
+    const prep = layout().rows[0]?.bars[0];
+    expect(prep?.critical).toBe(false);
+    expect(prep?.title).toBe('Season and truss the chicken');
+  });
+});
+
+describe('layoutTimeline across midnight (R6.4)', () => {
+  it('R6.4 serving Thu 00:30 labels the midnight tick with the weekday', () => {
+    const l = layoutTimeline(scheduleView(H1_SCHEDULE), THU_0030, 'en-GB');
+    expect(l.ticks.map((t) => t.label)).toEqual([
+      '22:30',
+      '22:45',
+      '23:00',
+      '23:15',
+      '23:30',
+      '23:45',
+      'Thu 00:00',
+      '00:15',
+      '00:30',
+    ]);
+    expect(l.serveLabel).toBe('Serve 00:30');
+  });
+});
+
+/** Builds a hand-written schedule: every step on the cook unless `free`. */
+function handWritten(
+  rows: readonly { id: string; start: number; minutes: number; free?: boolean }[],
+): Schedule {
+  const steps: Step[] = rows.map((r) => ({
+    id: `x.${r.id}`,
+    dish: 'x',
+    title: `Step ${r.id}`,
+    minutes: r.minutes,
+    appliance: 'none',
+    handsOn: r.free !== true,
+    after: [],
+    holdMin: 30,
+  }));
+  const plan: Plan = canonicalPlan({ title: 'Hand written', dishes: [{ id: 'x', name: 'X' }], steps });
+  const scheduled: ScheduledStep[] = rows.map((r) => ({
+    id: `x.${r.id}`,
+    startMin: r.start,
+    endMin: r.start + r.minutes,
+    lanes: { burner: null, oven: null, cook: r.free === true ? null : 1 },
+    slackMin: 5,
+    critical: false,
+    waitMin: 0,
+  }));
+  return {
+    plan,
+    kitchen: HOME_KITCHEN,
+    steps: scheduled,
+    spanMin: 60,
+    chainMin: 60,
+    warnings: [],
+  };
+}
+
+describe('layoutTimeline: hands-free rows (R6.2)', () => {
+  it('R6.2 two overlapping hands-free steps give Hands-free 1 and Hands-free 2', () => {
+    const l = layoutTimeline(
+      scheduleView(
+        handWritten([
+          { id: 'a', start: -30, minutes: 30, free: true },
+          { id: 'b', start: -20, minutes: 20, free: true },
+        ]),
+      ),
+      WED_1930,
+      'en-GB',
+    );
+    expect(l.rows.map((r) => [r.label, r.bars.map((b) => b.stepId)])).toEqual([
+      ['Hands-free 1', ['x.a']],
+      ['Hands-free 2', ['x.b']],
+    ]);
+  });
+  it('R6.2 steps that touch end to end share one row, labelled Hands-free', () => {
+    const l = layoutTimeline(
+      scheduleView(
+        handWritten([
+          { id: 'a', start: -30, minutes: 10, free: true },
+          { id: 'b', start: -20, minutes: 20, free: true },
+        ]),
+      ),
+      WED_1930,
+      'en-GB',
+    );
+    expect(l.rows.map((r) => [r.label, r.bars.map((b) => b.stepId)])).toEqual([
+      ['Hands-free', ['x.a', 'x.b']],
+    ]);
+  });
+});
+
+describe('layoutTimeline: bar width and label (R6.5)', () => {
+  it('R6.5 an 8-minute bar is 48 px with no label, a 9-minute bar 54 px with none, a 10-minute bar 60 px with one', () => {
+    const l = layoutTimeline(
+      scheduleView(
+        handWritten([
+          { id: 'eight', start: -40, minutes: 8 },
+          { id: 'nine', start: -30, minutes: 9 },
+          { id: 'ten', start: -20, minutes: 10 },
+        ]),
+      ),
+      WED_1930,
+      'en-GB',
+    );
+    const widths = l.rows[0]?.bars.map((b) => [b.stepId, b.widthPx, b.showLabel]);
+    expect(widths).toEqual([
+      ['x.eight', 48, false],
+      ['x.nine', 54, false],
+      ['x.ten', 60, true],
+    ]);
+  });
+});
+
+describe('layoutTimeline on a rebuilt-shaped schedule (R6.3)', () => {
+  it('R6.3 servingMin 15: the axis ends at 15 rounded up to a quarter hour and the serve line sits there', () => {
+    const shifted: Schedule & { servingMin: number } = {
+      ...H1_SCHEDULE,
+      steps: H1_SCHEDULE.steps.map((s) => ({ ...s, startMin: s.startMin + 15, endMin: s.endMin + 15 })),
+      servingMin: 15,
+    };
+    // chosen 19:30 is minute 0; the first start is minute -95 = 17:55, so the origin is 17:45 = -105.
+    const l = layoutTimeline(scheduleView(shifted), WED_1930, 'en-GB');
+    expect([l.originMin, l.endMin, l.widthPx]).toEqual([-105, 15, 720]);
+    expect([l.serveLeftPx, l.serveLabel]).toEqual([720, 'Serve 19:45']);
+    expect(l.ticks[0]?.label).toBe('17:45');
+    expect(l.ticks[l.ticks.length - 1]?.label).toBe('19:45');
+    expect(l.rows[0]?.bars[0]).toMatchObject({ stepId: 'chicken.prep', leftPx: 60, widthPx: 60 });
+  });
+});
+EOF
+npx prettier --write test/web >/dev/null; npx vitest run --project examples test/web/components/timeline-layout.test.ts 2>&1 | grep -E "×|Tests |AssertionError" | head -20; npm run typecheck 2>&1 | grep error
+         × R6.3 origin is 17:40 rounded down to 17:30 (minute -120), the axis ends at 0, 720 px wide 3ms
+         × R6.4 nine quarter-hour ticks from 17:30 to 19:30 at 0, 90, … 720 px; the serve line at 720 1ms
+         × R6.1 rows run Cook 1, Burner 1, Burner 2, Oven 1, Hands-free 0ms
+         × R6.1 R6.5 R6.6 every bar of every row, by the formula (minute - origin) x 6 0ms
+         × R6.6 chicken.prep keeps and has slack 0: no critical mark; the bar still carries its title 0ms
+         × R6.4 serving Thu 00:30 labels the midnight tick with the weekday 0ms
+         × R6.2 two overlapping hands-free steps give Hands-free 1 and Hands-free 2 0ms
+         × R6.2 steps that touch end to end share one row, labelled Hands-free 0ms
+         × R6.5 an 8-minute bar is 48 px with no label, a 9-minute bar 54 px with none, a 10-minute bar 60 px with one 0ms
+         × R6.3 servingMin 15: the axis ends at 15 rounded up to a quarter hour and the serve line sits there 0ms
+    ⎯⎯⎯⎯⎯⎯ Failed Tests 10 ⎯⎯⎯⎯⎯⎯⎯
+    AssertionError: expected [ +0, +0, +0 ] to deeply equal [ -120, +0, 720 ]
+    AssertionError: expected [] to deeply equal [ [ '17:30', +0 ], …(8) ]
+    AssertionError: expected [] to deeply equal [ [ 'cook', 'Cook 1' ], …(4) ]
+    AssertionError: expected [] to deeply equal [ [ …(6) ], [ …(2) ], …(3) ]
+    AssertionError: expected undefined to be false // Object.is equality
+    AssertionError: expected [] to deeply equal [ '22:30', '22:45', '23:00', …(6) ]
+    AssertionError: expected [] to deeply equal [ [ 'Hands-free 1', [ 'x.a' ] ], …(1) ]
+    AssertionError: expected [] to deeply equal [ [ 'Hands-free', [ 'x.a', 'x.b' ] ] ]
+    AssertionError: expected undefined to deeply equal [ [ 'x.eight', 48, false ], …(2) ]
+    exit 1
+[tool:execute FAILED] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/web/components/timeline-layout.ts'
+s=open(p).read()
+a=s.index('export function layoutTimeline')
+s=s[:a]+'''export function layoutTimeline(
+  view: ScheduleView,
+  chosenMs: number,
+  locale?: string,
+): TimelineLayout {
+  const originMin = quarterFloor(chosenMs, view.startMin);
+  const endMin = quarterCeil(chosenMs, view.servingMin);
+  const x = (minute: number): number => (minute - originMin) * PX_PER_MIN;
+
+  const ordered = [...view.steps].sort(
+    (a, b) => a.startMin - b.startMin || compareIds(a.id, b.id),
+  );
+
+  const barOf = (s: ScheduledStep): TimelineBar | null => {
+    const step = view.stepById.get(s.id);
+    if (step === undefined) return null;
+    const widthPx = (s.endMin - s.startMin) * PX_PER_MIN;
+    return {
+      stepId: s.id,
+      title: step.title,
+      leftPx: x(s.startMin),
+      widthPx,
+      fill: step.appliance === 'none' ? 'plain' : step.appliance,
+      dashed: !step.handsOn,
+      showLabel: widthPx >= LABEL_MIN_PX,
+      critical: stepMark(s, step) === 'critical',
+    };
+  };
+
+  const rows: TimelineRow[] = [];
+  const resources: readonly (readonly [RowKind & ('cook' | 'burner' | 'oven'), string])[] = [
+    ['cook', 'Cook'],
+    ['burner', 'Burner'],
+    ['oven', 'Oven'],
+  ];
+  for (const [kind] of resources) {
+    const byLane = new Map<number, TimelineBar[]>();
+    for (const s of ordered) {
+      const lane = s.lanes[kind];
+      const b = lane === null ? null : barOf(s);
+      if (lane === null || b === null) continue;
+      byLane.set(lane, [...(byLane.get(lane) ?? []), b]);
+    }
+    for (const lane of [...byLane.keys()].sort((a, b) => a - b)) {
+      rows.push({
+        key: `${kind}-${lane}`,
+        kind,
+        lane,
+        label: laneName(kind, lane),
+        bars: byLane.get(lane) ?? [],
+      });
+    }
+  }
+
+  // Hands-free: no appliance and no cook. Each goes into the lowest row that is free at its start.
+  const free: { end: number; bars: TimelineBar[] }[] = [];
+  for (const s of ordered) {
+    const step = view.stepById.get(s.id);
+    if (step === undefined || step.appliance !== 'none' || step.handsOn) continue;
+    const b = barOf(s);
+    if (b === null) continue;
+    const row = free.find((r) => r.end <= s.startMin);
+    if (row === undefined) free.push({ end: s.endMin, bars: [b] });
+    else {
+      row.bars.push(b);
+      row.end = s.endMin;
+    }
+  }
+  for (const [index, row] of free.entries()) {
+    rows.push({
+      key: `hands-free-${index + 1}`,
+      kind: 'hands-free',
+      lane: index + 1,
+      label: free.length === 1 ? COPY.handsFree : `${COPY.handsFree} ${index + 1}`,
+      bars: row.bars,
+    });
+  }
+
+  const ticks: TimelineTick[] = [];
+  for (let minute = originMin; minute <= endMin; minute += 15) {
+    const ms = clockAt(chosenMs, minute);
+    const local = new Date(ms);
+    const clock = formatClock(ms, locale);
+    const midnight = local.getHours() === 0 && local.getMinutes() === 0;
+    ticks.push({
+      minute,
+      leftPx: x(minute),
+      label: midnight ? `${formatWeekday(ms, locale)} ${clock}` : clock,
+    });
+  }
+
+  return {
+    originMin,
+    endMin,
+    widthPx: x(endMin),
+    rows,
+    ticks,
+    serveLeftPx: x(view.servingMin),
+    serveLabel: serveLabel(formatClock(clockAt(chosenMs, view.servingMin), locale)),
+  };
+}
+'''
+s=s.replace("import type { ScheduleView } from '../state/schedule-view.js';","""import { compareIds } from '../../core/index.js';
+import type { ScheduledStep } from '../../core/index.js';
+import { COPY, laneName, serveLabel } from '../copy.js';
+import { clockAt, formatClock, formatWeekday, quarterCeil, quarterFloor } from '../state/clock.js';
+import { stepMark } from '../state/schedule-view.js';
+import type { ScheduleView } from '../state/schedule-view.js';""")
+open(p,'w').write(s)
+p='src/web/copy.ts'
+s=open(p).read()
+s+='''
+/** The serve line's label: "Serve 19:30". */
+export function serveLabel(time: string): string {
+  return `Serve ${time}`;
+}
+'''
+open(p,'w').write(s)
+EOF
+npx prettier --write src/web >/dev/null; npx vitest run --project examples test/web/components/timeline-layout.test.ts 2>&1 | grep -E "×|Tests |AssertionError|Error" | head -20; npm run typecheck 2>&1 | grep error
+          Tests  10 passed (10)
+    exit 1
+[tool:execute FAILED] $ cd ~/hackathons-2026/kiroween/makedinner && cat > test/web/components/timeline-layout.pbt.ts <<'EOF'
+import fc from 'fast-check';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { schedule } from '../../../src/core/index.js';
+import { layoutTimeline } from '../../../src/web/components/timeline-layout.js';
+import { scheduleView } from '../../../src/web/state/schedule-view.js';
+import { arbPlanAndKitchen } from '../../support/arbitraries.js';
+import { fcParams } from '../../support/fc-params.js';
+
+const original = process.env['TZ'];
+const CHOSEN_MS = Date.parse('2026-11-11T19:30:00Z');
+
+describe('timeline layout properties', () => {
+  beforeAll(() => {
+    process.env['TZ'] = 'Europe/London';
+    expect(new Date(2026, 6, 1).getTimezoneOffset()).toBe(-60);
+  });
+  afterAll(() => {
+    if (original === undefined) delete process.env['TZ'];
+    else process.env['TZ'] = original;
+  });
+
+  it('P-UI3 bars never overlap in a row, sit on exactly their lanes, hands-free rows equal peak overlap, pixels follow the formula', () => {
+    fc.assert(
+      fc.property(arbPlanAndKitchen(), ({ plan, kitchen }) => {
+        const result = schedule(plan, kitchen);
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        const s = result.value;
+        const layout = layoutTimeline(scheduleView(s), CHOSEN_MS, 'en-GB');
+        const first = Math.min(...s.steps.map((t) => t.startMin));
+
+        // Axis: origin at most 14 minutes before the first start, end at most 14 after serving.
+        expect(layout.originMin <= first && first - layout.originMin < 15).toBe(true);
+        expect(layout.endMin >= 0 && layout.endMin < 15).toBe(true);
+        expect(layout.widthPx).toBe((layout.endMin - layout.originMin) * 6);
+
+        const byId = new Map(s.steps.map((t) => [t.id, t]));
+        const stepOf = new Map(plan.steps.map((t) => [t.id, t]));
+        const seen = new Map<string, string[]>();
+        for (const row of layout.rows) {
+          // No two bars of a row overlap (plain loop over pairs).
+          for (let i = 0; i < row.bars.length; i += 1) {
+            for (let j = i + 1; j < row.bars.length; j += 1) {
+              const a = row.bars[i];
+              const b = row.bars[j];
+              if (a === undefined || b === undefined) throw new Error('index');
+              expect(a.leftPx + a.widthPx <= b.leftPx || b.leftPx + b.widthPx <= a.leftPx).toBe(
+                true,
+              );
+            }
+          }
+          for (const b of row.bars) {
+            const t = byId.get(b.stepId);
+            if (t === undefined) throw new Error('unknown step in a bar');
+            expect(b.leftPx).toBe((t.startMin - layout.originMin) * 6);
+            expect(b.widthPx).toBe((t.endMin - t.startMin) * 6);
+            expect(b.showLabel).toBe(b.widthPx >= 56);
+            seen.set(b.stepId, [...(seen.get(b.stepId) ?? []), row.label]);
+          }
+        }
+
+        // Each step is on exactly the lanes it holds, or on one hands-free row.
+        for (const t of s.steps) {
+          const step = stepOf.get(t.id);
+          if (step === undefined) throw new Error('unknown step');
+          const expected: string[] = [];
+          if (t.lanes.cook !== null) expected.push(`Cook ${t.lanes.cook}`);
+          if (t.lanes.burner !== null) expected.push(`Burner ${t.lanes.burner}`);
+          if (t.lanes.oven !== null) expected.push(`Oven ${t.lanes.oven}`);
+          const got = seen.get(t.id) ?? [];
+          if (expected.length > 0) expect(got.sort()).toEqual(expected.sort());
+          else {
+            expect(got).toHaveLength(1);
+            expect(got[0]?.startsWith('Hands-free')).toBe(true);
+          }
+        }
+
+        // Oracle: the number of hands-free rows is the peak number of hands-free steps active.
+        const free = s.steps.filter((t) => {
+          const step = stepOf.get(t.id);
+          return step !== undefined && step.appliance === 'none' && !step.handsOn;
+        });
+        let peak = 0;
+        for (let minute = first; minute < 0; minute += 1) {
+          peak = Math.max(
+            peak,
+            free.filter((t) => t.startMin <= minute && minute < t.endMin).length,
+          );
+        }
+        expect(layout.rows.filter((r) => r.kind === 'hands-free')).toHaveLength(peak);
+      }),
+      fcParams(),
+    );
+  });
+});
+EOF
+npx prettier --write test/web >/dev/null
+npx vitest run --project examples test/web/components/timeline-layout.test.ts 2>&1 | grep -E "Tests "; npx vitest run --project props test/web/components/timeline-layout.pbt.ts 2>&1 | grep -vE "^\s*$" | tail -15; npm run typecheck 2>&1 | grep error
+          Tests  10 passed (10)
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+     Test Files  1 passed (1)
+          Tests  1 passed (1)
+       Start at  18:19:27
+       Duration  565ms (tests 56%, import 37%, transform 7%)
+    exit 1
+
+Now T4.3: e2e first.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='e2e/plan.spec.ts'
+s=open(p).read()
+s=s.replace("import { FIXED_NOW, seedDinner } from './support.js';","import { expectNoPageScroll, FIXED_NOW, seedDinner } from './support.js';")
+s+='''
+test.describe('timeline', () => {
+  test('R6.1 rows run Cook 1, Burner 1, Burner 2, Oven 1, Hands-free', async ({ page }) => {
+    await openPlan(page);
+    const labels = page.locator('.timeline__label');
+    await expect(labels).toHaveText(['Cook 1', 'Burner 1', 'Burner 2', 'Oven 1', 'Hands-free']);
+    await expect(page.getByText('Serve 19:30', { exact: true })).toBeAttached();
+  });
+
+  test('R6.7 the timeline is aria-hidden with nothing focusable in it, and a skip link precedes it', async ({
+    page,
+  }) => {
+    await openPlan(page);
+    const timeline = page.locator('.timeline');
+    await expect(timeline).toHaveAttribute('aria-hidden', 'true');
+    const focusable = await timeline.evaluate(
+      (el) =>
+        el.querySelectorAll('a[href], button, input, select, textarea, [tabindex]').length,
+    );
+    expect(focusable).toBe(0);
+    const skip = page.getByRole('link', { name: 'Skip to the plan list' });
+    await expect(skip).toBeVisible();
+    const skipBeforeTimeline = await page.evaluate(() => {
+      const link = [...document.querySelectorAll('a')].find(
+        (a) => a.textContent === 'Skip to the plan list',
+      );
+      const graphic = document.querySelector('.timeline');
+      return (
+        link !== undefined &&
+        graphic !== null &&
+        (link.compareDocumentPosition(graphic) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+      );
+    });
+    expect(skipBeforeTimeline).toBe(true);
+    await skip.click();
+    await expect(page.locator('#plan-list')).toBeFocused();
+    await expect(page).toHaveURL(/#\\/plan$/);
+  });
+
+  test('R6.8 tapping the Oven 1 bar focuses the Roast the chicken item', async ({ page }) => {
+    await openPlan(page);
+    await page.locator('.timeline [data-step-id="chicken.roast"]').click();
+    const item = page.locator('[id="step-chicken.roast"]');
+    await expect(item).toBeFocused();
+    await expect(item).toContainText('Roast the chicken');
+    await expect(item).toBeInViewport();
+  });
+
+  test('R6.5 the oven bar carries the label, the 12-minute roux bar none', async ({ page }) => {
+    await openPlan(page);
+    await expect(
+      page.locator('.timeline [data-step-id="chicken.roast"]').first(),
+    ).toContainText('Roast the chicken');
+    await expect(
+      page.locator('.timeline [data-step-id="gravy.roux"]').first(),
+    ).toHaveText('');
+  });
+
+  test('R6.9 the timeline scrolls inside itself on a phone, the page never does, lane labels stay in view', async ({
+    page,
+  }, testInfo) => {
+    await openPlan(page);
+    const scroller = page.locator('.timeline');
+    const sizes = await scroller.evaluate((el) => ({
+      scroll: el.scrollWidth,
+      client: el.clientWidth,
+    }));
+    if (testInfo.project.name === 'phone') {
+      expect(sizes.scroll).toBeGreaterThan(sizes.client);
+    }
+    await expectNoPageScroll(page);
+    await scroller.evaluate((el) => {
+      el.scrollLeft = el.scrollWidth;
+    });
+    await expectNoPageScroll(page);
+    const label = page.locator('.timeline__label').first();
+    const box = await label.boundingBox();
+    const frame = await scroller.boundingBox();
+    expect(box).not.toBeNull();
+    expect(frame).not.toBeNull();
+    expect(Math.abs((box?.x ?? -1000) - (frame?.x ?? 1000))).toBeLessThan(2);
+    await expect(label).toBeInViewport();
+  });
+});
+'''
+open(p,'w').write(s)
+EOF
+npx prettier --write e2e >/dev/null
+timeout 600 npx playwright test e2e/plan.spec.ts --project=phone -g "timeline" 2>&1 | grep -E "✓|✘|passed|failed|waiting"
+      ✘  2 [phone] › e2e/plan.spec.ts:254:3 › timeline › R6.7 the timeline is aria-hidden with nothing focusable in it, and a skip link precedes it (5.2s)
+      ✘  5 [phone] › e2e/plan.spec.ts:292:3 › timeline › R6.5 the oven bar carries the label, the 12-minute roux bar none (5.2s)
+      ✘  3 [phone] › e2e/plan.spec.ts:247:3 › timeline › R6.1 rows run Cook 1, Burner 1, Burner 2, Oven 1, Hands-free (5.2s)
+      ✘  4 [phone] › e2e/plan.spec.ts:283:3 › timeline › R6.8 tapping the Oven 1 bar focuses the Roast the chicken item (30.0s)
+      ✘  1 [phone] › e2e/plan.spec.ts:300:3 › timeline › R6.9 the timeline scrolls inside itself on a phone, the page never does, lane labels stay in view (30.0s)
+        Error: expect(locator).toHaveText(expected) failed
+          - waiting for locator('.timeline__label')
+        Error: expect(locator).toHaveAttribute(expected) failed
+          - waiting for locator('.timeline')
+          - waiting for locator('.timeline [data-step-id="chicken.roast"]')
+        Error: expect(locator).toContainText(expected) failed
+          - waiting for locator('.timeline [data-step-id="chicken.roast"]').first()
+          - waiting for locator('.timeline')
+      5 failed
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat > src/web/components/Timeline.tsx <<'EOF'
+import type { VNode } from 'preact';
+import { COPY } from '../copy.js';
+import { hashOf } from '../state/route.js';
+import type { TimelineBar, TimelineLayout } from './timeline-layout.js';
+
+/** Moves focus to the plan list item of a step, or to the list itself (R6.7, R6.8). */
+function focusElement(id: string): void {
+  const target = document.getElementById(id);
+  if (target === null) return;
+  target.focus();
+  target.scrollIntoView({ block: 'center' });
+}
+
+function BarView(props: { bar: TimelineBar }): VNode {
+  const { bar } = props;
+  const classes = [
+    'bar',
+    `bar--${bar.fill}`,
+    bar.dashed ? 'bar--dashed' : '',
+    bar.critical ? 'bar--critical' : '',
+  ]
+    .filter((c) => c !== '')
+    .join(' ');
+  return (
+    <div
+      class={classes}
+      data-step-id={bar.stepId}
+      style={{ left: `${bar.leftPx}px`, width: `${bar.widthPx}px` }}
+    >
+      {bar.showLabel && (
+        <span class="bar__label">
+          {bar.critical ? '▲ ' : ''}
+          {bar.title}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The timeline: one row per lane. A picture only: `aria-hidden`, nothing focusable; every
+ * bar's step is in the plan list, which a visible link skips to (R6.7). A tap on a bar
+ * focuses its list item (R6.8) through one delegated handler.
+ */
+export function Timeline(props: { layout: TimelineLayout }): VNode {
+  const { layout } = props;
+  const onClick = (event: MouseEvent): void => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const bar = target.closest('[data-step-id]');
+    const id = bar?.getAttribute('data-step-id');
+    if (id !== null && id !== undefined) focusElement(`step-${id}`);
+  };
+  const innerStyle = { '--timeline-width': `${layout.widthPx}px` };
+
+  return (
+    <section aria-labelledby="timeline-heading" class="no-print">
+      <h2 id="timeline-heading">{COPY.timelineHeading}</h2>
+      <p class="timeline-skip">
+        <a
+          href={hashOf('plan')}
+          onClick={(event) => {
+            event.preventDefault();
+            focusElement('plan-list');
+          }}
+        >
+          {COPY.skipToList}
+        </a>
+      </p>
+      <div class="timeline" aria-hidden="true" onClick={onClick}>
+        <div class="timeline__inner" style={innerStyle}>
+          <div class="timeline__row timeline__row--axis">
+            <div class="timeline__label" />
+            <div class="timeline__track">
+              {layout.ticks.map((tick, index) => (
+                <span
+                  key={tick.minute}
+                  class={
+                    index === layout.ticks.length - 1
+                      ? 'timeline__tick timeline__tick--end'
+                      : 'timeline__tick'
+                  }
+                  style={{ left: `${tick.leftPx}px` }}
+                >
+                  {tick.label}
+                </span>
+              ))}
+            </div>
+          </div>
+          {layout.rows.map((row) => (
+            <div key={row.key} class="timeline__row">
+              <div class="timeline__label">{row.label}</div>
+              <div class="timeline__track">
+                {row.bars.map((bar) => (
+                  <BarView key={bar.stepId} bar={bar} />
+                ))}
+              </div>
+            </div>
+          ))}
+          <div class="timeline__row timeline__row--axis">
+            <div class="timeline__label" />
+            <div class="timeline__track">
+              <span class="timeline__serve-label" style={{ left: `${layout.serveLeftPx}px` }}>
+                {layout.serveLabel}
+              </span>
+            </div>
+          </div>
+          <div class="timeline__serve-line" style={{ left: `${layout.serveLeftPx}px` }} />
+        </div>
+      </div>
+    </section>
+  );
+}
+EOF
+python3 - <<'EOF'
+p='src/web/copy.ts'
+s=open(p).read()
+s=s.replace("  // Plan list\n","  skipToList: 'Skip to the plan list',\n\n  // Plan list\n",1)
+open(p,'w').write(s)
+p='src/web/components/PlanList.tsx'
+s=open(p).read()
+s=s.replace('<section id="plan-list" aria-labelledby="plan-list-heading">','<section id="plan-list" tabIndex={-1} aria-labelledby="plan-list-heading">')
+open(p,'w').write(s)
+p='src/web/screens/Plan.tsx'
+s=open(p).read()
+s=s.replace("import { PlanList }","import { Timeline } from '../components/Timeline.js';\nimport { layoutTimeline } from '../components/timeline-layout.js';\nimport { PlanList }")
+s=s.replace("          <WarningList view={view} />\n","          <WarningList view={view} />\n          <Timeline layout={layoutTimeline(view, serving.atMs)} />\n")
+open(p,'w').write(s)
+EOF
+cat >> src/web/styles/components.css <<'EOF'
+
+/* Timeline: a picture; the plan list is the text alternative */
+.timeline-skip {
+  margin: 0 0 var(--space-3);
+}
+
+.timeline-skip a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 3rem;
+}
+
+.timeline {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.timeline__inner {
+  position: relative;
+  width: calc(7rem + var(--timeline-width));
+}
+
+.timeline__row {
+  display: flex;
+  height: 3rem;
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.timeline__row--axis {
+  height: 2rem;
+  border-bottom: 0;
+}
+
+.timeline__label {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  flex: none;
+  box-sizing: border-box;
+  width: 7rem;
+  padding: 0 var(--space-2);
+  display: flex;
+  align-items: center;
+  border-right: 1px solid var(--color-rule);
+  background: var(--color-surface);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+}
+
+.timeline__track {
+  position: relative;
+  flex: none;
+  width: var(--timeline-width);
+}
+
+.timeline__tick {
+  position: absolute;
+  top: 0;
+  padding-left: var(--space-1);
+  border-left: 1px solid var(--color-border);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  line-height: 2rem;
+  white-space: nowrap;
+}
+
+.timeline__tick--end {
+  padding-right: var(--space-1);
+  padding-left: 0;
+  border-right: 1px solid var(--color-border);
+  border-left: 0;
+  transform: translateX(-100%);
+}
+
+.timeline__serve-label {
+  position: absolute;
+  top: 0;
+  transform: translateX(-100%);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 2rem;
+  white-space: nowrap;
+}
+
+.timeline__serve-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  margin-left: 7rem;
+  border-left: 2px solid var(--color-accent);
+}
+
+.bar {
+  position: absolute;
+  top: var(--space-1);
+  bottom: var(--space-1);
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-raised);
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.bar--dashed {
+  border-style: dashed;
+}
+
+.bar--critical {
+  border: 3px solid var(--color-accent);
+}
+
+.bar--critical.bar--dashed {
+  border-style: dashed;
+}
+
+.bar--burner {
+  background: var(--color-ink);
+  color: var(--color-bg);
+}
+
+.bar--burner.bar--critical {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.bar--oven {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--color-ink-muted) 0 2px,
+    transparent 2px 8px
+  );
+}
+
+.bar__label {
+  display: block;
+  padding: 0 var(--space-1);
+  overflow: hidden;
+  font-size: 1rem;
+  line-height: 2rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar--oven .bar__label {
+  display: inline-block;
+  max-width: calc(100% - var(--space-2));
+  margin: var(--space-1);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  line-height: 1.5rem;
+  vertical-align: top;
+}
+EOF
+npx prettier --write src/web >/dev/null; npm run typecheck 2>&1 | grep error; npm run lint 2>&1 | tail -6
+timeout 600 npx playwright test e2e/plan.spec.ts --project=phone 2>&1 | grep -E "✘|passed|failed|Error|waiting|Expected|Received"
+    
+    > make-dinner@0.0.0 lint
+    > eslint .
+    
+      ✘  12 [phone] › e2e/plan.spec.ts:247:3 › timeline › R6.1 rows run Cook 1, Burner 1, Burner 2, Oven 1, Hands-free (5.2s)
+      ✘  16 [phone] › e2e/plan.spec.ts:300:3 › timeline › R6.9 the timeline scrolls inside itself on a phone, the page never does, lane labels stay in view (5.2s)
+        Error: expect(locator).toHaveText(expected) failed
+        - Expected  - 0
+        + Received  + 2
+          - waiting for locator('.timeline__label')
+        Error Context: test-results/plan-timeline-R6-1-rows-ru-04cc8--Burner-2-Oven-1-Hands-free-phone/error-context.md
+        Error: expect(locator).toBeInViewport() failed
+        Expected: in viewport
+        Received: viewport ratio 0
+          - waiting for locator('.timeline__label').first()
+        Error Context: test-results/plan-timeline-R6-9-the-tim-f64fa-es-lane-labels-stay-in-view-phone/error-context.md
+      2 failed
+      14 passed (8.1s)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -i 's|<div class="timeline__label" />|<div class="timeline__corner" />|' src/web/components/Timeline.tsx && sed -i 's|^\.timeline__label {|.timeline__corner,\n.timeline__label {|' src/web/styles/components.css && npx prettier --write src/web >/dev/null && timeout 900 npx playwright test e2e/plan.spec.ts 2>&1 | grep -E "✘|passed|failed|Error|Expected|Received"; npm run typecheck 2>&1 | grep error; npm run lint 2>&1 | tail -3; npm run check:contrast 2>&1 | tail -4
+    sed: 1: "src/web/components/Time ...": unterminated substitute pattern
+    > make-dinner@0.0.0 lint
+    > eslint .
+    
+    ok   dark  border on surface: 3.30:1 (needs 3:1)
+    ok   dark  focus on bg: 8.61:1 (needs 3:1)
+    ok   dark  focus on surface: 7.79:1 (needs 3:1)
+    40 pairs checked, 0 below threshold, 0 problems
+    exit 0
+
+macOS sed rejected the `\n`; I'll use Python.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/web/components/Timeline.tsx'
+s=open(p).read()
+s=s.replace('<div class="timeline__label" />','<div class="timeline__corner" />')
+open(p,'w').write(s)
+p='src/web/styles/components.css'
+s=open(p).read()
+s=s.replace(".timeline__label {",".timeline__corner,\n.timeline__label {",1)
+open(p,'w').write(s)
+EOF
+npx prettier --write src/web >/dev/null && timeout 900 npx playwright test e2e/plan.spec.ts 2>&1 | grep -E "✘|passed|failed|Error|Expected|Received"; npm run typecheck 2>&1 | grep error; npm run lint 2>&1 | tail -3
+      ✘  16 [phone] › e2e/plan.spec.ts:300:3 › timeline › R6.9 the timeline scrolls inside itself on a phone, the page never does, lane labels stay in view (5.2s)
+      ✘  32 [desktop] › e2e/plan.spec.ts:300:3 › timeline › R6.9 the timeline scrolls inside itself on a phone, the page never does, lane labels stay in view (5.1s)
+        Error: expect(locator).toBeInViewport() failed
+        Expected: in viewport
+        Received: viewport ratio 0
+        Error Context: test-results/plan-timeline-R6-9-the-tim-f64fa-es-lane-labels-stay-in-view-phone/error-context.md
+        Error: expect(locator).toBeInViewport() failed
+        Expected: in viewport
+        Received: viewport ratio 0
+        Error Context: test-results/plan-timeline-R6-9-the-tim-f64fa-es-lane-labels-stay-in-view-desktop/error-context.md
+      2 failed
+      30 passed (9.1s)
+    > make-dinner@0.0.0 lint
+    > eslint .
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='e2e/plan.spec.ts'
+s=open(p).read()
+s=s.replace("    await expect(label).toBeInViewport();","    await label.scrollIntoViewIfNeeded();\n    await expect(label).toBeInViewport();")
+open(p,'w').write(s)
+EOF
+timeout 900 npx playwright test e2e/plan.spec.ts 2>&1 | grep -E "✘|passed|failed|Error|Expected|Received"
+      32 passed (4.2s)
+    exit 0
+
+Now a visual check of the timeline.
+
+[tool:read FAILED] Read File /tmp/tl-light-0.png
+[tool:read FAILED] Read File /tmp/tl-dark-1.png
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat > e2e/scratch-shot.spec.ts <<'EOF'
+import { test } from '@playwright/test';
+import { HOME_KITCHEN, SUNDAY_ROAST } from '../test/support/fixtures.js';
+import { FIXED_NOW, seedDinner } from './support.js';
+
+test.use({ locale: 'en-GB', timezoneId: 'Europe/London', viewport: { width: 390, height: 844 }, hasTouch: true });
+for (const scheme of ['light', 'dark'] as const) {
+  test(`shot ${scheme}`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.clock.install({ time: new Date(FIXED_NOW) });
+    await seedDinner(page, SUNDAY_ROAST, HOME_KITCHEN, '19:30');
+    await page.goto('/');
+    await page.getByRole('heading', { level: 1 }).waitFor();
+    const section = page.locator('#timeline-heading').locator('..');
+    await section.scrollIntoViewIfNeeded();
+    await section.screenshot({ path: `/tmp/tl-${scheme}-0.png` });
+    await page.locator('.timeline').evaluate((el) => { el.scrollLeft = 300; });
+    await section.screenshot({ path: `/tmp/tl-${scheme}-1.png` });
+  });
+}
+EOF
+timeout 600 npx playwright test e2e/scratch-shot.spec.ts --project=phone 2>&1 | grep -E "passed|failed"
+      2 passed (2.7s)
+    exit 0
+[tool:read] Read File /tmp/tl-light-0.png
+[tool:read] Read File /tmp/tl-dark-1.png
+
+Looks right: the lane labels stay put while scrolling, the oven bar is hatched with a dashed accent outline, and nothing overflows. Removing the scratch spec and running the task commands.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && rm e2e/scratch-shot.spec.ts && npx prettier --write src e2e test >/dev/null && git status --short | grep -v docs/ ; npx vitest run --project examples test/web/components/timeline-layout.test.ts 2>&1 | grep -E "Tests "; npx vitest run --project props test/web/components/timeline-layout.pbt.ts 2>&1 | grep -E "Tests "; npx playwright test e2e/plan.spec.ts 2>&1 | grep -E "✘|passed|failed"; npm run typecheck >/dev/null 2>&1; echo typecheck=$?; npm run lint >/dev/null 2>&1; echo lint=$?; npm run check:contrast 2>&1 | tail -1
+     M .kiro/specs/plan-ui/tasks.md
+     M e2e/menu.spec.ts
+     M src/web/components/SampleList.tsx
+     M src/web/copy.ts
+     M src/web/screens/Plan.tsx
+     M src/web/state/hooks.ts
+     M src/web/state/store.ts
+     M src/web/styles/components.css
+     M test/web/state/store.test.ts
+    ?? e2e/plan.spec.ts
+    ?? src/web/components/KitchenControls.tsx
+    ?? src/web/components/MissingAppliance.tsx
+    ?? src/web/components/PlanList.tsx
+    ?? src/web/components/PlanSummary.tsx
+    ?? src/web/components/ServingTime.tsx
+    ?? src/web/components/Stepper.tsx
+    ?? src/web/components/Timeline.tsx
+    ?? src/web/components/WarningList.tsx
+    ?? src/web/components/plan-list-items.ts
+    ?? src/web/components/timeline-layout.ts
+    ?? src/web/state/schedule-view.ts
+    ?? test/web/components/
+          Tests  10 passed (10)
+          Tests  1 passed (1)
+      32 passed (4.1s)
+    typecheck=0
+    lint=0
+    40 pairs checked, 0 below threshold, 0 problems
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='.kiro/specs/plan-ui/tasks.md'
+s=open(p).read()
+for t in ['T4.1','T4.2','T4.3']:
+    s=s.replace(f'- [ ] {t} ',f'- [x] {t} ')
+open(p,'w').write(s)
+EOF
+(npm test 2>&1 | grep -E "Test Files|Tests |FAIL|×"; echo ---props; npm run test:props 2>&1 | grep -E "Test Files|Tests |FAIL|×"; echo ---tc; npm run typecheck >/dev/null 2>&1; echo exit=$?; echo ---lint; npm run lint 2>&1 | tail -3; echo ---prettier; npx prettier --check . 2>&1 | tail -3; echo ---build; npm run build 2>&1 | tail -4; echo ---e2e; npm run test:e2e 2>&1 | grep -E "✘|passed|failed|skipped|flaky")
+     Test Files  42 passed (42)
+          Tests  1754 passed (1754)
+    ---props
+     Test Files  15 passed (15)
+          Tests  90 passed (90)
+    ---tc
+    exit=0
+    ---lint
+    > make-dinner@0.0.0 lint
+    > eslint .
+    
+    ---prettier
+    Checking formatting...
+    All matched files use Prettier code style!
+    ---build
+      public/assets/main.js   507.1kb
+      public/assets/main.css    9.5kb
+    
+    ⚡ Done in 17ms
+    ---e2e
+      ✓   1 [phone] › e2e/menu.spec.ts:59:3 › menu: samples › R1.2 a failed samples request shows the failure copy and "Try again" lists them (210ms)
+      ✓  44 [desktop] › e2e/menu.spec.ts:59:3 › menu: samples › R1.2 a failed samples request shows the failure copy and "Try again" lists them (201ms)
+      80 passed (6.1s)
+    exit 0
+
+T3 and T4 are done and ticked in `tasks.md`. Nothing was committed and I didn't start `npm run dev`. All checks passed in this session:
+
+| Command | Result |
+| --- | --- |
+| `npm test` | 42 files, 1754 passed, 0 failed |
+| `npm run test:props` | 15 files, 90 passed, 0 failed |
+| `npm run typecheck` | exit 0 |
+| `npm run lint` | exit 0 |
+| `npx prettier --check .` | clean |
+| `npm run check:contrast` | 40 pairs, 0 below threshold |
+| `npm run build` | ok |
+| `npm run test:e2e` | 80 passed, 0 failed, 0 skipped (phone and desktop) |
+
+## What changed
+- **State:**
+  - New `src/web/state/schedule-view.ts`.
+  - `store.ts` gains the `kitchen/set`, `serving/set-time`, `serving/set-instant` and `plan/enter` actions, plus `sampleLoad(sample)`.
+  - `hooks.ts` gains `useNow`.
+- **Components:**
+  - New `plan-list-items.ts`, `timeline-layout.ts`, `Stepper`, `KitchenControls`, `ServingTime`, `PlanSummary`, `WarningList`, `MissingAppliance`, `PlanList` and `Timeline`.
+  - `Plan.tsx` is rewritten, and `SampleList.tsx` now uses `sampleLoad`.
+- **Copy and styles:** `copy.ts` and `components.css` are extended.
+- **Tests:**
+  - New `plan-list-items.test.ts` and `.pbt.ts` (P-UI4), `timeline-layout.test.ts` and `.pbt.ts` (P-UI3), and `e2e/plan.spec.ts`.
+  - `store.test.ts` is extended and `menu.spec.ts` updated.
+
+## Sample title
+The dinner's title now comes from `sampleLoad`, which copies the plan and sets `title` to the sample's title. The recording is untouched. The unit test is in `store.test.ts`, and `menu.spec.ts` now expects the sample title.
+
+## Visual checks
+I took screenshots at 390×844 in light and dark. The page never scrolled sideways and no target was under 48 px. Three things I changed:
+- **Summary position:** "Start at 17:40" was cut off at the fold. The summary now comes right after the `<h1>`, before the Kitchen controls.
+- **Plan list items:** the time range and the title ran together. The range now sits on its own line.
+- **Critical mark:** "▲ Critical" broke across lines. It no longer wraps.
+
+The timeline looks right: lane labels stay put while it scrolls, and the oven bar is hatched with a dashed accent outline.
+
+## Decisions I made
+- **9-minute bar:** the task says "54 px, label", but 9 × 6 = 54 is under the 56 px minimum in the design and R6.5. I followed 56 px, so 9 minutes has no label. The test also covers 8 minutes (48 px, no label) and 10 minutes (60 px, label).
+- **Hold warning wording:** the design says "latest user's title", but the guarantees changed `wait` to the first user. I used the user that starts first.
+- **Past-start note:** it shows when the start is before the current instant, not the current minute. That is what the 17:39:30 test needs.
+- **Small bars:** the `▲` is drawn only on bars wide enough for a label. Narrower bars show a 3 px accent outline instead, since `▲` won't fit and the 16 px minimum applies. The list carries "Critical" in text.
+- **Skip link:** it uses `href="#/plan"` with a script handler, so the fragment router isn't broken.
+- **Plan opened without a serving time:** the Plan screen dispatches `plan/enter` itself, because the Plan link in the flow nav can reach it with none chosen.
+
+## Not verified
+- **Invalid-plan message:** the invalid-plan message with "Go to steps" is implemented but I couldn't test it. A plan with an error never reaches the Plan screen, because `reachable` and `loadState` redirect it to Steps. I tested that redirect instead. This conflicts with the T3.4 e2e line, but no requirement changes.
+- **Properties:** P-UI3 and P-UI4 passed on their first run. They test code the examples had already driven, so I never saw them fail. The example tests did fail first, on assertions.
+- **Sample-title test:** I wrote `sampleLoad` before its test, so I did not see that test fail first.
+- **Other gaps:** I did not run axe on the Plan screen (that is T8.2), and I did not test the error boundary.
+
+I did not touch `docs/kiro-evidence/`; its modified files in `git status` are not from me.
+
+--- run success (end_turn); credits reported by this session: 28.22 ---

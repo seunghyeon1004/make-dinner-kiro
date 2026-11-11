@@ -189,3 +189,7 @@
 2026-11-11T07:58:30Z after-write ran=typecheck typecheck=0 props=skipped
 2026-11-11T07:58:44Z after-write ran=typecheck typecheck=0 props=skipped
 2026-11-11T08:01:47Z on-stop test=0 (Test Files 40 passed (40);Tests 1715 passed (1715)) test:props=0 (Test Files 13 passed (13);Tests 88 passed (88)) lint=0
+2026-11-11T09:09:49Z on-spawn changed_files=2 unticked_shown=20
+2026-11-11T09:11:19Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T09:14:45Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T09:24:56Z on-stop test=0 (Test Files 42 passed (42);Tests 1754 passed (1754)) test:props=0 (Test Files 15 passed (15);Tests 90 passed (90)) lint=0

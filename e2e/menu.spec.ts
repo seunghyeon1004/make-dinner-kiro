@@ -33,14 +33,14 @@ test.describe('menu: samples', () => {
     }
   });
 
-  test('R1.3 "Plan this dinner" on the first sample opens Plan in one tap with the plan title', async ({
+  test('R1.3 "Plan this dinner" on the first sample opens Plan in one tap with the sample title', async ({
     page,
   }) => {
     const [first] = await serverSamples(page);
     await page.goto('/');
     await page.getByRole('button', { name: 'Plan this dinner' }).first().click();
     await expect(page).toHaveURL(/#\/plan$/);
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(first?.plan.title ?? '');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(first?.title ?? '');
   });
 
   test('R9.8 after the samples have loaded, choosing one and opening Plan makes no request', async ({
@@ -78,14 +78,14 @@ test.describe('menu: samples', () => {
     const samples = await serverSamples(page);
     await page.goto('/');
     await page.getByRole('button', { name: 'Plan this dinner' }).first().click();
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(samples[0]?.plan.title ?? '');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(samples[0]?.title ?? '');
     await page
       .getByRole('navigation', { name: 'Dinner' })
       .getByRole('link', { name: 'Menu' })
       .click();
 
     await page.getByRole('button', { name: 'Plan this dinner' }).nth(1).click();
-    const ask = page.getByText(`Replace your current dinner, ${samples[0]?.plan.title}?`);
+    const ask = page.getByText(`Replace your current dinner, ${samples[0]?.title}?`);
     await expect(ask).toBeVisible();
     await expect(ask).toBeFocused();
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Pick a dinner');
@@ -97,7 +97,7 @@ test.describe('menu: samples', () => {
       .getByRole('navigation', { name: 'Dinner' })
       .getByRole('link', { name: 'Plan' })
       .click();
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(samples[0]?.plan.title ?? '');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(samples[0]?.title ?? '');
   });
 
   test('R1.5 Replace it loads the second sample', async ({ page }) => {
@@ -111,6 +111,6 @@ test.describe('menu: samples', () => {
     await page.getByRole('button', { name: 'Plan this dinner' }).nth(1).click();
     await page.getByRole('button', { name: 'Replace it' }).click();
     await expect(page).toHaveURL(/#\/plan$/);
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(samples[1]?.plan.title ?? '');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(samples[1]?.title ?? '');
   });
 });
