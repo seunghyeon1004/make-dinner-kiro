@@ -183,7 +183,7 @@ export function canonicalPlan(plan: Plan): Plan {
 }
 
 /** Earliest minute on the scheduler axis: every step lasts at most 480 minutes (decided here). */
-const AXIS_MIN = -(LIMITS.stepsMax * LIMITS.minutesMax);
+export const AXIS_MIN = -(LIMITS.stepsMax * LIMITS.minutesMax);
 
 export const StepLanesSchema = z.strictObject({
   burner: z.int().min(1).max(LIMITS.burnersMax).nullable(),
@@ -215,3 +215,58 @@ export const ScheduleSchema = z.strictObject({
 export type StepLanes = z.infer<typeof StepLanesSchema>;
 export type ScheduledStep = z.infer<typeof ScheduledStepSchema>;
 export type Schedule = z.infer<typeof ScheduleSchema>;
+
+/** Limits of the rebuild types: serving and extra minutes are at most a day (decided here). */
+export const REBUILD_LIMITS = { servingMax: 1440, extraMax: 1440 } as const;
+const rebuildMinute = z.int().min(AXIS_MIN).max(REBUILD_LIMITS.servingMax);
+const rebuildLength = z
+  .int()
+  .min(0)
+  .max(REBUILD_LIMITS.servingMax - AXIS_MIN);
+
+export const ProgressEntrySchema = z.discriminatedUnion('state', [
+  z.strictObject({ state: z.literal('done'), startMin: rebuildMinute, endMin: rebuildMinute }),
+  z.strictObject({
+    state: z.literal('running'),
+    startMin: rebuildMinute,
+    extraMin: z.int().min(0).max(REBUILD_LIMITS.extraMax),
+  }),
+]);
+/** Done and running steps by id; a step that is absent is pending. */
+export const ProgressSchema = z.record(z.string(), ProgressEntrySchema);
+
+export const RebuiltStepSchema = ScheduledStepSchema.extend({
+  startMin: rebuildMinute,
+  endMin: rebuildMinute,
+  slackMin: rebuildLength,
+  waitMin: rebuildLength.nullable(),
+});
+
+export const RebuiltScheduleSchema = ScheduleSchema.extend({
+  servingMin: z.int().min(0).max(REBUILD_LIMITS.servingMax).default(0),
+  steps: z.array(RebuiltStepSchema).min(1).max(LIMITS.stepsMax),
+  spanMin: rebuildLength,
+}).refine((s) => s.steps.every((t) => t.startMin <= t.endMin && t.endMin <= s.servingMin));
+
+export const StepMoveSchema = z.strictObject({
+  stepId: StepIdSchema,
+  fromStartMin: rebuildMinute,
+  toStartMin: rebuildMinute,
+});
+export const RebuildDiffSchema = z.strictObject({
+  moved: z.array(StepMoveSchema),
+  unchanged: z.array(StepIdSchema),
+  servingShiftMin: z.int().min(0).max(REBUILD_LIMITS.servingMax),
+});
+export const RebuiltSchema = z.strictObject({
+  schedule: RebuiltScheduleSchema,
+  diff: RebuildDiffSchema,
+});
+
+export type ProgressEntry = z.infer<typeof ProgressEntrySchema>;
+export type Progress = z.infer<typeof ProgressSchema>;
+export type RebuiltStep = z.infer<typeof RebuiltStepSchema>;
+export type RebuiltSchedule = z.infer<typeof RebuiltScheduleSchema>;
+export type StepMove = z.infer<typeof StepMoveSchema>;
+export type RebuildDiff = z.infer<typeof RebuildDiffSchema>;
+export type Rebuilt = z.infer<typeof RebuiltSchema>;

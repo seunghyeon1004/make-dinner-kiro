@@ -1,25 +1,53 @@
 import { describe, expect, it } from 'vitest';
-import type { Appliance, Kitchen, Plan, ScheduledStep, Step } from '../../src/core/schema.js';
+import type {
+  Appliance,
+  Kitchen,
+  Plan,
+  RebuiltStep,
+  Schedule,
+  ScheduledStep,
+  Step,
+} from '../../src/core/schema.js';
 import {
   BARE_KITCHEN,
+  E7_NOW,
+  E7_PROGRESS,
+  H1_SCHEDULE,
+  H3_SCHEDULE,
   HOME_KITCHEN,
   MEZZE,
   NO_BURNER_KITCHEN,
   ONE_BURNER_KITCHEN,
   PREP_AHEAD,
+  RB_A_NOW,
+  RB_A_PROGRESS,
+  RB_B_NOW,
+  RB_B_PROGRESS,
+  RB_C_NOW,
+  RB_C_PROGRESS,
   SUNDAY_ROAST,
   TIGHT_OVEN,
   TWO_CHOPS,
 } from '../support/fixtures.js';
 import {
   isCycleIn,
+  type Iv,
   oracleCapacityViolations,
   oracleCompletenessViolations,
   oracleHoldExceeded,
   oracleLaneViolations,
+  oracleLatestPosition,
   oracleLongestChain,
+  oracleForwardRepair,
   oracleNormalise,
+  oraclePendingOverfull,
+  oraclePinnedIntervals,
   oraclePrecedenceViolations,
+  oracleRebuildHoldExceeded,
+  oracleRebuildLaneViolations,
+  oracleRebuildSlack,
+  oracleRebuildViolations,
+  oracleRebuildWaits,
   oracleSlack,
   oracleValid,
   oracleWaits,
@@ -536,6 +564,60 @@ describe.each(TABLES)('R10.1 oracles on the hand-worked table %s', (_name, plan,
   });
 });
 
+describe('G9 oracleLatestPosition on the hand-worked table H5', () => {
+  const final = startsOf(stepsOf(H5));
+  // Pass 2 output of the design: bread.shape is still at its pass 1 start -17.
+  const afterPass2 = { ...final, 'bread.shape': -17 };
+  it('bread.shape at -17 can move to -13 (bake starts at -8, shape lasts 5, the cook is free)', () => {
+    expect(oracleLatestPosition(PREP_AHEAD, NO_BURNER_KITCHEN, afterPass2, 'bread.shape')).toBe(
+      -13,
+    );
+  });
+  it('the final H5 hot steps have no later position', () => {
+    for (const id of ['bread.bake', 'bread.shape', 'jelly.set', 'salad.toss']) {
+      expect([id, oracleLatestPosition(PREP_AHEAD, NO_BURNER_KITCHEN, final, id)]).toEqual([
+        id,
+        final[id],
+      ]);
+    }
+  });
+  it('salad.chop (keeps) could sit as late as -23 (cook busy with bread.shape from -13); the oracle does not filter by hold', () => {
+    expect(oracleLatestPosition(PREP_AHEAD, NO_BURNER_KITCHEN, final, 'salad.chop')).toBe(-23);
+  });
+  it('a later position past a blocked minute still counts (one cook, gap after a clash)', () => {
+    // a.one [-10,-8), a.two [-7,-6), one cook. Delays 2 and 3 clash with a.two, but delay 8
+    // gives [-2,0), which is free: the search must not stop at the first clash.
+    const plan: Plan = {
+      title: 'Gap',
+      dishes: [{ id: 'a', name: 'A' }],
+      steps: [
+        {
+          id: 'a.one',
+          dish: 'a',
+          title: 'One',
+          minutes: 2,
+          appliance: 'none',
+          handsOn: true,
+          after: [],
+          holdMin: 5,
+        },
+        {
+          id: 'a.two',
+          dish: 'a',
+          title: 'Two',
+          minutes: 1,
+          appliance: 'none',
+          handsOn: true,
+          after: [],
+          holdMin: 5,
+        },
+      ],
+    };
+    const kitchen: Kitchen = { burners: 0, ovens: 0, cooks: 1 };
+    expect(oracleLatestPosition(plan, kitchen, { 'a.one': -10, 'a.two': -7 }, 'a.one')).toBe(-2);
+  });
+});
+
 describe('R10.1 oracleHoldExceeded on the hand-worked tables', () => {
   it('H3: only potatoes.roast waits past its hold (40 > 10)', () => {
     expect(oracleHoldExceeded(TIGHT_OVEN, startsOf(stepsOf(H3)))).toEqual([
@@ -732,5 +814,302 @@ describe('R10.1 the oracles import nothing from the scheduler', () => {
     expect(imports).toEqual(['../../src/core/schema.js']);
     // no dynamic import or require that could reach them
     expect(source).not.toMatch(/import\(|require\(/);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// Rebuild spec, T2.2: the rebuild oracles against the hand-worked rebuilds RB-a, RB-b, RB-c
+// and E7 of the rebuild design, written out here (not read from src/).
+
+/** [id, startMin, endMin, slackMin, waitMin] of a rebuilt row; lanes are those of H1. */
+type RebuiltRow = readonly [string, number, number, number, number | null];
+
+const RB_A_ROWS: readonly RebuiltRow[] = [
+  ['chicken.carve', 10, 15, 0, 0],
+  ['chicken.prep', -110, -100, 0, null],
+  ['chicken.rest', -10, 10, 0, 0],
+  ['chicken.roast', -100, -10, 0, 6],
+  ['gravy.roux', -4, -2, 0, 0],
+  ['gravy.simmer', -2, 8, 0, 0],
+  ['gravy.strain', 8, 10, 0, 5],
+  ['greens.boil', 3, 7, 0, 0],
+  ['greens.shred', -100, -95, 0, null],
+  ['greens.toss', 7, 8, 0, 7],
+];
+const RB_B_ROWS: readonly RebuiltRow[] = [
+  ['chicken.carve', -5, 0, 0, 2],
+  ['chicken.prep', -110, -100, 0, null],
+  ['chicken.rest', -25, -5, 0, 0],
+  ['chicken.roast', -100, -25, 0, 13],
+  ['gravy.roux', -12, -10, 0, 0],
+  ['gravy.simmer', -10, 0, 0, 0],
+  ['gravy.strain', 0, 2, 0, 0],
+  ['greens.boil', -10, -6, 0, 0],
+  ['greens.shred', -100, -95, 0, null],
+  ['greens.toss', -6, -5, 0, 7],
+];
+const RB_C_ROWS: readonly RebuiltRow[] = [
+  ['chicken.carve', -5, 0, 0, 0],
+  ['chicken.prep', -110, -100, 0, null],
+  ['chicken.rest', -25, -5, 0, 0],
+  ['chicken.roast', -100, -25, 0, 5],
+  ['gravy.roux', -20, -18, 0, 0],
+  ['gravy.simmer', -18, -8, 0, 0],
+  ['gravy.strain', -8, -6, 0, 6],
+  ['greens.boil', -10, -6, 0, 0],
+  ['greens.shred', -100, -95, 0, null],
+  ['greens.toss', -6, -5, 0, 5],
+];
+
+const rebuiltStepsOf = (rows: readonly RebuiltRow[], lanesFrom: Schedule): RebuiltStep[] =>
+  rows.map(([id, startMin, endMin, slackMin, waitMin]) => ({
+    id,
+    startMin,
+    endMin,
+    lanes: lanesFrom.steps.find((x) => x.id === id)?.lanes ?? {
+      burner: null,
+      oven: null,
+      cook: null,
+    },
+    slackMin,
+    critical: false,
+    waitMin,
+  }));
+const ivOf = (rows: readonly { id: string; startMin: number; endMin: number }[]): Iv =>
+  Object.fromEntries(rows.map((r) => [r.id, { startMin: r.startMin, endMin: r.endMin }]));
+
+describe('RQ11.1 oraclePinnedIntervals', () => {
+  it('RB-a: done keep their interval; the roast runs to -100 + 75 + 15 = -10', () => {
+    expect(oraclePinnedIntervals(SUNDAY_ROAST, RB_A_PROGRESS, RB_A_NOW)).toEqual({
+      'chicken.prep': { startMin: -110, endMin: -100 },
+      'chicken.roast': { startMin: -100, endMin: -10 },
+      'greens.shred': { startMin: -100, endMin: -95 },
+    });
+  });
+  it('RB-b: a running rest ends at its expected end -5; a done roast keeps -25', () => {
+    expect(oraclePinnedIntervals(SUNDAY_ROAST, RB_B_PROGRESS, RB_B_NOW)).toEqual({
+      'chicken.prep': { startMin: -110, endMin: -100 },
+      'chicken.rest': { startMin: -25, endMin: -5 },
+      'chicken.roast': { startMin: -100, endMin: -25 },
+      'greens.shred': { startMin: -100, endMin: -95 },
+    });
+  });
+  it('an overrun without taps ends at now (E3: roast -100 + 75 = -25 < now -20)', () => {
+    const progress = {
+      'chicken.roast': { state: 'running', startMin: -100, extraMin: 0 },
+    } as const;
+    expect(oraclePinnedIntervals(SUNDAY_ROAST, progress, -20)).toEqual({
+      'chicken.roast': { startMin: -100, endMin: -20 },
+    });
+  });
+  it('E7: both oven steps run on past now -50, to -40 and -20', () => {
+    expect(oraclePinnedIntervals(TIGHT_OVEN, E7_PROGRESS, E7_NOW)).toEqual({
+      'pie.assemble': { startMin: -85, endMin: -70 },
+      'pie.bake': { startMin: -60, endMin: -20 },
+      'potatoes.peel': { startMin: -95, endMin: -85 },
+      'potatoes.roast': { startMin: -85, endMin: -40 },
+    });
+  });
+});
+
+describe.each([
+  ['RB-a', RB_A_ROWS, RB_A_PROGRESS, RB_A_NOW, 15],
+  ['RB-b', RB_B_ROWS, RB_B_PROGRESS, RB_B_NOW, 2],
+  ['RB-c', RB_C_ROWS, RB_C_PROGRESS, RB_C_NOW, 0],
+] as const)(
+  'RQ11.1 rebuild oracles on the hand-worked rebuild %s',
+  (_n, rows, progress, now, serving) => {
+    const steps = rebuiltStepsOf(rows, H1_SCHEDULE);
+    const iv = ivOf(steps);
+    it('oracleRebuildWaits gives the wait column', () => {
+      expect(oracleRebuildWaits(SUNDAY_ROAST, iv, serving)).toEqual(
+        Object.fromEntries(rows.map((r) => [r[0], r[4]])),
+      );
+    });
+    it('oracleRebuildSlack gives the slack column (0 for every row)', () => {
+      for (const row of rows) {
+        expect([
+          row[0],
+          oracleRebuildSlack(SUNDAY_ROAST, HOME_KITCHEN, progress, now, iv, serving, row[0]),
+        ]).toEqual([row[0], row[3]]);
+      }
+    });
+    it('no violation of any kind', () => {
+      expect(
+        oracleRebuildViolations(SUNDAY_ROAST, HOME_KITCHEN, progress, now, steps, serving),
+      ).toEqual([]);
+      expect(oraclePendingOverfull(SUNDAY_ROAST, HOME_KITCHEN, progress, now, steps)).toEqual([]);
+      expect(
+        oracleRebuildLaneViolations(SUNDAY_ROAST, HOME_KITCHEN, iv, Object.keys(progress), steps),
+      ).toEqual([]);
+    });
+  },
+);
+
+describe('RQ11.1 oracleRebuildHoldExceeded on the hand-worked rebuilds', () => {
+  it('RB-a: roast waits 6 > 5 and toss 7 > 5', () => {
+    expect(
+      oracleRebuildHoldExceeded(SUNDAY_ROAST, ivOf(rebuiltStepsOf(RB_A_ROWS, H1_SCHEDULE)), 15),
+    ).toEqual([
+      { stepId: 'chicken.roast', waitMin: 6, holdMin: 5 },
+      { stepId: 'greens.toss', waitMin: 7, holdMin: 5 },
+    ]);
+  });
+  it('RB-b: roast waits 13 > 5 and toss 7 > 5', () => {
+    expect(
+      oracleRebuildHoldExceeded(SUNDAY_ROAST, ivOf(rebuiltStepsOf(RB_B_ROWS, H1_SCHEDULE)), 2),
+    ).toEqual([
+      { stepId: 'chicken.roast', waitMin: 13, holdMin: 5 },
+      { stepId: 'greens.toss', waitMin: 7, holdMin: 5 },
+    ]);
+  });
+  it('RB-c: no step waits past its hold', () => {
+    expect(
+      oracleRebuildHoldExceeded(SUNDAY_ROAST, ivOf(rebuiltStepsOf(RB_C_ROWS, H1_SCHEDULE)), 0),
+    ).toEqual([]);
+  });
+});
+
+describe('RQ11.1 oracleForwardRepair', () => {
+  const h1Starts = Object.fromEntries(H1_SCHEDULE.steps.map((x) => [x.id, x.startMin]));
+  it('RB-a: rest and roux at -10, simmer -8, boil stays -10, strain 2, toss stays -6, carve 10', () => {
+    const fr = oracleForwardRepair(SUNDAY_ROAST, HOME_KITCHEN, RB_A_PROGRESS, RB_A_NOW, h1Starts);
+    expect(fr).toEqual({
+      'chicken.carve': { startMin: 10, endMin: 15 },
+      'chicken.prep': { startMin: -110, endMin: -100 },
+      'chicken.rest': { startMin: -10, endMin: 10 },
+      'chicken.roast': { startMin: -100, endMin: -10 },
+      'gravy.roux': { startMin: -10, endMin: -8 },
+      'gravy.simmer': { startMin: -8, endMin: 2 },
+      'gravy.strain': { startMin: 2, endMin: 4 },
+      'greens.boil': { startMin: -10, endMin: -6 },
+      'greens.shred': { startMin: -100, endMin: -95 },
+      'greens.toss': { startMin: -6, endMin: -5 },
+    });
+  });
+  it('RB-b: roux -12, simmer -10, strain 0; boil, toss and carve stay', () => {
+    const fr = oracleForwardRepair(SUNDAY_ROAST, HOME_KITCHEN, RB_B_PROGRESS, RB_B_NOW, h1Starts);
+    expect(fr).toEqual({
+      'chicken.carve': { startMin: -5, endMin: 0 },
+      'chicken.prep': { startMin: -110, endMin: -100 },
+      'chicken.rest': { startMin: -25, endMin: -5 },
+      'chicken.roast': { startMin: -100, endMin: -25 },
+      'gravy.roux': { startMin: -12, endMin: -10 },
+      'gravy.simmer': { startMin: -10, endMin: 0 },
+      'gravy.strain': { startMin: 0, endMin: 2 },
+      'greens.boil': { startMin: -10, endMin: -6 },
+      'greens.shred': { startMin: -100, endMin: -95 },
+      'greens.toss': { startMin: -6, endMin: -5 },
+    });
+  });
+  it('RB-c: nothing moves', () => {
+    const fr = oracleForwardRepair(SUNDAY_ROAST, HOME_KITCHEN, RB_C_PROGRESS, RB_C_NOW, h1Starts);
+    expect(fr).toEqual(ivOf(rebuiltStepsOf(RB_C_ROWS, H1_SCHEDULE)));
+  });
+  it('E7: everything is pinned, so the forward repair is the pinned intervals', () => {
+    const h3Starts = Object.fromEntries(H3_SCHEDULE.steps.map((x) => [x.id, x.startMin]));
+    expect(oracleForwardRepair(TIGHT_OVEN, HOME_KITCHEN, E7_PROGRESS, E7_NOW, h3Starts)).toEqual(
+      oraclePinnedIntervals(TIGHT_OVEN, E7_PROGRESS, E7_NOW),
+    );
+  });
+});
+
+describe('RQ11.1 the rebuild oracles on E7 (one oven, two pinned pans)', () => {
+  const iv = oraclePinnedIntervals(TIGHT_OVEN, E7_PROGRESS, E7_NOW);
+  const steps: RebuiltStep[] = Object.entries(iv).map(([id, i]) => ({
+    id,
+    startMin: i.startMin,
+    endMin: i.endMin,
+    lanes: {
+      burner: null,
+      oven: id === 'pie.bake' || id === 'potatoes.roast' ? 1 : null,
+      cook: id === 'pie.assemble' || id === 'potatoes.peel' ? 1 : null,
+    },
+    slackMin: 0,
+    critical: false,
+    waitMin: null,
+  }));
+  it('oven capacity is exceeded at exactly minutes -50 to -41, and nothing else is wrong', () => {
+    const expected = Array.from({ length: 10 }, (_v, i) => `capacity:oven:${-50 + i}`);
+    expect(
+      oracleRebuildViolations(TIGHT_OVEN, HOME_KITCHEN, E7_PROGRESS, E7_NOW, steps, 0),
+    ).toEqual(expected);
+  });
+  it('no pending step is overfull (none is pending)', () => {
+    expect(oraclePendingOverfull(TIGHT_OVEN, HOME_KITCHEN, E7_PROGRESS, E7_NOW, steps)).toEqual([]);
+  });
+  it('waits 20 and 40 are past the hold 10 of both pans', () => {
+    expect(oracleRebuildHoldExceeded(TIGHT_OVEN, iv, 0)).toEqual([
+      { stepId: 'pie.bake', waitMin: 20, holdMin: 10 },
+      { stepId: 'potatoes.roast', waitMin: 40, holdMin: 10 },
+    ]);
+  });
+  it('both pans on oven lane 1 is allowed (pinned, over capacity); with pie.bake pending it is a clash', () => {
+    expect(
+      oracleRebuildLaneViolations(TIGHT_OVEN, HOME_KITCHEN, iv, Object.keys(E7_PROGRESS), steps),
+    ).toEqual([]);
+    expect(
+      oracleRebuildLaneViolations(TIGHT_OVEN, HOME_KITCHEN, iv, ['potatoes.roast'], steps),
+    ).toEqual(['lane_clash:oven:1:pie.bake:potatoes.roast']);
+  });
+  it('a pending step on a pinned lane that is busy is a clash, and a lane out of range is reported', () => {
+    const bad = steps.map((x) =>
+      x.id === 'pie.bake' ? { ...x, lanes: { ...x.lanes, oven: 2 } } : x,
+    );
+    expect(
+      oracleRebuildLaneViolations(TIGHT_OVEN, HOME_KITCHEN, iv, Object.keys(E7_PROGRESS), bad),
+    ).toEqual(['lane_range:pie.bake:oven']);
+  });
+});
+
+describe('RQ11.1 the rebuild oracles on three hand-made broken rebuilds of RB-a', () => {
+  const good = rebuiltStepsOf(RB_A_ROWS, H1_SCHEDULE);
+  const change = (id: string, startMin: number, endMin: number): RebuiltStep[] =>
+    good.map((x) => (x.id === id ? { ...x, startMin, endMin } : x));
+  const violations = (steps: RebuiltStep[], serving: number): string[] =>
+    oracleRebuildViolations(SUNDAY_ROAST, HOME_KITCHEN, RB_A_PROGRESS, RB_A_NOW, steps, serving);
+  it('a pending step before now: boil at [-61,-57) gives exactly before_now', () => {
+    expect(violations(change('greens.boil', -61, -57), 15)).toEqual(['before_now:greens.boil']);
+  });
+  it('a step before its running prerequisite ends: rest at [-11,9) gives exactly one precedence', () => {
+    expect(violations(change('chicken.rest', -11, 9), 15)).toEqual([
+      'precedence:chicken.rest:chicken.roast',
+    ]);
+  });
+  it('an end after servingMin: carve ends at 15, servingMin 14 gives exactly after_serving', () => {
+    expect(violations(good, 14)).toEqual(['after_serving:chicken.carve']);
+  });
+  it('a pinned step that differs from its interval and a missing step are reported', () => {
+    expect(violations(change('chicken.prep', -110, -99), 15)).toEqual(['length:chicken.prep']);
+    expect(
+      violations(
+        good.filter((x) => x.id !== 'gravy.roux'),
+        15,
+      ),
+    ).toEqual(['missing:gravy.roux']);
+  });
+});
+
+describe('RQ11.1 oracleForwardRepair searches upward, oracleRebuildWaits clamps', () => {
+  it('TWO_CHOPS x BARE_KITCHEN, nothing started, now -15: b.chop [-15,-5), a.chop waits for the cook to [-5,5)', () => {
+    // prev starts a.chop -10, b.chop -20. b.chop first (smaller prev start), lower bound
+    // max(-20, now -15) = -15. a.chop: lower bound -10, but the one cook is busy until -5.
+    const fr = oracleForwardRepair(TWO_CHOPS, BARE_KITCHEN, {}, -15, {
+      'a.chop': -10,
+      'b.chop': -20,
+    });
+    expect(fr).toEqual({
+      'a.chop': { startMin: -5, endMin: 5 },
+      'b.chop': { startMin: -15, endMin: -5 },
+    });
+  });
+  it('E6: boil [-2,2) ends after toss started at -6, so its wait is clamped to 0; toss waits 7', () => {
+    const iv: Iv = {
+      ...ivOf(rebuiltStepsOf(RB_C_ROWS, H1_SCHEDULE)),
+      'greens.boil': { startMin: -2, endMin: 2 },
+    };
+    const waits = oracleRebuildWaits(SUNDAY_ROAST, iv, 2);
+    expect(waits['greens.boil']).toBe(0);
+    expect(waits['greens.toss']).toBe(7);
   });
 });

@@ -1,10 +1,23 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { ERROR_CODES, KitchenSchema, LIMITS, PlanSchema } from '../../src/core/schema.js';
-import type { ErrorCode, Plan } from '../../src/core/schema.js';
+import {
+  AXIS_MIN,
+  ERROR_CODES,
+  KitchenSchema,
+  LIMITS,
+  PlanSchema,
+  ProgressSchema,
+  ScheduleSchema,
+} from '../../src/core/schema.js';
+import type { ErrorCode, Plan, Progress, RebuiltStep, Schedule } from '../../src/core/schema.js';
 import {
   arbBrokenPlan,
   arbHandsFreePair,
+  arbNow,
+  arbOnPlan,
+  arbProgress,
+  arbScheduled,
+  followPlan,
   arbKitchen,
   arbPlan,
   arbPlanAndKitchen,
@@ -15,11 +28,13 @@ import {
   arbUnlimitedPair,
   fitUnlimited,
 } from '../support/arbitraries.js';
-import type { BrokenCase } from '../support/arbitraries.js';
+import type { BrokenCase, Run, RunOpts } from '../support/arbitraries.js';
 import { fcParams } from '../support/fc-params.js';
-import { SUNDAY_ROAST } from '../support/fixtures.js';
+import { H1_SCHEDULE, RB_C_PROGRESS, SUNDAY_ROAST } from '../support/fixtures.js';
 import { checkKitchen, checkPlan } from '../../src/core/sanity.js';
 import {
+  oraclePinnedIntervals,
+  oracleRebuildViolations,
   oracleStronglyConnected,
   oracleTopologicalOrder,
   oracleWarnings,
@@ -605,5 +620,336 @@ describe('R10.2 arbHandsFreePair', () => {
     expect(pairs.some((p) => p.kitchen.cooks === 6)).toBe(true);
     expect(pairs.some((p) => p.kitchen.burners === 0)).toBe(true);
     expect(pairs.some((p) => p.plan.steps.some((s) => s.appliance === 'burner'))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// Rebuild spec, T2.4: arbScheduled, arbNow, arbProgress, followPlan, arbOnPlan.
+
+interface RunSample extends Run {
+  s: Schedule;
+}
+
+const runsOf = (opts: RunOpts = {}, numRuns = 200, large = false): RunSample[] =>
+  sampleOf(
+    arbScheduled(large ? { large: true } : {}).chain((s) =>
+      arbProgress(s, opts).map((run): RunSample => ({ s, ...run })),
+    ),
+    numRuns,
+  );
+
+const stepOf = (plan: Plan, id: string) => plan.steps.find((x) => x.id === id);
+const plannedOf = (s: Schedule, id: string) => s.steps.find((x) => x.id === id);
+
+describe('RQ11.1 arbScheduled', () => {
+  it('gives schedules that pass ScheduleSchema, at both sizes', () => {
+    for (const large of [false, true]) {
+      for (const s of sampleOf(arbScheduled(large ? { large: true } : {}), 40)) {
+        expect(ScheduleSchema.safeParse(s).success).toBe(true);
+      }
+    }
+  });
+});
+
+describe('RQ11.1 arbNow', () => {
+  const samples = sampleOf(
+    arbScheduled().chain((s) => arbNow(s).map((now) => ({ s, now }))),
+    300,
+  );
+  it('stays in [earliest start - 10, 30 after serving], inside the axis, and is an integer', () => {
+    for (const { s, now } of samples) {
+      const first = Math.min(...s.steps.map((x) => x.startMin));
+      expect(Number.isInteger(now)).toBe(true);
+      expect(now).toBeGreaterThanOrEqual(Math.max(AXIS_MIN, first - 10));
+      expect(now).toBeLessThanOrEqual(30);
+    }
+  });
+  it('lands on a start or an end of a step for about a third of the samples, and elsewhere too', () => {
+    const edges = samples.filter(({ s, now }) =>
+      s.steps.some((x) => x.startMin === now || x.endMin === now),
+    );
+    expect(edges.length).toBeGreaterThanOrEqual(60);
+    expect(edges.length).toBeLessThan(samples.length);
+  });
+  it('before the first start, during the meal and after serving all occur', () => {
+    expect(samples.some(({ s, now }) => now < Math.min(...s.steps.map((x) => x.startMin)))).toBe(
+      true,
+    );
+    expect(samples.some(({ now }) => now > 0)).toBe(true);
+    expect(
+      samples.some(({ s, now }) => now > Math.min(...s.steps.map((x) => x.startMin)) && now < 0),
+    ).toBe(true);
+  });
+});
+
+describe('RQ11.1 arbProgress, default runs', () => {
+  const runs = runsOf();
+  it('gives progress that passes ProgressSchema, names real steps and now in range', () => {
+    expect(runs.length).toBe(200);
+    for (const { s, progress, now } of runs) {
+      expect(ProgressSchema.safeParse(progress).success).toBe(true);
+      for (const id of Object.keys(progress)) expect(stepOf(s.plan, id)).not.toBeUndefined();
+      expect(Number.isInteger(now)).toBe(true);
+      expect(now).toBeGreaterThanOrEqual(AXIS_MIN);
+      expect(now).toBeLessThanOrEqual(1440);
+    }
+  });
+  it('rebuild would accept every fact: done ends at or after its start and at or before now; running starts at or before now', () => {
+    for (const { progress, now } of runs) {
+      for (const entry of Object.values(progress)) {
+        expect(entry.startMin).toBeLessThanOrEqual(now);
+        if (entry.state === 'done') {
+          expect(entry.endMin).toBeGreaterThanOrEqual(entry.startMin);
+          expect(entry.endMin).toBeLessThanOrEqual(now);
+        }
+      }
+    }
+  });
+  it('respects precedence among pinned steps: a pinned step started after every prerequisite was done', () => {
+    for (const { s, progress } of runs) {
+      for (const [id, entry] of Object.entries(progress)) {
+        for (const p of stepOf(s.plan, id)?.after ?? []) {
+          const before = progress[p];
+          expect(before?.state).toBe('done');
+          if (before?.state === 'done') {
+            expect(entry.startMin).toBeGreaterThanOrEqual(before.endMin);
+          }
+        }
+      }
+    }
+  });
+  it('has no capacity violation at t >= now when the pinned steps alone are counted', () => {
+    for (const { s, progress, now } of runs) {
+      const iv = oraclePinnedIntervals(s.plan, progress, now);
+      const pinned: RebuiltStep[] = Object.entries(iv).map(([id, i]) => ({
+        id,
+        startMin: i.startMin,
+        endMin: i.endMin,
+        lanes: { burner: null, oven: null, cook: null },
+        slackMin: 0,
+        critical: false,
+        waitMin: null,
+      }));
+      const subPlan = { ...s.plan, steps: s.plan.steps.filter((x) => iv[x.id] !== undefined) };
+      const capacity = oracleRebuildViolations(subPlan, s.kitchen, {}, now, pinned, 1440).filter(
+        (v) => v.startsWith('capacity:'),
+      );
+      expect(capacity).toEqual([]);
+    }
+  });
+
+  const early = (r: RunSample): boolean =>
+    Object.entries(r.progress).some(([id, e]) => e.startMin < (plannedOf(r.s, id)?.startMin ?? 0));
+  const doneOverrun = (r: RunSample): boolean =>
+    Object.entries(r.progress).some(
+      ([id, e]) =>
+        e.state === 'done' && e.endMin - e.startMin > (stepOf(r.s.plan, id)?.minutes ?? 0),
+    );
+  const runningExtra = (r: RunSample): boolean =>
+    Object.values(r.progress).some((e) => e.state === 'running' && e.extraMin > 0);
+  const overrunNoTaps = (r: RunSample): boolean =>
+    Object.entries(r.progress).some(
+      ([id, e]) =>
+        e.state === 'running' &&
+        e.extraMin === 0 &&
+        e.startMin + (stepOf(r.s.plan, id)?.minutes ?? 0) < r.now,
+    );
+  const allDone = (r: RunSample): boolean =>
+    Object.keys(r.progress).length === r.s.plan.steps.length &&
+    Object.values(r.progress).every((e) => e.state === 'done');
+  const nothingStarted = (r: RunSample): boolean => Object.keys(r.progress).length === 0;
+
+  it.each([
+    ['an early start', early],
+    ['a done overrun', doneOverrun],
+    ['a running step with extraMin > 0', runningExtra],
+    ['an overrun without taps', overrunNoTaps],
+    ['an all-done case', allDone],
+    ['a nothing-started case', nothingStarted],
+  ] as const)('across 200 samples there is at least one: %s', (_name, has) => {
+    expect(runs.filter(has).length).toBeGreaterThanOrEqual(1);
+  });
+  it('the cases are not the whole sample: most runs have both pinned and pending steps', () => {
+    const mixed = runs.filter(
+      (r) =>
+        Object.keys(r.progress).length > 0 &&
+        Object.keys(r.progress).length < r.s.plan.steps.length,
+    );
+    expect(mixed.length).toBeGreaterThanOrEqual(80);
+  });
+});
+
+describe('RQ11.1 arbProgress options', () => {
+  const pinnedBeforePrereq = (r: RunSample): boolean =>
+    Object.entries(r.progress).some(([id, e]) =>
+      (stepOf(r.s.plan, id)?.after ?? []).some((p) => {
+        const before = r.progress[p];
+        return before === undefined || before.state === 'running' || e.startMin < before.endMin;
+      }),
+    );
+  const overCapacityPinned = (r: RunSample): boolean => {
+    const iv = oraclePinnedIntervals(r.s.plan, r.progress, r.now);
+    const sub = { ...r.s.plan, steps: r.s.plan.steps.filter((x) => iv[x.id] !== undefined) };
+    return oracleRebuildViolations(
+      sub,
+      r.s.kitchen,
+      {},
+      Number.NEGATIVE_INFINITY,
+      Object.entries(iv).map(([id, i]) => ({
+        id,
+        startMin: i.startMin,
+        endMin: i.endMin,
+        lanes: { burner: null, oven: null, cook: null },
+        slackMin: 0,
+        critical: false,
+        waitMin: null,
+      })),
+      1440,
+    ).some((v) => v.startsWith('capacity:'));
+  };
+  it('outOfOrder produces a step pinned before its prerequisite was done, in some sample; default never does', () => {
+    expect(runsOf({ outOfOrder: true }).some(pinnedBeforePrereq)).toBe(true);
+    expect(runsOf().some(pinnedBeforePrereq)).toBe(false);
+  });
+  it('overCapacity produces pinned steps over the kitchen, in some sample; default never does', () => {
+    expect(runsOf({ overCapacity: true }).some(overCapacityPinned)).toBe(true);
+    expect(runsOf().some(overCapacityPinned)).toBe(false);
+  });
+  it('options still give schema-valid progress', () => {
+    for (const r of runsOf({ outOfOrder: true, overCapacity: true })) {
+      expect(ProgressSchema.safeParse(r.progress).success).toBe(true);
+    }
+  });
+  it('large plans give valid runs too', () => {
+    for (const r of runsOf({}, 15, true)) {
+      expect(ProgressSchema.safeParse(r.progress).success).toBe(true);
+      expect(r.now).toBeLessThanOrEqual(1440);
+    }
+  });
+});
+
+describe('RQ11.1 arbProgress with base: every base fact stays', () => {
+  const baseSamples = sampleOf(
+    arbScheduled().chain((s) =>
+      arbProgress(s).chain((base) => arbProgress(s, { base }).map((next) => ({ s, base, next }))),
+    ),
+    200,
+  );
+  it("done stays done and identical; running keeps its start, with extraMin at least the base's or done from there", () => {
+    let runningKept = 0;
+    let doneFromRunning = 0;
+    for (const { base, next } of baseSamples) {
+      for (const [id, entry] of Object.entries(base.progress)) {
+        const now = next.progress[id];
+        expect(now).not.toBeUndefined();
+        if (entry.state === 'done') {
+          expect(now).toEqual(entry);
+        } else if (now?.state === 'running') {
+          runningKept++;
+          expect(now.startMin).toBe(entry.startMin);
+          expect(now.extraMin).toBeGreaterThanOrEqual(entry.extraMin);
+        } else {
+          doneFromRunning++;
+          expect(now?.startMin).toBe(entry.startMin);
+          expect(now?.state).toBe('done');
+          if (now?.state === 'done') expect(now.endMin).toBeGreaterThanOrEqual(base.now);
+        }
+      }
+    }
+    expect(runningKept).toBeGreaterThan(0);
+    expect(doneFromRunning).toBeGreaterThan(0);
+  });
+  it('now is the base now plus 0 to 90 (capped at 1440); new facts start at or after the base now', () => {
+    for (const { base, next } of baseSamples) {
+      expect(next.now).toBeGreaterThanOrEqual(base.now);
+      expect(next.now).toBeLessThanOrEqual(Math.min(1440, base.now + 90));
+      for (const [id, entry] of Object.entries(next.progress)) {
+        if (base.progress[id] === undefined)
+          expect(entry.startMin).toBeGreaterThanOrEqual(base.now);
+      }
+      expect(ProgressSchema.safeParse(next.progress).success).toBe(true);
+    }
+  });
+  it('some base runs start new steps and some finish nothing new (the cases are mixed)', () => {
+    expect(
+      baseSamples.some(
+        ({ base, next }) => Object.keys(next.progress).length > Object.keys(base.progress).length,
+      ),
+    ).toBe(true);
+    expect(
+      baseSamples.some(
+        ({ base, next }) => Object.keys(next.progress).length === Object.keys(base.progress).length,
+      ),
+    ).toBe(true);
+  });
+});
+
+describe('RQ11.1 followPlan and arbOnPlan meet the premise of R4', () => {
+  const onPlan = sampleOf(
+    arbScheduled().chain((s) => arbOnPlan(s).map((run) => ({ s, ...run }))),
+    200,
+  );
+  it('every done step ran as planned, every running step started as planned with extraMin 0 and ends at or after now, every pending step starts at or after now', () => {
+    let doneCount = 0;
+    let runningCount = 0;
+    for (const { s, progress, now } of onPlan) {
+      for (const step of s.steps) {
+        const entry = progress[step.id];
+        if (entry === undefined) {
+          expect(step.startMin).toBeGreaterThanOrEqual(now);
+        } else if (entry.state === 'done') {
+          doneCount++;
+          expect(entry).toEqual({ state: 'done', startMin: step.startMin, endMin: step.endMin });
+          expect(step.endMin).toBeLessThanOrEqual(now);
+        } else {
+          runningCount++;
+          expect(entry).toEqual({ state: 'running', startMin: step.startMin, extraMin: 0 });
+          expect(step.startMin).toBeLessThan(now);
+          expect(step.endMin).toBeGreaterThan(now);
+        }
+      }
+    }
+    expect(doneCount).toBeGreaterThan(0);
+    expect(runningCount).toBeGreaterThan(0);
+  });
+  it('followPlan on the H1 schedule, nothing known, now -60: prep and shred done, roast running (RB-c)', () => {
+    expect(followPlan(H1_SCHEDULE, {}, -60)).toEqual(RB_C_PROGRESS);
+  });
+  it('followPlan on H1 with the roast running with 15 extra: still running at -26, done at its planned end -25', () => {
+    const base: Progress = { 'chicken.roast': { state: 'running', startMin: -100, extraMin: 15 } };
+    expect(followPlan(H1_SCHEDULE, base, -26)['chicken.roast']).toEqual(base['chicken.roast']);
+    expect(followPlan(H1_SCHEDULE, base, -25)['chicken.roast']).toEqual({
+      state: 'done',
+      startMin: -100,
+      endMin: -25,
+    });
+  });
+  it('followPlan keeps base facts: a base running step whose planned end is at or before now becomes done there', () => {
+    let seen = 0;
+    for (const { s } of onPlan.slice(0, 60)) {
+      const first = [...s.steps].sort(
+        (a, b) => a.startMin - b.startMin || (a.id < b.id ? -1 : 1),
+      )[0];
+      if (first === undefined) continue;
+      const base: Progress = {
+        [first.id]: { state: 'running', startMin: first.startMin, extraMin: 3 },
+      };
+      const later = followPlan(s, base, first.endMin);
+      expect(later[first.id]).toEqual({
+        state: 'done',
+        startMin: first.startMin,
+        endMin: first.endMin,
+      });
+      const earlier = followPlan(
+        s,
+        base,
+        first.startMin + 1 <= first.endMin - 1 ? first.startMin + 1 : first.startMin,
+      );
+      expect(earlier[first.id]?.state === 'running' || earlier[first.id]?.state === 'done').toBe(
+        true,
+      );
+      seen++;
+    }
+    expect(seen).toBeGreaterThan(0);
   });
 });

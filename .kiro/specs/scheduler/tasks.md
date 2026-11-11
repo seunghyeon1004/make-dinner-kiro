@@ -234,6 +234,21 @@ A failing property is a scheduler bug until shown otherwise: its counterexample 
 example test in `test/core/schedule.test.ts` with the seed in a comment before the fix
 (`testing.md`). If a guarantee itself looks wrong, stop and report.
 
+- [x] T8.19 (added by hand after T8: the mutation check in the T8 session showed that skipping
+  the right-justify pass failed no property) Property G9 as late as possible: add
+  `oracleLatestPosition` to `test/support/oracles.ts` (brute force over every delay
+  `1..deadline - end`, no imports from `src/core` beyond types) with an example test on H5,
+  where `bread.shape` moves; then the property over `arbPlanAndKitchen()` asserting that no
+  step with `holdMin !== null` has any valid later position. Show it can fail: run it once
+  against `schedule` with pass 3 skipped (a temporary local edit, restored afterwards) and
+  report the counterexample it prints. Add G9 to the design's property table and to `CLAIMS`
+  coverage (it is in the G family, so the coverage check will demand it once it is in the
+  steering file, which it now is).
+  Files: `test/support/oracles.ts`, `test/meta/oracles.test.ts`, `test/core/schedule.pbt.ts`,
+  `.kiro/specs/scheduler/design.md` (property table only).
+  Covers: G9.
+  Command: `npx vitest run --project props test/core/schedule.pbt.ts -t "^G9 " && npm test`
+
 ## T9. Public surface and the whole suite
 
 - [x] T9.1 Example test that `schedule`, `ScheduleSchema`, `ScheduledStepSchema`,

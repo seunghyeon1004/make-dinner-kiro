@@ -216,9 +216,9 @@ describe('unknown ids in property titles', () => {
   it('unknown: every title that begins like an id begins with a known one', () => {
     expect(unknownTitleIds(titles, steeringIds)).toEqual([]);
   });
-  it('unknown: flags G9, G4.4 and G4.10, not P-RG3, P-SC1 or a bare known id', () => {
+  it('unknown: flags G12, G4.4 and G4.10, not P-RG3, P-SC1 or a bare known id', () => {
     const inline = [
-      'G9 typo',
+      'G12 typo',
       'G4.4 typo',
       'G4.10 not G4.1',
       'P-RG3 topological order',
@@ -226,7 +226,7 @@ describe('unknown ids in property titles', () => {
       'G6',
       'G6 lanes',
     ];
-    expect(unknownTitleIds(inline, steeringIds)).toEqual(['G9', 'G4.4', 'G4.10']);
+    expect(unknownTitleIds(inline, steeringIds)).toEqual(['G12', 'G4.4', 'G4.10']);
   });
 });
 

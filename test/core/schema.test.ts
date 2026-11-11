@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import type { z } from 'zod';
 import {
+  AXIS_MIN,
   canonicalPlan,
   ERROR_CODES,
   WARNING_CODES,
@@ -14,8 +15,16 @@ import {
   DishSchema,
   KitchenSchema,
   PlanSchema,
+  ProgressEntrySchema,
+  ProgressSchema,
+  REBUILD_LIMITS,
+  RebuildDiffSchema,
+  RebuiltScheduleSchema,
+  RebuiltSchema,
+  RebuiltStepSchema,
   STEP_ID_PATTERN,
   StepIdSchema,
+  StepMoveSchema,
   StepSchema,
 } from '../../src/core/schema.js';
 import { checkKitchen, checkPlan } from '../../src/core/sanity.js';
@@ -24,6 +33,17 @@ import {
   BIG_KITCHEN,
   BURNER_ONLY_KITCHEN,
   COLD_SAUCE,
+  E1_PROGRESS,
+  E2_PROGRESS,
+  E3_PROGRESS,
+  E4_PROGRESS,
+  E5_EARLY_PROGRESS,
+  E5_PROGRESS,
+  E6_PROGRESS,
+  E7_PROGRESS,
+  E8_PROGRESS,
+  H1_SCHEDULE,
+  H3_SCHEDULE,
   HANDS_FREE,
   HOME_KITCHEN,
   LONG_DAY,
@@ -31,6 +51,10 @@ import {
   NO_BURNER_KITCHEN,
   ONE_BURNER_KITCHEN,
   PREP_AHEAD,
+  RB_A_PROGRESS,
+  RB_B2_PROGRESS,
+  RB_B_PROGRESS,
+  RB_C_PROGRESS,
   SOLO_BURNER,
   SOLO_KEEPS,
   SUNDAY_ROAST,
@@ -47,9 +71,16 @@ import type {
   IssueCode,
   Kitchen,
   Plan,
+  Progress,
+  ProgressEntry,
+  RebuildDiff,
+  Rebuilt,
+  RebuiltSchedule,
+  RebuiltStep,
   Schedule,
   ScheduledStep,
   Step,
+  StepMove,
   StepLanes,
   WarningCode,
 } from '../../src/core/schema.js';
@@ -1217,5 +1248,382 @@ describe('R10.3 scheduler fixtures pass the schemas and have no sanity error', (
       [SUNDAY_ROAST, ONE_BURNER_KITCHEN],
     ] as const;
     for (const [plan, kitchen] of pairs) expect(checkKitchen(plan, kitchen)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// Rebuild spec, T1.1: progress, rebuilt schedule and diff schemas (RQ3.1, RQ3.2).
+
+describe('RQ3.1 axis and limits', () => {
+  it('AXIS_MIN is -38400 and REBUILD_LIMITS are a day', () => {
+    expect(AXIS_MIN).toBe(-38400);
+    expect(REBUILD_LIMITS).toEqual({ servingMax: 1440, extraMax: 1440 });
+  });
+});
+
+describe('RQ3.1 ProgressEntrySchema', () => {
+  const done = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+    state: 'done',
+    startMin: -100,
+    endMin: -95,
+    ...over,
+  });
+  const running = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+    state: 'running',
+    startMin: -100,
+    extraMin: 15,
+    ...over,
+  });
+  it('accepts a done and a running entry and returns them unchanged', () => {
+    expect(ProgressEntrySchema.safeParse(done()).data).toEqual(done());
+    expect(ProgressEntrySchema.safeParse(running()).data).toEqual(running());
+  });
+  it('rejects unknown keys, a missing key, a wrong state and keys of the other state', () => {
+    expect(accepts(ProgressEntrySchema, done({ extra: 1 }))).toBe(false);
+    expect(accepts(ProgressEntrySchema, running({ extra: 1 }))).toBe(false);
+    expect(accepts(ProgressEntrySchema, without(done(), 'endMin'))).toBe(false);
+    expect(accepts(ProgressEntrySchema, without(running(), 'extraMin'))).toBe(false);
+    expect(accepts(ProgressEntrySchema, done({ state: 'pending' }))).toBe(false);
+    expect(accepts(ProgressEntrySchema, done({ extraMin: 0 }))).toBe(false);
+    expect(accepts(ProgressEntrySchema, running({ endMin: -95 }))).toBe(false);
+  });
+  it('rejects non-integer minutes', () => {
+    expect(accepts(ProgressEntrySchema, done({ startMin: -100.5 }))).toBe(false);
+    expect(accepts(ProgressEntrySchema, done({ endMin: -94.5 }))).toBe(false);
+    expect(accepts(ProgressEntrySchema, running({ startMin: 0.5 }))).toBe(false);
+    expect(accepts(ProgressEntrySchema, running({ extraMin: 2.5 }))).toBe(false);
+    expect(accepts(ProgressEntrySchema, running({ extraMin: Number.NaN }))).toBe(false);
+  });
+  it('extraMin: 0 and 1440 pass, -1 and 1441 fail', () => {
+    expect(accepts(ProgressEntrySchema, running({ extraMin: 0 }))).toBe(true);
+    expect(accepts(ProgressEntrySchema, running({ extraMin: 1440 }))).toBe(true);
+    expect(accepts(ProgressEntrySchema, running({ extraMin: -1 }))).toBe(false);
+    expect(accepts(ProgressEntrySchema, running({ extraMin: 1441 }))).toBe(false);
+  });
+  it('startMin and endMin: -38400 and 1440 pass, -38401 and 1441 fail', () => {
+    expect(accepts(ProgressEntrySchema, done({ startMin: -38400, endMin: 1440 }))).toBe(true);
+    expect(accepts(ProgressEntrySchema, done({ startMin: -38401 }))).toBe(false);
+    expect(accepts(ProgressEntrySchema, done({ endMin: 1441 }))).toBe(false);
+    expect(accepts(ProgressEntrySchema, running({ startMin: 1440 }))).toBe(true);
+    expect(accepts(ProgressEntrySchema, running({ startMin: 1441 }))).toBe(false);
+  });
+  it('ProgressSchema: a record of entries by step id; empty means all pending', () => {
+    const progress = {
+      'chicken.prep': done(),
+      'chicken.roast': running(),
+    };
+    expect(ProgressSchema.safeParse({}).data).toEqual({});
+    expect(ProgressSchema.safeParse(progress).data).toEqual(progress);
+    expect(accepts(ProgressSchema, { 'chicken.prep': done({ extra: 1 }) })).toBe(false);
+    expect(accepts(ProgressSchema, { 'chicken.prep': 'done' })).toBe(false);
+    expect(accepts(ProgressSchema, null)).toBe(false);
+    expect(accepts(ProgressSchema, [])).toBe(false);
+    expect(accepts(ProgressSchema, 42)).toBe(false);
+  });
+});
+
+/** An H1 schedule value with the step list and any other key replaced. */
+const rebuilt = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+  ...h1Schedule(),
+  ...over,
+});
+const H1_STEP_COUNT = 10;
+
+describe('RQ3.1 RebuiltStepSchema bounds', () => {
+  it('startMin: -38400 and 1440 pass, -38401 and 1441 fail', () => {
+    expect(accepts(RebuiltStepSchema, scheduled({ startMin: -38400 }))).toBe(true);
+    expect(accepts(RebuiltStepSchema, scheduled({ startMin: 1440 }))).toBe(true);
+    expect(accepts(RebuiltStepSchema, scheduled({ startMin: -38401 }))).toBe(false);
+    expect(accepts(RebuiltStepSchema, scheduled({ startMin: 1441 }))).toBe(false);
+  });
+  it('endMin: -38400 and 1440 pass, -38401 and 1441 fail', () => {
+    expect(accepts(RebuiltStepSchema, scheduled({ endMin: -38400 }))).toBe(true);
+    expect(accepts(RebuiltStepSchema, scheduled({ endMin: 1440 }))).toBe(true);
+    expect(accepts(RebuiltStepSchema, scheduled({ endMin: -38401 }))).toBe(false);
+    expect(accepts(RebuiltStepSchema, scheduled({ endMin: 1441 }))).toBe(false);
+  });
+  it('slackMin: 0 and 39840 pass, -1 and 39841 fail', () => {
+    expect(accepts(RebuiltStepSchema, scheduled({ slackMin: 0 }))).toBe(true);
+    expect(accepts(RebuiltStepSchema, scheduled({ slackMin: 39840 }))).toBe(true);
+    expect(accepts(RebuiltStepSchema, scheduled({ slackMin: -1 }))).toBe(false);
+    expect(accepts(RebuiltStepSchema, scheduled({ slackMin: 39841 }))).toBe(false);
+  });
+  it('waitMin: null, 0 and 39840 pass, -1 and 39841 fail', () => {
+    expect(accepts(RebuiltStepSchema, scheduled({ waitMin: null }))).toBe(true);
+    expect(accepts(RebuiltStepSchema, scheduled({ waitMin: 0 }))).toBe(true);
+    expect(accepts(RebuiltStepSchema, scheduled({ waitMin: 39840 }))).toBe(true);
+    expect(accepts(RebuiltStepSchema, scheduled({ waitMin: -1 }))).toBe(false);
+    expect(accepts(RebuiltStepSchema, scheduled({ waitMin: 39841 }))).toBe(false);
+  });
+  it('still rejects unknown keys, fractions and every missing key', () => {
+    expect(accepts(RebuiltStepSchema, scheduled({ extra: 1 }))).toBe(false);
+    expect(accepts(RebuiltStepSchema, scheduled({ startMin: -5.5 }))).toBe(false);
+    for (const key of Object.keys(scheduled())) {
+      expect(accepts(RebuiltStepSchema, without(scheduled(), key))).toBe(false);
+    }
+  });
+  it('a ScheduledStep parses as a RebuiltStep', () => {
+    expect(RebuiltStepSchema.safeParse(scheduled()).data).toEqual(scheduled());
+  });
+});
+
+describe('RQ3.1, RQ3.2 RebuiltScheduleSchema', () => {
+  it('RQ3.2 H1_SCHEDULE, written without servingMin, parses with servingMin 0', () => {
+    const parsed = RebuiltScheduleSchema.safeParse(H1_SCHEDULE);
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).toEqual({ ...H1_SCHEDULE, servingMin: 0 });
+    expect(Object.keys(H1_SCHEDULE)).not.toContain('servingMin');
+  });
+  it('an explicit servingMin is kept: 0, 15 and 1440 pass, -1 and 1441 fail', () => {
+    expect(RebuiltScheduleSchema.safeParse(rebuilt({ servingMin: 15 })).data).toEqual(
+      rebuilt({ servingMin: 15 }),
+    );
+    expect(accepts(RebuiltScheduleSchema, rebuilt({ servingMin: 0 }))).toBe(true);
+    expect(accepts(RebuiltScheduleSchema, rebuilt({ servingMin: 1440 }))).toBe(true);
+    expect(accepts(RebuiltScheduleSchema, rebuilt({ servingMin: -1 }))).toBe(false);
+    expect(accepts(RebuiltScheduleSchema, rebuilt({ servingMin: 1441 }))).toBe(false);
+    expect(accepts(RebuiltScheduleSchema, rebuilt({ servingMin: 1.5 }))).toBe(false);
+  });
+  it('refine: a step ending after servingMin is rejected, and accepted once servingMin covers it', () => {
+    const late = [...H1_STEPS.slice(0, H1_STEP_COUNT - 1), scheduled({ endMin: 1, startMin: 0 })];
+    expect(accepts(RebuiltScheduleSchema, rebuilt({ steps: late }))).toBe(false);
+    expect(accepts(RebuiltScheduleSchema, rebuilt({ steps: late, servingMin: 0 }))).toBe(false);
+    expect(accepts(RebuiltScheduleSchema, rebuilt({ steps: late, servingMin: 1 }))).toBe(true);
+  });
+  it('refine: a step with endMin before startMin is rejected, an empty one is accepted', () => {
+    const backwards = [scheduled({ startMin: -5, endMin: -6 })];
+    const empty = [scheduled({ startMin: -5, endMin: -5 })];
+    expect(accepts(RebuiltScheduleSchema, rebuilt({ steps: backwards }))).toBe(false);
+    expect(accepts(RebuiltScheduleSchema, rebuilt({ steps: empty }))).toBe(true);
+  });
+  it('ScheduleSchema still rejects a step ending at 1 and the servingMin key', () => {
+    const late = [scheduled({ startMin: 0, endMin: 1 })];
+    expect(accepts(ScheduleSchema, h1Schedule({ steps: late }))).toBe(false);
+    expect(accepts(RebuiltScheduleSchema, rebuilt({ steps: late, servingMin: 1 }))).toBe(true);
+    expect(accepts(ScheduleSchema, rebuilt({ servingMin: 0 }))).toBe(false);
+  });
+  it('spanMin: 0 and 39840 pass, -1 and 39841 fail; chainMin keeps its 1..38400', () => {
+    expect(accepts(RebuiltScheduleSchema, rebuilt({ spanMin: 0 }))).toBe(true);
+    expect(accepts(RebuiltScheduleSchema, rebuilt({ spanMin: 39840 }))).toBe(true);
+    expect(accepts(RebuiltScheduleSchema, rebuilt({ spanMin: -1 }))).toBe(false);
+    expect(accepts(RebuiltScheduleSchema, rebuilt({ spanMin: 39841 }))).toBe(false);
+    expect(accepts(RebuiltScheduleSchema, rebuilt({ chainMin: 0 }))).toBe(false);
+    expect(accepts(RebuiltScheduleSchema, rebuilt({ chainMin: 38401 }))).toBe(false);
+  });
+  it('rejects unknown keys, every missing key except servingMin, and 0 or 81 steps', () => {
+    expect(accepts(RebuiltScheduleSchema, rebuilt({ extra: 1 }))).toBe(false);
+    for (const key of Object.keys(h1Schedule())) {
+      expect(accepts(RebuiltScheduleSchema, without(rebuilt(), key))).toBe(false);
+    }
+    expect(accepts(RebuiltScheduleSchema, without(rebuilt({ servingMin: 3 }), 'servingMin'))).toBe(
+      true,
+    );
+    expect(accepts(RebuiltScheduleSchema, rebuilt({ steps: [] }))).toBe(false);
+    const many = Array.from({ length: 81 }, () => scheduled());
+    expect(accepts(RebuiltScheduleSchema, rebuilt({ steps: many.slice(0, 80) }))).toBe(true);
+    expect(accepts(RebuiltScheduleSchema, rebuilt({ steps: many }))).toBe(false);
+  });
+});
+
+describe('RQ3.1 RebuildDiffSchema and RebuiltSchema', () => {
+  const diff = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+    moved: [{ stepId: 'chicken.carve', fromStartMin: -5, toStartMin: 10 }],
+    unchanged: ['chicken.prep'],
+    servingShiftMin: 15,
+    ...over,
+  });
+  it('RebuildDiffSchema returns a valid diff unchanged', () => {
+    expect(RebuildDiffSchema.safeParse(diff()).data).toEqual(diff());
+    expect(RebuildDiffSchema.safeParse(diff({ moved: [], unchanged: [] })).success).toBe(true);
+  });
+  it('servingShiftMin: 0 and 1440 pass, -1 and 1441 fail; every key is required; unknown keys fail', () => {
+    expect(accepts(RebuildDiffSchema, diff({ servingShiftMin: 0 }))).toBe(true);
+    expect(accepts(RebuildDiffSchema, diff({ servingShiftMin: 1440 }))).toBe(true);
+    expect(accepts(RebuildDiffSchema, diff({ servingShiftMin: -1 }))).toBe(false);
+    expect(accepts(RebuildDiffSchema, diff({ servingShiftMin: 1441 }))).toBe(false);
+    for (const key of Object.keys(diff())) {
+      expect(accepts(RebuildDiffSchema, without(diff(), key))).toBe(false);
+    }
+    expect(accepts(RebuildDiffSchema, diff({ extra: 1 }))).toBe(false);
+  });
+  it('StepMoveSchema: ids and minutes are checked, unknown keys fail', () => {
+    const move = { stepId: 'chicken.carve', fromStartMin: -5, toStartMin: 10 };
+    expect(accepts(StepMoveSchema, move)).toBe(true);
+    expect(accepts(StepMoveSchema, { ...move, stepId: 'Carve' })).toBe(false);
+    expect(accepts(StepMoveSchema, { ...move, toStartMin: 1441 })).toBe(false);
+    expect(accepts(StepMoveSchema, { ...move, fromStartMin: -38401 })).toBe(false);
+    expect(accepts(StepMoveSchema, { ...move, fromStartMin: 1.5 })).toBe(false);
+    expect(accepts(StepMoveSchema, { ...move, extra: 1 })).toBe(false);
+    expect(accepts(RebuildDiffSchema, diff({ moved: [{ ...move, stepId: 'Carve' }] }))).toBe(false);
+  });
+  it('RebuiltSchema pairs a schedule with a diff and nothing else', () => {
+    const value = { schedule: rebuilt({ servingMin: 15 }), diff: diff() };
+    expect(RebuiltSchema.safeParse(value).data).toEqual(value);
+    expect(accepts(RebuiltSchema, { ...value, extra: 1 })).toBe(false);
+    expect(accepts(RebuiltSchema, { schedule: value.schedule })).toBe(false);
+    expect(accepts(RebuiltSchema, { diff: value.diff })).toBe(false);
+    expect(accepts(RebuiltSchema, { ...value, diff: diff({ servingShiftMin: -1 }) })).toBe(false);
+    expect(accepts(RebuiltSchema, { ...value, schedule: rebuilt({ steps: [] }) })).toBe(false);
+  });
+});
+
+describe('RQ3.1 inferred types of the rebuild schemas', () => {
+  it('ProgressEntry, Progress, RebuiltStep, RebuiltSchedule, StepMove, RebuildDiff, Rebuilt', () => {
+    expectTypeOf<ProgressEntry>().toEqualTypeOf<
+      | { state: 'done'; startMin: number; endMin: number }
+      | { state: 'running'; startMin: number; extraMin: number }
+    >();
+    expectTypeOf<Progress>().toEqualTypeOf<Record<string, ProgressEntry>>();
+    expectTypeOf<RebuiltStep>().toEqualTypeOf<ScheduledStep>();
+    expectTypeOf<RebuiltSchedule['steps']>().toEqualTypeOf<RebuiltStep[]>();
+    expectTypeOf<RebuiltSchedule['servingMin']>().toEqualTypeOf<number>();
+    expectTypeOf<RebuiltSchedule['plan']>().toEqualTypeOf<Plan>();
+    expectTypeOf<RebuiltSchedule['kitchen']>().toEqualTypeOf<Kitchen>();
+    expectTypeOf<RebuiltSchedule['warnings']>().toEqualTypeOf<HoldExceededIssue[]>();
+    expectTypeOf<StepMove>().toEqualTypeOf<{
+      stepId: string;
+      fromStartMin: number;
+      toStartMin: number;
+    }>();
+    expectTypeOf<RebuildDiff>().toEqualTypeOf<{
+      moved: StepMove[];
+      unchanged: string[];
+      servingShiftMin: number;
+    }>();
+    expectTypeOf<Rebuilt>().toEqualTypeOf<{ schedule: RebuiltSchedule; diff: RebuildDiff }>();
+    expectTypeOf<z.infer<typeof RebuiltSchema>>().toEqualTypeOf<Rebuilt>();
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// Rebuild spec, T2.1: the starting schedules and the progress fixtures.
+
+/** [id, startMin, endMin, burner, oven, cook] from the scheduler design tables H1 and H3. */
+type LaneRow = readonly [string, number, number, number | null, number | null, number | null];
+const H1_ROWS: readonly LaneRow[] = [
+  ['chicken.carve', -5, 0, null, null, 1],
+  ['chicken.prep', -110, -100, null, null, 1],
+  ['chicken.rest', -25, -5, null, null, null],
+  ['chicken.roast', -100, -25, null, 1, null],
+  ['gravy.roux', -20, -18, 1, null, 1],
+  ['gravy.simmer', -18, -8, 1, null, null],
+  ['gravy.strain', -8, -6, null, null, 1],
+  ['greens.boil', -10, -6, 2, null, null],
+  ['greens.shred', -100, -95, null, null, 1],
+  ['greens.toss', -6, -5, null, null, 1],
+];
+const H3_ROWS: readonly LaneRow[] = [
+  ['pie.assemble', -85, -70, null, null, 1],
+  ['pie.bake', -40, 0, null, 1, null],
+  ['potatoes.peel', -95, -85, null, null, 1],
+  ['potatoes.roast', -85, -40, null, 1, null],
+];
+const laneRowOf = (s: ScheduledStep): LaneRow => [
+  s.id,
+  s.startMin,
+  s.endMin,
+  s.lanes.burner,
+  s.lanes.oven,
+  s.lanes.cook,
+];
+
+describe('RQ11.1 H1_SCHEDULE and H3_SCHEDULE', () => {
+  it('both pass ScheduleSchema and come back unchanged', () => {
+    expect(ScheduleSchema.safeParse(H1_SCHEDULE).data).toEqual(H1_SCHEDULE);
+    expect(ScheduleSchema.safeParse(H3_SCHEDULE).data).toEqual(H3_SCHEDULE);
+  });
+  it('the starts, ends and lanes equal the scheduler tables H1 and H3 written out above', () => {
+    expect(H1_SCHEDULE.steps.map(laneRowOf)).toEqual(H1_ROWS);
+    expect(H3_SCHEDULE.steps.map(laneRowOf)).toEqual(H3_ROWS);
+  });
+  it('slack, critical, wait, span, chain and warnings equal the tables', () => {
+    expect(H1_SCHEDULE.steps.map((x) => [x.id, x.slackMin, x.critical, x.waitMin])).toEqual([
+      ['chicken.carve', 0, true, 0],
+      ['chicken.prep', 0, true, null],
+      ['chicken.rest', 0, true, 0],
+      ['chicken.roast', 0, true, 5],
+      ['gravy.roux', 0, true, 0],
+      ['gravy.simmer', 0, true, 0],
+      ['gravy.strain', 0, true, 6],
+      ['greens.boil', 0, true, 0],
+      ['greens.shred', 75, false, null],
+      ['greens.toss', 0, true, 5],
+    ]);
+    expect([H1_SCHEDULE.spanMin, H1_SCHEDULE.chainMin, H1_SCHEDULE.warnings]).toEqual([
+      110,
+      110,
+      [],
+    ]);
+    expect(H3_SCHEDULE.steps.map((x) => [x.id, x.slackMin, x.critical, x.waitMin])).toEqual([
+      ['pie.assemble', 30, false, null],
+      ['pie.bake', 0, true, 0],
+      ['potatoes.peel', 0, true, null],
+      ['potatoes.roast', 0, true, 40],
+    ]);
+    expect([H3_SCHEDULE.spanMin, H3_SCHEDULE.chainMin]).toEqual([95, 55]);
+    expect(H3_SCHEDULE.warnings.map((w) => [w.stepId, w.waitMin, w.holdMin])).toEqual([
+      ['potatoes.roast', 40, 10],
+    ]);
+  });
+  it('both are on the plans of the scheduler fixtures, in canonical form', () => {
+    expect(H1_SCHEDULE.plan).toEqual(canonicalPlan(SUNDAY_ROAST));
+    expect(H3_SCHEDULE.plan).toEqual(canonicalPlan(TIGHT_OVEN));
+    expect(H1_SCHEDULE.kitchen).toEqual(HOME_KITCHEN);
+    expect(H3_SCHEDULE.kitchen).toEqual(HOME_KITCHEN);
+  });
+});
+
+describe('RQ11.1 progress fixtures', () => {
+  const FIXTURES: readonly (readonly [string, Progress, readonly string[]])[] = [
+    ['RB_A_PROGRESS', RB_A_PROGRESS, ['chicken.prep', 'chicken.roast', 'greens.shred']],
+    [
+      'RB_B_PROGRESS',
+      RB_B_PROGRESS,
+      ['chicken.prep', 'chicken.rest', 'chicken.roast', 'greens.shred'],
+    ],
+    ['RB_B2_PROGRESS', RB_B2_PROGRESS, ['chicken.prep', 'chicken.roast']],
+    ['RB_C_PROGRESS', RB_C_PROGRESS, ['chicken.prep', 'chicken.roast', 'greens.shred']],
+    ['E1_PROGRESS', E1_PROGRESS, ['chicken.prep', 'chicken.roast', 'greens.shred']],
+    ['E2_PROGRESS', E2_PROGRESS, ['chicken.prep', 'chicken.roast']],
+    ['E3_PROGRESS', E3_PROGRESS, ['chicken.prep', 'chicken.roast', 'greens.shred']],
+    ['E4_PROGRESS', E4_PROGRESS, ['chicken.prep', 'chicken.roast', 'greens.shred']],
+    ['E5_PROGRESS', E5_PROGRESS, H1_ROWS.map((r) => r[0])],
+    ['E5_EARLY_PROGRESS', E5_EARLY_PROGRESS, H1_ROWS.map((r) => r[0])],
+    ['E6_PROGRESS', E6_PROGRESS, H1_ROWS.map((r) => r[0]).filter((id) => id !== 'greens.boil')],
+    ['E7_PROGRESS', E7_PROGRESS, H3_ROWS.map((r) => r[0])],
+    [
+      'E8_PROGRESS',
+      E8_PROGRESS,
+      H1_ROWS.map((r) => r[0]).filter((id) => id !== 'greens.boil' && id !== 'greens.toss'),
+    ],
+  ];
+  it.each(FIXTURES)('%s passes ProgressSchema and pins exactly the ids it should', (_n, p, ids) => {
+    expect(ProgressSchema.safeParse(p).success).toBe(true);
+    expect(Object.keys(p).sort()).toEqual([...ids].sort());
+  });
+  it('the facts are the ones of the design: states and minutes of the roast and of carve', () => {
+    expect(RB_A_PROGRESS['chicken.roast']).toEqual({
+      state: 'running',
+      startMin: -100,
+      extraMin: 15,
+    });
+    expect(RB_B_PROGRESS['chicken.roast']).toEqual({ state: 'done', startMin: -100, endMin: -25 });
+    expect(RB_B_PROGRESS['chicken.rest']).toEqual({ state: 'running', startMin: -25, extraMin: 0 });
+    expect(E1_PROGRESS['chicken.roast']).toEqual({ state: 'done', startMin: -100, endMin: -35 });
+    expect(E2_PROGRESS['chicken.prep']).toEqual({ state: 'done', startMin: -110, endMin: -102 });
+    expect(E2_PROGRESS['chicken.roast']).toEqual({ state: 'running', startMin: -102, extraMin: 0 });
+    expect(E4_PROGRESS['greens.shred']).toEqual({ state: 'done', startMin: -100, endMin: -88 });
+    expect(E5_PROGRESS['chicken.carve']).toEqual({ state: 'done', startMin: -5, endMin: 3 });
+    expect(E5_EARLY_PROGRESS['chicken.carve']).toEqual({ state: 'done', startMin: -5, endMin: -2 });
+    expect(E6_PROGRESS['chicken.carve']).toEqual({ state: 'running', startMin: -5, extraMin: 0 });
+    expect(E6_PROGRESS['greens.toss']).toEqual({ state: 'done', startMin: -6, endMin: -5 });
+    expect(E7_PROGRESS['pie.bake']).toEqual({ state: 'running', startMin: -60, extraMin: 0 });
+    expect(E7_PROGRESS['potatoes.roast']).toEqual({ state: 'running', startMin: -85, extraMin: 0 });
+  });
+  it('the times of the other done steps are their H1 intervals', () => {
+    for (const [id, start, end] of H1_ROWS) {
+      if (id === 'chicken.carve') continue;
+      expect(E5_PROGRESS[id]).toEqual({ state: 'done', startMin: start, endMin: end });
+    }
   });
 });

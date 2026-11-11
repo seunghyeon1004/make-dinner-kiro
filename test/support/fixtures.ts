@@ -1,4 +1,12 @@
-import type { Kitchen, Plan } from '../../src/core/schema.js';
+import { canonicalPlan } from '../../src/core/schema.js';
+import type {
+  Kitchen,
+  Plan,
+  Progress,
+  ProgressEntry,
+  Schedule,
+  ScheduledStep,
+} from '../../src/core/schema.js';
 
 // Hand-written plans for example tests. Steps are written in non-topological order on
 // purpose, so that any code that relies on input order shows it. The facts in each comment
@@ -608,3 +616,236 @@ export const COLD_SAUCE: Plan = {
     },
   ],
 };
+
+// ---------------------------------------------------------------------------------------
+// Rebuild spec: the scheduler's hand-worked tables written out as Schedule values.
+
+type LaneTriple = readonly [burner: number | null, oven: number | null, cook: number | null];
+
+/** One row of a design table: id, start, end, lanes, slack, wait; critical is slack 0. */
+const row = (
+  id: string,
+  startMin: number,
+  endMin: number,
+  lanes: LaneTriple,
+  slackMin: number,
+  waitMin: number | null,
+): ScheduledStep => ({
+  id,
+  startMin,
+  endMin,
+  lanes: { burner: lanes[0], oven: lanes[1], cook: lanes[2] },
+  slackMin,
+  critical: slackMin === 0,
+  waitMin,
+});
+
+/**
+ * Scheduler table H1 as a `Schedule` (SUNDAY_ROAST x HOME_KITCHEN), written without
+ * `servingMin`, so it parses as a `RebuiltSchedule` with `servingMin` 0. Span 110, chain 110,
+ * no warnings; the columns are the H1 table above.
+ */
+export const H1_SCHEDULE: Schedule = {
+  plan: canonicalPlan(SUNDAY_ROAST),
+  kitchen: HOME_KITCHEN,
+  steps: [
+    row('chicken.carve', -5, 0, [null, null, 1], 0, 0),
+    row('chicken.prep', -110, -100, [null, null, 1], 0, null),
+    row('chicken.rest', -25, -5, [null, null, null], 0, 0),
+    row('chicken.roast', -100, -25, [null, 1, null], 0, 5),
+    row('gravy.roux', -20, -18, [1, null, 1], 0, 0),
+    row('gravy.simmer', -18, -8, [1, null, null], 0, 0),
+    row('gravy.strain', -8, -6, [null, null, 1], 0, 6),
+    row('greens.boil', -10, -6, [2, null, null], 0, 0),
+    row('greens.shred', -100, -95, [null, null, 1], 75, null),
+    row('greens.toss', -6, -5, [null, null, 1], 0, 5),
+  ],
+  spanMin: 110,
+  chainMin: 110,
+  warnings: [],
+};
+
+/**
+ * Scheduler table H3 as a `Schedule` (TIGHT_OVEN x HOME_KITCHEN), written without
+ * `servingMin`. Span 95, chain 55, one hold_exceeded warning for potatoes.roast.
+ */
+export const H3_SCHEDULE: Schedule = {
+  plan: canonicalPlan(TIGHT_OVEN),
+  kitchen: HOME_KITCHEN,
+  steps: [
+    row('pie.assemble', -85, -70, [null, null, 1], 30, null),
+    row('pie.bake', -40, 0, [null, 1, null], 0, 0),
+    row('potatoes.peel', -95, -85, [null, null, 1], 0, null),
+    row('potatoes.roast', -85, -40, [null, 1, null], 0, 40),
+  ],
+  spanMin: 95,
+  chainMin: 55,
+  warnings: [
+    {
+      severity: 'warning',
+      code: 'hold_exceeded',
+      message:
+        'Step potatoes.roast will be ready 40 minutes before serving and can wait only 10 minutes. More ovens, burners or cooks may help.',
+      stepId: 'potatoes.roast',
+      waitMin: 40,
+      holdMin: 10,
+    },
+  ],
+};
+
+const done = (startMin: number, endMin: number): ProgressEntry => ({
+  state: 'done',
+  startMin,
+  endMin,
+});
+const running = (startMin: number, extraMin: number): ProgressEntry => ({
+  state: 'running',
+  startMin,
+  extraMin,
+});
+
+/** The cook did the steps at their H1 times: every id in `ids`, done at its H1 interval. */
+const doneAsH1 = (ids: readonly string[]): Progress =>
+  Object.fromEntries(
+    ids.map((id): [string, ProgressEntry] => {
+      const step = H1_SCHEDULE.steps.find((s) => s.id === id);
+      if (step === undefined) throw new Error(`no H1 step ${id}`);
+      return [id, done(step.startMin, step.endMin)];
+    }),
+  );
+
+const H1_IDS = H1_SCHEDULE.steps.map((s) => s.id);
+const H1_EXCEPT = (...skip: string[]): string[] => H1_IDS.filter((id) => !skip.includes(id));
+
+// The rebuilds below start from H1_SCHEDULE (servingMin 0) unless said otherwise. Each comment
+// gives the expected rebuild, worked by hand in the rebuild design ("Hand-worked rebuilds").
+
+/**
+ * RB-a. The roast needs 15 more minutes, now -60. Expected: roast stays `[-100,-10)`; carve
+ * `[10,15)`, rest `[-10,10)`, roux `[-4,-2)`, simmer `[-2,8)`, strain `[8,10)`, boil `[3,7)`,
+ * toss `[7,8)`; servingMin 15, spanMin 125; warnings roast (wait 6 > 5) and toss (7 > 5);
+ * moved carve, rest, roux, simmer, strain, boil, toss; shift 15.
+ */
+export const RB_A_PROGRESS: Progress = {
+  'chicken.prep': done(-110, -100),
+  'greens.shred': done(-100, -95),
+  'chicken.roast': running(-100, 15),
+};
+export const RB_A_NOW = -60;
+
+/**
+ * RB-b. The cook is 8 minutes behind on gravy.roux, now -12. Expected: roux `[-12,-10)`, simmer
+ * `[-10,0)`, strain `[0,2)`, everything else as H1; servingMin 2, spanMin 112; warnings roast
+ * (13 > 5) and toss (7 > 5); moved roux, simmer, strain; shift 2.
+ */
+export const RB_B_PROGRESS: Progress = {
+  ...doneAsH1(['chicken.prep', 'greens.shred']),
+  'chicken.roast': done(-100, -25),
+  'chicken.rest': running(-25, 0),
+};
+export const RB_B_NOW = -12;
+
+/**
+ * RB-b2. Behind on a step with slack, now -92. Expected: only greens.shred moves, to
+ * `[-92,-87)`, slack 67; servingMin 0; no warnings; moved shred only; shift 0.
+ */
+export const RB_B2_PROGRESS: Progress = {
+  'chicken.prep': done(-110, -100),
+  'chicken.roast': running(-100, 0),
+};
+export const RB_B2_NOW = -92;
+
+/**
+ * RB-c. No slip (R4), now -60. Expected: starts, ends, lanes and waits equal H1; pinned rows
+ * slack 0, not critical; servingMin 0, spanMin 110; no warnings; moved []; shift 0.
+ */
+export const RB_C_PROGRESS: Progress = {
+  ...doneAsH1(['chicken.prep', 'greens.shred']),
+  'chicken.roast': running(-100, 0),
+};
+export const RB_C_NOW = -60;
+
+/** E1. Finished early, now -35. Expected: nothing moves, servingMin 0; roast wait 15 > 5 warned. */
+export const E1_PROGRESS: Progress = {
+  ...doneAsH1(['chicken.prep', 'greens.shred']),
+  'chicken.roast': done(-100, -35),
+};
+export const E1_NOW = -35;
+
+/**
+ * E2. Started early, now -100. Expected: roast `[-102,-27)`; moved only chicken.roast
+ * `-100 -> -102`; roast wait 7 warned; servingMin 0.
+ */
+export const E2_PROGRESS: Progress = {
+  'chicken.prep': done(-110, -102),
+  'chicken.roast': running(-102, 0),
+};
+export const E2_NOW = -100;
+
+/**
+ * E3. Overrun, no taps, now -20. Expected: roast `[-100,-20)` (ends now); rest `[-20,0)`, carve
+ * `[0,5)`, servingMin 5; after re-align toss -1, strain -3, boil -5, simmer -13, roux -15
+ * (starts); no warnings.
+ */
+export const E3_PROGRESS: Progress = {
+  ...doneAsH1(['chicken.prep', 'greens.shred']),
+  'chicken.roast': running(-100, 0),
+};
+export const E3_NOW = -20;
+
+/** E4. Done long, now -88. Expected: nothing moves, servingMin 0, no warnings. */
+export const E4_PROGRESS: Progress = {
+  'chicken.prep': done(-110, -100),
+  'greens.shred': done(-100, -88),
+  'chicken.roast': running(-100, 0),
+};
+export const E4_NOW = -88;
+
+/**
+ * E5. All done, carve late, now 3. Expected: nothing planned; servingMin 3, shift 3; all slack 0,
+ * not critical; strain wait 9 and toss wait 8 warned.
+ */
+export const E5_PROGRESS: Progress = {
+  ...doneAsH1(H1_EXCEPT('chicken.carve')),
+  'chicken.carve': done(-5, 3),
+};
+export const E5_NOW = 3;
+
+/** E5'. All done, carve early, now -2. Expected: servingMin 0 (R5); carve wait 2; no warnings. */
+export const E5_EARLY_PROGRESS: Progress = {
+  ...doneAsH1(H1_EXCEPT('chicken.carve')),
+  'chicken.carve': done(-5, -2),
+};
+export const E5_EARLY_NOW = -2;
+
+/**
+ * E6. Out of order: everything as H1 but boil absent and carve running, now -2. Expected: boil
+ * `[-2,2)` on burner 2, wait 0 (clamped); servingMin 2; toss wait 7 warned; moved only
+ * greens.boil `-10 -> -2`.
+ */
+export const E6_PROGRESS: Progress = {
+  ...doneAsH1(H1_EXCEPT('greens.boil', 'chicken.carve')),
+  'chicken.carve': running(-5, 0),
+};
+export const E6_NOW = -2;
+
+/**
+ * E7. One oven, two pans, from H3_SCHEDULE, now -50. Expected: ok; both oven steps on oven lane
+ * 1; servingMin 0; moved only pie.bake `-40 -> -60`; warnings bake 20 > 10 and roast 40 > 10.
+ */
+export const E7_PROGRESS: Progress = {
+  'potatoes.peel': done(-95, -85),
+  'pie.assemble': done(-85, -70),
+  'potatoes.roast': running(-85, 0),
+  'pie.bake': running(-60, 0),
+};
+export const E7_NOW = -50;
+
+/**
+ * E8. Untap: the input is E6's output, the progress is E6's without greens.toss, now 0.
+ * Expected: boil `[0,4)`, toss `[4,5)` (ready order), servingMin 5, shift 3.
+ */
+export const E8_PROGRESS: Progress = Object.fromEntries(
+  Object.entries(E6_PROGRESS).filter(([id]) => id !== 'greens.toss'),
+);
+export const E8_NOW = 0;

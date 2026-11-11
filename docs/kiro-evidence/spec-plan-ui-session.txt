@@ -1,0 +1,854 @@
+
+=== session 2026-11-11T05:47:47Z ===
+$ kiro-cli chat --output-format stream-json --v3 --mode spec --trust-all-tools --trust-workspace --model claude-opus-5.5 "$(cat docs/kiro-evidence/prompts/10-spec-plan-ui.md)"
+--- prompt ---
+Write the spec `plan-ui` in .kiro/specs/plan-ui/: requirements.md, then design.md, then tasks.md. No code in this session.
+
+This is the front end up to the moment cooking starts: the app shell and three of the four screens (Menu, Steps, Plan). Cooking mode is a separate spec (`cooking-mode`); design the shared state so that spec can add its screen without reshaping yours. Read docs/BRIEF.md ("The product, end to end", "Design direction"), the steering (ui.md is the design contract: tokens, type, targets, accessibility, copy; structure.md fixes src/web layout; product.md the flow and glossary), and the specs recipe-graph, scheduler, dinnerfile and recipe-reader (use their exact types and API shapes; if one of them is missing something the UI needs, list it under "Needs from other specs" rather than inventing it). Follow the format of the earlier specs (EARS requirements with ids, design with real paths and exact signatures, test-first tasks.md with ids, files, requirement ids and proving commands; "(decided here)" marks; decisions and open questions at the end of your reply).
+
+What the person can do, each a requirement group:
+1. Open the URL and see a schedule fast: the Menu screen lists the sample dinners from GET /api/samples (title, blurb, dishes); choosing one loads its recorded plan and goes straight to the Plan screen with the sample's suggested kitchen and a serving time (decide the default: e.g. the next half hour that leaves enough time). No login, no model, works with the key unset.
+2. Paste their own recipes: a large text area, a character counter against the 12,000 limit, "Read recipes" calls POST /api/parse, a busy state that says what is happening (a model call takes several seconds), and every error code from the recipe-reader spec turned into a plain sentence with what to do next (rate limited: when to retry; cap reached or no key: use a sample or paste a Dinnerfile). Success goes to the Steps screen.
+3. Paste or upload a Dinnerfile instead: parsed in the browser by core, line-numbered errors shown under the text area.
+4. Review and correct steps (Steps screen): dishes as sections, steps in dependency order; edit title, minutes, appliance, hands-on, hold (a "keeps" toggle plus minutes) and prerequisites (a checklist of the other steps, same dish first); add and remove steps and dishes; rename dishes. Sanity issues from validatePlan appear beside the step or dish they concern and in a summary at the top; errors block "Make the plan", warnings do not. Removing a step that others depend on asks what to do (decide: remove it from their prerequisites and say so).
+5. Plan screen: kitchen steppers (burners, ovens, cooks) and the serving time; the schedule recomputes on every change in the browser via core. Show: when to start, total span, the timeline, the plan list, warnings (hold_exceeded with the dish named), and a note when the start time is already in the past ("This dinner needs 1 h 50 min. Earliest serving time 19:25" with a button that sets it). A missing appliance (the plan needs an oven, the kitchen has 0) is explained and blocks only the schedule.
+6. The timeline: one row per lane (Cook 1.., Burner 1.., Oven 1..) plus rows for hands-free steps that use no appliance (resting, rising: pack them into as few rows as needed, labelled "Hands-free"), a time axis in clock time, a "serve" line, bars labelled with the step title where it fits, bar styles per ui.md (hatched oven, solid burner, dashed hands-free), critical steps marked. For steps whose result keeps and that sit back to back with slack 0, do not call them Critical: the word is reserved for slack 0 on a step whose result does not keep (decided in review); say "Back to back" for the others. Tapping a bar focuses that step in the plan list. The graphic is aria-hidden; the plan list carries everything (ui.md). Horizontal scroll inside the timeline only, never the page.
+7. The plan list: ordered by start, grouped under clock-time headings, each item with time range, title, dish, lane(s), minutes, slack or the critical mark, wait warnings. This is the text alternative and the print layout.
+8. Export and share: "Dinnerfile" opens a panel with the text in monospace, Copy and Download (file name Dinnerfile), and one line explaining `make -n -f Dinnerfile dinner`; "Share link" copies a URL whose fragment holds the plan, kitchen and serving time (design the encoding: versioned, compact, URL-safe, validated on load through validatePlan; state the size for the largest sample and what happens beyond a sensible URL length); "Print" uses print.css: plan list and Dinnerfile only, black on white.
+9. Shell: header with the product name and a theme switch (system, light, dark), the four steps of the flow as navigation that shows where you are and what is not reachable yet, state kept in localStorage so a reload returns to the same place with the same plan, "Start over" with a confirmation. Routing by URL fragment. Offline after first load is a goal for the scheduling paths: no request is needed after the samples have loaded.
+10. Error and empty states for every screen, written out as copy in the design.
+
+Design must fix: the store shape and its pure reducer-style functions (testable without a DOM), which component owns what, the time mapping between scheduler minutes and clock time (one module, tested, including serving after midnight and locale formatting through Intl), the share-link codec with a round-trip property, how the timeline maps minutes to pixels and labels, the exact copy for buttons, headings, errors and empty states (ui.md copy rules), and the test plan: unit tests for store, time, share codec, timeline layout (pure functions); Playwright e2e for the flows (sample to plan in two taps; paste with a faked /api/parse route for success and for each error; Dinnerfile import; edit a step and see the schedule change; kitchen change; share link round trip in a new page; print media snapshot of structure, not pixels) on the phone and desktop projects, each screen with an axe check, light and dark.
+
+Tasks: order them so the app is usable early (shell, store, Menu with samples, Plan with list, then timeline, then Steps editor, then paste and import, then export/share/print, then polish and the full e2e pass). About 30 to 40 sub-tasks, each small enough for one sitting, each with its proving command.
+
+Also read the rebuild spec's "The axis and servingMin" section: after a rebuild the serving minute is not 0, so the time-mapping module must take the schedule's serving minute into account from the start.
+
+Length: refer to the other specs and to ui.md instead of repeating them. Aim for requirements.md under 260 lines and design.md under 600 lines; exact copy tables and signatures matter more than prose.
+--- transcript (rendered from the event stream by scripts/kiro-render.mjs) ---
+[steering] {"steeringDocuments":["file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/kiro-conduct.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/product.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/scheduler-guarantees.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/structure.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/tech.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/testing.md"],"kind":"steering_inclusion"}
+[tool:execute] $ ls -R .kiro | head -80; wc -l docs/BRIEF.md .kiro/steering/*.md .kiro/specs/*/*.md; ls src src/* test test/* 2>/dev/null | head -80; git status --short | head
+    … (135 earlier lines not shown)
+    test/meta:
+    arbitraries.test.ts
+    guarantee-claims.ts
+    guarantees.test.ts
+    oracles.test.ts
+    
+    test/scripts:
+    build-web.test.ts
+    check-contrast.test.ts
+    
+    test/server:
+    env.test.ts
+    errors.test.ts
+    health.test.ts
+    log.test.ts
+    static.test.ts
+    
+    test/support:
+    arbitraries.ts
+    fakes.ts
+    fc-params.ts
+    fixtures.ts
+    oracles.ts
+     M .kiro/specs/scheduler/tasks.md
+     M .kiro/steering/scheduler-guarantees.md
+     M docs/kiro-evidence/hook-fires.log
+     M docs/kiro-evidence/prompts/10-spec-plan-ui.md
+    ?? docs/kiro-evidence/impl-rebuild-session.txt
+    ?? docs/kiro-evidence/prompts/14a-impl-rebuild.md
+    ?? docs/kiro-evidence/spec-plan-ui-session.txt
+    exit 0
+[tool:read] Read File .kiro/steering/ui.md
+[tool:read] Read File docs/BRIEF.md
+[tool:read] Read File .kiro/specs/scheduler/design.md
+[tool:read] Read File .kiro/specs/recipe-graph/design.md
+[tool:search] Grep Search
+[tool:read] Read File .kiro/specs/rebuild/design.md
+[tool:read] Read File .kiro/specs/dinnerfile/design.md
+[tool:read] Read File .kiro/specs/dinnerfile/requirements.md
+[tool:read] Read File .kiro/specs/recipe-reader/requirements.md
+[tool:search] Grep Search
+[tool:read] Read File .kiro/specs/recipe-reader/design.md
+[tool:read] Read File .kiro/specs/recipe-reader/design.md
+[tool:read] Read File .kiro/specs/recipe-graph/design.md
+[tool:read] Read File .kiro/specs/rebuild/tasks.md
+[tool:read] Read File .kiro/specs/rebuild/requirements.md
+[tool:read] Read File .kiro/specs/scheduler/tasks.md
+[tool:read] Read File docs/kiro-evidence/prompts/10-spec-plan-ui.md
+[tool:execute] $ cat package.json playwright.config.ts e2e/smoke.spec.ts public/index.html; ls src/web/styles; cat src/web/main.tsx src/web/css.d.ts; ls tsconfig*; cat tsconfig.web.json 2>/dev/null; wc -l src/web/styles/*; cat vitest.config.ts
+    … (176 earlier lines not shown)
+        "jsxImportSource": "preact",
+        "noEmit": true
+      },
+      "include": ["src/web/**/*.ts", "src/web/**/*.tsx"]
+    }
+          35 src/web/styles/base.css
+          82 src/web/styles/tokens.css
+         117 total
+    import { defineConfig } from 'vitest/config';
+    
+    export default defineConfig({
+      test: {
+        projects: [
+          {
+            test: {
+              name: 'examples',
+              include: ['test/**/*.test.ts'],
+              environment: 'node',
+            },
+          },
+          {
+            test: {
+              name: 'props',
+              include: ['test/**/*.pbt.ts'],
+              environment: 'node',
+            },
+          },
+        ],
+      },
+    });
+    exit 0
+[tool:execute] $ ls recordings samples test/fixtures 2>&1; cat tsconfig.test.json tsconfig.base.json; cat src/core/index.ts; grep -n "web" eslint.config.js | head -40; cat scripts/build-web.ts | head -60
+    … (139 earlier lines not shown)
+          }));
+        });
+    }
+    
+    const OUT_DIR = 'public/assets';
+    
+    function options(watch: boolean): BuildOptions {
+      return {
+        entryPoints: ['src/web/main.tsx'],
+        outdir: OUT_DIR,
+        bundle: true,
+        format: 'esm',
+        target: 'es2022',
+        platform: 'browser',
+        jsx: 'automatic',
+        jsxImportSource: 'preact',
+        tsconfig: 'tsconfig.web.json',
+        minify: !watch,
+        logLevel: 'info',
+      };
+    }
+    
+    async function main(): Promise<number> {
+      const watch = process.argv.includes('--watch');
+      rmSync(OUT_DIR, { recursive: true, force: true });
+      if (watch) {
+        const ctx = await context(options(true));
+        await ctx.watch();
+        return 0;
+      }
+    exit 0
+[tool:execute] $ cat src/web/styles/tokens.css | head -60; cat src/web/styles/base.css; grep -n "Critical\|critical" .kiro/steering/product.md .kiro/steering/ui.md; grep -n "message\|internal" src/server/errors.ts | head; wc -c samples/*.md; grep -c "^- \[x\]" .kiro/specs/*/tasks.md; grep -c "^- \[ \]" .kiro/specs/*/tasks.md
+    … (98 earlier lines not shown)
+    .kiro/steering/ui.md:29:| `--color-accent`     | `#B23A0A` | `#FB923C` | primary action, critical bars, links |
+    .kiro/steering/ui.md:63:  by start, giving clock time, step title, dish, lane, minutes, "Critical" or slack, and any
+    .kiro/steering/ui.md:67:- Nothing is told by colour alone. Critical steps get the mark `▲` and the word "Critical";
+    .kiro/steering/ui.md:84:- Use the glossary words from `product.md`: step, dish, lane, slack, critical, rebuild,
+    15:  | 'internal';
+    27:  internal: 500,
+    33:/** Thrown by routes. `message` is plain English the UI can show as is. */
+    37:  constructor(code: ApiErrorCode, message: string) {
+    38:    super(message);
+    44:export function errorResponse(c: Context, code: ApiErrorCode, message: string): Response {
+    45:  return c.json({ error: { code, message } }, STATUS[code]);
+    51:    if (error instanceof ApiError) return errorResponse(c, error.code, error.message);
+    52:    logger.error('unhandled error', { error: error.message, stack: error.stack });
+    53:    return errorResponse(c, 'internal', INTERNAL_MESSAGE);
+        2007 samples/halloween-party.md
+        1653 samples/korean-table.md
+        1582 samples/sunday-roast.md
+        1703 samples/vegetarian-feast.md
+        1121 samples/weeknight-curry.md
+        8066 total
+    .kiro/specs/dinnerfile/tasks.md:0
+    .kiro/specs/rebuild/tasks.md:0
+    .kiro/specs/recipe-graph/tasks.md:36
+    .kiro/specs/recipe-reader/tasks.md:0
+    .kiro/specs/scheduler/tasks.md:38
+    .kiro/specs/dinnerfile/tasks.md:17
+    .kiro/specs/rebuild/tasks.md:21
+    .kiro/specs/recipe-graph/tasks.md:0
+    .kiro/specs/recipe-reader/tasks.md:27
+    .kiro/specs/scheduler/tasks.md:1
+    exit 0
+[tool:execute] $ mkdir -p /tmp/plan-ui-measure && cd /tmp/plan-ui-measure && cat > m.mjs <<'EOF'
+import { deflateRawSync } from 'node:zlib';
+const words = 'roast bake simmer chop slice whisk stir drain season rest pumpkin chicken rice onion garlic orange caramel apples dough breadsticks soup cream butter'.split(' ');
+let seed = 7; const r = (n) => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
+const phrase = (n) => Array.from({ length: n }, () => words[r(words.length)]).join(' ');
+function plan(nSteps, nDishes, detailLen, titleLen) {
+  const dishes = Array.from({ length: nDishes }, (_, i) => ({ id: `dish-${i}-${words[i]}`, name: phrase(4) }));
+  const steps = [];
+  for (let k = 0; k < nSteps; k++) {
+    const d = dishes[k % nDishes];
+    const after = k ? [steps[r(k)].id] : [];
+    if (k > 3 && r(2)) after.push(steps[r(k)].id);
+    const s = { id: `${d.id}.${words[r(words.length)]}-${k}`, dish: d.id, title: titleLen ? 'x'.repeat(titleLen) : (phrase(5)[0].toUpperCase() + phrase(5).slice(1)).slice(0, 60),
+      minutes: 1 + r(60), appliance: ['burner','oven','none'][r(3)], handsOn: !!r(2), after: [...new Set(after)], holdMin: r(3) ? r(30) : null };
+    if (detailLen) s.detail = detailLen > 500 ? Array.from({length: detailLen}, () => String.fromCharCode(33 + r(90))).join('') : phrase(Math.ceil(detailLen/7)).slice(0, detailLen);
+    steps.push(s);
+  }
+  return { title: phrase(3), dishes, steps };
+}
+const b64 = (buf) => Buffer.from(buf).toString('base64url');
+function tuple(p) {
+  const di = new Map(p.dishes.map((d, i) => [d.id, i])); const si = new Map(p.steps.map((s, i) => [s.id, i]));
+  return [p.title, p.dishes.map(d => [d.id, d.name]), p.steps.map(s => [s.id, di.get(s.dish), s.title, s.minutes, ['burner','oven','none'].indexOf(s.appliance), s.handsOn?1:0, s.after.map(a => si.get(a)), s.holdMin ?? -1, ...(s.detail ? [s.detail] : [])]), [4,1,2], '19:30'];
+}
+for (const [label, p] of [['40 steps, 5 dishes, no detail', plan(40,5,0)], ['40 steps, 5 dishes, 120-char detail', plan(40,5,120)], ['80 steps, 12 dishes, 120-char detail', plan(80,12,120)], ['80 steps, 120-char titles, 1000-char random detail', plan(80,12,1001,120)]]) {
+  const json = JSON.stringify({ v: 1, plan: p, kitchen: { burners: 4, ovens: 1, cooks: 2 }, serve: '19:30' });
+  const tup = JSON.stringify([1, ...tuple(p)]);
+  console.log(label, '| json', json.length, '→ b64(deflate)', b64(deflateRawSync(json, { level: 9 })).length, '| tuple', tup.length, '→ b64(deflate)', b64(deflateRawSync(tup, { level: 9 })).length);
+}
+EOF
+node m.mjs; node -e "console.log(typeof CompressionStream, process.version); new CompressionStream('deflate-raw'); console.log('deflate-raw ok')"
+    40 steps, 5 dishes, no detail | json 8044 → b64(deflate) 1828 | tuple 3329 → b64(deflate) 1427
+    40 steps, 5 dishes, 120-char detail | json 13137 → b64(deflate) 3230 | tuple 8080 → b64(deflate) 2768
+    80 steps, 12 dishes, 120-char detail | json 26338 → b64(deflate) 5938 | tuple 16181 → b64(deflate) 5203
+    80 steps, 120-char titles, 1000-char random detail | json 104350 → b64(deflate) 14183 | tuple 94204 → b64(deflate) 13618
+    function v24.5.0
+    deflate-raw ok
+    exit 0
+[tool:execute] $ node -e "
+const f=(l,tz,ms)=>new Intl.DateTimeFormat(l,{hour:'numeric',minute:'2-digit',timeZone:tz}).format(ms);
+const ms=Date.UTC(2026,10,11,19,30);
+console.log(JSON.stringify([f('en-GB','Europe/London',ms),f('en-US','America/New_York',ms),f('en-US','Europe/London',ms)]));
+console.log(new Intl.DateTimeFormat('en-GB',{weekday:'short',timeZone:'Europe/London'}).format(ms));
+console.log(f('en-GB','Europe/London',Date.UTC(2026,9,25,0,40)));
+process.env.TZ='America/Los_Angeles'; console.log(new Date(2026,10,11,19,30).toISOString(), new Intl.DateTimeFormat().resolvedOptions().timeZone);
+"; grep -n "name:\|title:" test/support/fixtures.ts | head -30
+    … (4 earlier lines not shown)
+    48:  title: 'Sunday roast',
+    50:    { id: 'chicken', name: 'Roast chicken' },
+    51:    { id: 'gravy', name: 'Gravy' },
+    52:    { id: 'greens', name: 'Spring greens' },
+    58:      title: 'Toss the greens with butter',
+    68:      title: 'Strain the gravy into a jug',
+    78:      title: 'Carve the chicken',
+    88:      title: 'Cook the greens in salted water',
+    98:      title: 'Add stock and let the gravy thicken',
+    108:      title: 'Rest the chicken under foil',
+    118:      title: 'Make a roux in the roasting tin',
+    129:      title: 'Roast the chicken',
+    139:      title: 'Shred the greens',
+    149:      title: 'Season and truss the chicken',
+    181:  title: 'Mezze',
+    183:    { id: 'flatbread', name: 'Flatbread' },
+    184:    { id: 'hummus', name: 'Hummus' },
+    185:    { id: 'salad', name: 'Chopped salad' },
+    191:      title: 'Toss the salad with the dressing',
+    201:      title: 'Cook the flatbreads one by one',
+    211:      title: 'Whisk the dressing',
+    221:      title: 'Let the dough rise',
+    231:      title: 'Blend the hummus',
+    241:      title: 'Chop the salad vegetables',
+    251:      title: 'Mix the dough',
+    280:  title: 'Pie and potatoes',
+    282:    { id: 'pie', name: 'Apple pie' },
+    283:    { id: 'potatoes', name: 'Roast potatoes' },
+    289:      title: 'Roast the potatoes',
+    299:      title: 'Bake the pie',
+    exit 0
+[tool:execute] $ node -e "
+const f=(l,tz,ms)=>new Intl.DateTimeFormat(l,{timeStyle:'short',timeZone:tz}).format(ms);
+console.log(JSON.stringify([f('en-GB','Europe/London',Date.UTC(2026,9,25,0,40)),f('en-GB','Europe/London',Date.UTC(2026,10,11,19,30)),f('en-US','Europe/London',Date.UTC(2026,10,11,19,30)),f('en-US','Europe/London',Date.UTC(2026,10,11,0,5)), f('de-DE','Europe/Berlin',Date.UTC(2026,10,11,19,30))]));"
+    ["01:40","19:30","7:30 PM","12:05 AM","20:30"]
+    exit 0
+[tool:execute] $ cat scripts/hooks/tasks-lint.sh; cat .kiro/hooks/tasks-lint-on-save.json; sed -n 90,140p .kiro/specs/dinnerfile/tasks.md
+    … (132 earlier lines not shown)
+      Files: `src/core/dinnerfile.ts`.
+      Covers: R1–R5, N1, N3.
+      Command: `npx vitest run --project examples test/core/dinnerfile.test.ts test/core/dinnerfile-make.test.ts && npx vitest run --project props test/core/dinnerfile.pbt.ts test/core/dinnerfile-make.pbt.ts`
+    
+    ## T3. Import
+    
+    - [ ] T3.1 Example tests for accepted files: `SUNDAY_ROAST_DINNERFILE` gives
+      `ok({ plan: canonicalPlan(SUNDAY_ROAST), options: {} })`; each tolerant variant of the
+      design's outline, written by hand, gives the same; `# kitchen` and `# serve` give the
+      options; `WORST_CASE_DINNERFILE` gives `canonicalPlan(WORST_CASE)` with the lone surrogate,
+      tab, CR, NUL and trailing spaces intact.
+      Files: `test/core/dinnerfile.test.ts`.
+      Covers: R2.4, R5.4, R6.1–R6.7.
+      Command: `npx vitest run --project examples test/core/dinnerfile.test.ts`
+    - [ ] T3.2 Example tests for errors: for each code of the error table one firing example
+      asserting the exact error list (every field, message included) and the non-firing
+      neighbours of the design's outline; several errors in line order; no `target_without_step`
+      after a bad `# step` value; no mismatch error when a line is broken (R7.13); `''` gives
+      exactly `missing_plan`.
+      Files: `test/core/dinnerfile.test.ts`.
+      Covers: R7.1–R7.13.
+      Command: `npx vitest run --project examples test/core/dinnerfile.test.ts`
+    - [ ] T3.3 Properties D1 round trip, P-DF1 total, P-DF3 options, P-DF4 tolerant, P-DF5
+      breaking and P-DF8 faults survive, with `fcParams()`.
+      Files: `test/core/dinnerfile.pbt.ts`.
+      Covers: R1.2, R5.1–R5.4, R6.1–R6.7, R7.1–R7.13, R8.1–R8.3, N2.
+      Command: `npx vitest run --project props test/core/dinnerfile.pbt.ts`
+    - [ ] T3.4 Implement `fromDinnerfile` (line reader, field scanner, attachment, duplicates,
+      build, mismatch checks, error messages and order) until T3.1 to T3.3 pass, without
+      recursion or nested-quantifier regular expressions.
+    exit 0
+
+Now I have what I need. Writing requirements.md.
+
+[tool:edit] Write File .kiro/specs/plan-ui/requirements.md
+
+Requirements written. Now the design.
+
+[tool:edit] Write File .kiro/specs/plan-ui/design.md
+[tool:execute] $ wc -l .kiro/specs/plan-ui/*.md
+         640 .kiro/specs/plan-ui/design.md
+         350 .kiro/specs/plan-ui/requirements.md
+         990 total
+    exit 0
+[tool:edit] Replace in File .kiro/specs/plan-ui/requirements.md
+
+Both files are over the length targets. Tightening requirements first.
+
+[tool:execute] $ wc -l .kiro/specs/plan-ui/requirements.md
+         350 .kiro/specs/plan-ui/requirements.md
+    exit 0
+[tool:edit] Write File .kiro/specs/plan-ui/requirements.md
+[tool:execute] $ head -5 .kiro/specs/plan-ui/requirements.md; grep -c "" .kiro/specs/plan-ui/requirements.md; awk 'length > 100' .kiro/specs/plan-ui/requirements.md | wc -l
+    # Requirements: plan-ui
+    
+    ## Why
+    
+    The cook's first minute decides whether the app is worth it: open the URL, tap a sample dinner and
+    285
+          21
+    exit 0
+[tool:edit] Replace in File .kiro/specs/plan-ui/requirements.md
+[tool:edit] Replace in File .kiro/specs/plan-ui/requirements.md
+[tool:edit] Replace in File .kiro/specs/plan-ui/requirements.md
+[tool:edit] Replace in File .kiro/specs/plan-ui/requirements.md
+[tool:edit] Replace in File .kiro/specs/plan-ui/requirements.md
+[tool:edit] Replace in File .kiro/specs/plan-ui/requirements.md
+[tool:edit] Replace in File .kiro/specs/plan-ui/requirements.md
+[tool:edit] Replace in File .kiro/specs/plan-ui/requirements.md
+[tool:edit] Replace in File .kiro/specs/plan-ui/requirements.md
+[tool:edit] Replace in File .kiro/specs/plan-ui/requirements.md
+[tool:execute FAILED] $ grep -c "" .kiro/specs/plan-ui/requirements.md; grep -n "R5.9\|R5.10\|R3.6\|R1.6\|R8.3" .kiro/specs/plan-ui/requirements.md
+    279
+    exit 1
+[tool:read] Read File .kiro/specs/plan-ui/requirements.md
+[tool:execute] $ cd .kiro/specs/plan-ui && python3 - <<'EOF'
+import re
+p='requirements.md'; s=open(p).read()
+def rep(a,b):
+    global s
+    assert a in s, a[:60]
+    s=s.replace(a,b)
+rep("""The cook's first minute decides whether the app is worth it: open the URL, tap a sample dinner and
+see a schedule in which every dish lands at once. Then they bring their own recipes, check what the
+recipe reader made of them, set kitchen and serving time, and take the plan away as a list, a print,
+a Dinnerfile or a link. Every schedule is computed in the browser by `src/core`; the only server
+calls are `GET /api/samples` and `POST /api/parse`.""",
+"""Open the URL, tap a sample dinner, see a schedule in which every dish lands at once; then paste your
+own recipes, correct them, set kitchen and serving time, and take the plan away as a list, print,
+Dinnerfile or link. Schedules are computed in the browser by `src/core`; the server is only asked
+for `GET /api/samples` and `POST /api/parse`.""")
+rep("""**User story:** As a cook, I want to paste my recipes and get editable steps, and be told plainly
+what to do when the recipe reader cannot help.""","""**User story:** As a cook, I want editable steps from my recipes, and plain words when that fails.""")
+rep("""**User story:** As a cook with a Dinnerfile, I want my plan back without the recipe reader, and to
+see exactly which lines are wrong.""","""**User story:** As a cook with a Dinnerfile, I want my plan back, or the lines that are wrong.""")
+rep("""**User story:** As a cook, I want to correct what the recipe reader made of my recipes before
+anything is scheduled, and see which steps break which rule.""","""**User story:** As a cook, I want to correct the steps, and see which break which rule, first.""")
+rep("""- R4.11 THE SYSTEM SHALL mark errors `!` "Error" and warnings `!` "Warning", never by colour alone.
+""","")
+rep("""  issues in a summary at the top with a link to where each is shown.""","""  issues in a summary at the top with a link to each; errors marked `!` "Error", warnings `!`
+  "Warning", never by colour alone.""")
+rep("""- R4.12 ""","- R4.11 ").__class__
+s=s.replace("- R4.12 ","- R4.11 ").replace("- R4.13 ","- R4.12 ").replace("- R4.14 ","- R4.13 ")
+rep("""- R6.3 THE SYSTEM SHALL draw a step on every row of a lane it holds (a hands-on burner step on its
+  Cook and its Burner row).
+""","")
+rep("""  labelled in text ("Cook 1", "Burner 2").""","""  labelled in text ("Cook 1", "Burner 2"); a step is drawn on every lane it holds.""")
+for a,b in [("R6.4","R6.3"),("R6.5","R6.4"),("R6.6","R6.5"),("R6.7","R6.6"),("R6.8","R6.7"),("R6.9","R6.8"),("R6.10","R6.9")]:
+    s=s.replace("- "+a+" ","- "+b+" ")
+s=s.replace("(R6.7)","(R6.6)").replace("R6.7 narrows","R6.6 narrows")
+rep("""- R7.5 THE SYSTEM SHALL render the list as headings and `<ol>` items, always in the DOM, each item
+  focusable by script (`tabindex="-1"`).
+""","")
+rep("""  start clock time, ending with the serving time.""","""  start clock time, ending with the serving time, as headings and `<ol>` items always in the DOM,
+  each item focusable by script (`tabindex="-1"`).""")
+rep("""- N4 Pure modules (`state/*.ts` except `hooks.ts` and `effects.ts`, `components/*.ts`, `copy.ts`) use
+  no DOM and no `Date.now()`.
+- N5 No string in `src/web` contains `ANTHROPIC` or `sk-ant-`. N6 Glossary words only. N7 No server
+  storage of plans: the share link lives in the fragment, which browsers do not send.""","""- N4 Pure modules (`state/*.ts` but `hooks.ts`, `effects.ts`; `components/*.ts`; `copy.ts`): no DOM,
+  no `Date.now()`. N5 No `ANTHROPIC` or `sk-ant-` in `src/web`. N6 Glossary words only. N7 No
+  server storage of plans: the share link lives in the fragment, which browsers do not send.""")
+rep("""- R9.11 THE SYSTEM SHALL announce every notice in one `aria-live="polite"` region.
+""","")
+rep("""  move focus to the `<h1>` on a screen change.""","""  move focus to the `<h1>` on a screen change; notices go to one `aria-live="polite"` region.""")
+open(p,'w').write(s)
+EOF
+grep -c "" requirements.md; grep -n "R4.1[0-4]\|R6\.[0-9]" requirements.md | cut -c1-60
+    270
+    108:- R4.10 THE SYSTEM SHALL run `validatePlan` on every cha
+    112:- R4.11 WHILE the plan has an error, THE SYSTEM SHALL di
+    114:- R4.12 WHEN the cook taps "Make the plan", THE SYSTEM S
+    116:- R4.13 WHILE cooking has started (`cook` is not null), 
+    144:- R6.1 THE SYSTEM SHALL draw a row per lane number in us
+    146:- R6.2 THE SYSTEM SHALL put steps with no appliance that
+    149:- R6.3 THE SYSTEM SHALL map minute `t` to `(t − originMi
+    152:- R6.4 THE SYSTEM SHALL label every quarter hour in cloc
+    154:- R6.5 THE SYSTEM SHALL style bars: oven hatched, burner
+    156:- R6.6 THE SYSTEM SHALL mark "Critical" with `▲` only a 
+    158:- R6.7 THE SYSTEM SHALL mark the timeline `aria-hidden="
+    160:- R6.8 WHEN the cook taps a bar, THE SYSTEM SHALL scroll
+    162:- R6.9 THE SYSTEM SHALL scroll horizontally only inside 
+    173:  "Hands-free"), duration, one of "▲ Critical", "Back to
+    263:- steering: `product.md` line 87 and `ui.md` lines 63 an
+    exit 0
+[tool:read] Read File .kiro/specs/plan-ui/requirements.md
+[tool:execute] $ cd .kiro/specs/plan-ui && python3 - <<'EOF'
+p='requirements.md'; s=open(p).read()
+def rep(a,b):
+    global s
+    assert a in s, a[:70]
+    s=s.replace(a,b)
+rep("""R6.7
+  narrows the word.""","""R6.6
+  narrows the word.""")
+for a,b in [("R8.4","R8.3"),("R8.5","R8.4"),("R8.6","R8.5"),("R8.7","R8.6"),("R8.9","R8.7"),("R8.10","R8.8"),("R8.11","R8.9")]:
+    s=s.replace("- "+a+" ","- "+b+" ")
+rep("""  the failure and change nothing stored.
+- R8.8 WHEN a share fragment arrives while a dinner is loaded, THE SYSTEM SHALL ask before replacing.
+""","""  the failure and change nothing stored; WHEN one arrives while a dinner is loaded, ask first.
+""")
+s=s.replace("R5.3, and open the Plan screen.\n- R8.6","R5.3, and open the Plan screen.\n- R8.6")
+rep("""- R9.1 THE SYSTEM SHALL show on every screen a header with "Make Dinner" (a link to the Menu), a
+  theme switch (System, Light, Dark) and "Start over".""","""- R9.1 THE SYSTEM SHALL show on every screen a header with "Make Dinner" (a link to the Menu), a
+  theme switch (System, Light, Dark: stored, and set as `data-theme` on the root except for System)
+  and "Start over".""")
+rep("""- R9.5 WHEN the theme is Light or Dark, THE SYSTEM SHALL set `data-theme` on the root element, and
+  remove it for System; the choice is stored in localStorage.
+""","")
+for a,b in [("R9.6","R9.5"),("R9.7","R9.6"),("R9.8","R9.7"),("R9.9","R9.8"),("R9.10","R9.9")]:
+    s=s.replace("- "+a+" ","- "+b+" ")
+rep("""- R10.3 THE SYSTEM SHALL follow `ui.md`'s copy rules and keep every string in `src/web/copy.ts`.
+- R10.4 THE SYSTEM SHALL never show raw model output, a stack trace or server internals.""","""- R10.3 THE SYSTEM SHALL keep every string in `src/web/copy.ts`, follow `ui.md`'s copy rules, and
+  never show raw model output, a stack trace or server internals.""")
+rep("""- R11.1 THE SYSTEM SHALL have the design's unit tests for the pure modules, run by `npm test`.
+- R11.2 THE SYSTEM SHALL have properties P-UI1 to P-UI6, run by `npm run test:props`.""","""- R11.1 THE SYSTEM SHALL have the design's unit tests (`npm test`) and properties P-UI1 to P-UI6
+  (`npm run test:props`) for the pure modules.""")
+s=s.replace("- R11.3 ","- R11.2 ").replace("- R11.4 ","- R11.3 ")
+rep("""- R1.1 WHEN the Menu screen opens and the samples are not loaded, THE SYSTEM SHALL request
+  `GET /api/samples` once per page load and list every sample in response order with its title,
+  blurb and dish names.""","""- R1.1 WHEN the Menu opens, THE SYSTEM SHALL request `GET /api/samples` once per page load and list
+  every sample in response order with title, blurb and dish names.""")
+rep("""In `src/web` (`tech.md`, `structure.md`, `ui.md`): the shell (header, flow navigation, theme, "Start
+over", fragment routing, persistence), the Menu, Steps and Plan screens, timeline, plan list,
+export (Dinnerfile, share link, print), and the shared store the `cooking-mode` spec extends with
+its Cook screen. In `test/web/`: unit tests and properties for the pure modules. In `e2e/`:
+Playwright flows with axe on the `phone` and `desktop` projects, light and dark.""","""In `src/web` (`tech.md`, `structure.md`, `ui.md`): the shell (header, flow navigation, theme, "Start
+over", fragment routing, persistence), the Menu, Steps and Plan screens, timeline, plan list, export,
+and the shared store that `cooking-mode` extends. In `test/web/` and `e2e/`: the tests of R11.""")
+open(p,'w').write(s)
+EOF
+grep -c "" requirements.md; grep -on "R[0-9]*\.[0-9]*" requirements.md | awk -F: '{print $2}' | sort -V | uniq | tr '\n' ' '
+    265
+    R1. R1.1 R1.2 R1.3 R1.4 R1.5 R2. R2.1 R2.2 R2.3 R2.4 R2.5 R2.6 R2.7 R2.8 R2.9 R3. R3.1 R3.2 R3.3 R3.4 R3.5 R4. R4.1 R4.2 R4.3 R4.4 R4.5 R4.6 R4.7 R4.8 R4.9 R4.10 R4.11 R4.12 R4.13 R5. R5.1 R5.2 R5.3 R5.4 R5.5 R5.6 R5.7 R5.8 R6. R6.1 R6.2 R6.3 R6.4 R6.5 R6.6 R6.7 R6.8 R6.9 R7. R7.1 R7.2 R7.3 R7.4 R8. R8.1 R8.2 R8.3 R8.4 R8.5 R8.6 R8.7 R8.8 R8.9 R9. R9.1 R9.2 R9.3 R9.4 R9.5 R9.6 R9.7 R9.8 R9.9 R10. R10.1 R10.2 R10.3 R11. R11.1 R11.2 R11.3
+    exit 0
+[tool:execute] $ cd .kiro/specs/plan-ui && python3 - <<'EOF'
+p='requirements.md'; s=open(p).read()
+def rep(a,b):
+    global s
+    assert a in s, a[:70]
+    s=s.replace(a,b)
+rep("""- R2.6 IF the response is an error with a code of `tech.md`'s list, THEN THE SYSTEM SHALL show the
+  design's sentence for it (what happened, what to do next) and keep the text.
+- R2.7 WHEN the code is `rate_limited` or `daily_cap_reached` with a valid `Retry-After`, THE SYSTEM
+  SHALL name the clock time from which a retry can work.""","""- R2.6 IF the response is an error with a code of `tech.md`'s list, THEN THE SYSTEM SHALL show the
+  design's sentence for it (what happened, what to do next; for `rate_limited` and
+  `daily_cap_reached` the clock time from `Retry-After` when valid) and keep the text.""")
+s=s.replace("- R2.8 ","- R2.7 ").replace("- R2.9 ","- R2.8 ").replace("matches neither R2.5 nor R2.6","matches neither R2.5 nor R2.6")
+s=s.replace("across reloads as in R2.9","across reloads as in R2.8")
+rep("""Prerequisites: recipe-graph and scheduler done; dinnerfile T1 to T4 (`ServeTimeSchema`,
+`toDinnerfile`, `fromDinnerfile`); recipe-reader done and `recordings/` recorded by the user
+(`npm run record`): without them the server does not start (recipe-reader R2.3), so no e2e runs.""","""Prerequisites: recipe-graph, scheduler, dinnerfile T1 to T4 and recipe-reader done, and
+`recordings/` recorded by the user (`npm run record`); without them the server does not start
+(recipe-reader R2.3) and no e2e runs.""")
+rep("""- N1 Accessibility as in `ui.md`: 48×48 px targets with 8 px gaps, visible focus, semantic HTML,
+  nothing by colour alone, reduced motion, 200% zoom without horizontal page scroll.
+- N2 Speed:""","""- N1 Accessibility as in `ui.md` (targets, focus, semantics, colour, motion, 200% zoom). N2 Speed:""")
+rep("""on the phone project the largest sample's timeline shows within 1 s of the tap, and a
+  kitchen change repaints within 200 ms.""","""on the phone project the largest sample's timeline shows within 1 s
+  of the tap, and a kitchen change repaints within 200 ms.""")
+open(p,'w').write(s)
+EOF
+grep -c "" requirements.md; grep -n "R2.9\|N2" requirements.md
+    262
+    240:- N1 Accessibility as in `ui.md` (targets, focus, semantics, colour, motion, 200% zoom). N2 Speed: on the phone project the largest sample's timeline shows within 1 s
+    exit 0
+[tool:execute] $ cd .kiro/specs/plan-ui && python3 - <<'EOF'
+p='requirements.md'; s=open(p).read()
+def rep(a,b):
+    global s
+    assert a in s, a[:70]
+    s=s.replace(a,b)
+rep("""- N1 Accessibility as in `ui.md` (targets, focus, semantics, colour, motion, 200% zoom). N2 Speed: on the phone project the largest sample's timeline shows within 1 s
+  of the tap, and a kitchen change repaints within 200 ms.""","""- N1 Accessibility as in `ui.md`. N2 Speed: on the phone project the largest sample's timeline shows
+  within 1 s of the tap, and a kitchen change repaints within 200 ms.""")
+rep("""- R4.8 THE SYSTEM SHALL prevent removing the last step or dish and adding past 12 dishes or 80
+  steps, saying why.
+- R4.9 THE SYSTEM SHALL give new dishes and steps unique ids matching the id patterns (`slugify`,
+  `nextStepId` in the design).""","""- R4.8 THE SYSTEM SHALL prevent removing the last step or dish and adding past 12 dishes or 80
+  steps, saying why, and give new dishes and steps unique pattern-valid ids (`slugify`, `nextStepId`).""")
+for a,b in [("R4.10","R4.9"),("R4.11","R4.10"),("R4.12","R4.11"),("R4.13","R4.12")]:
+    s=s.replace("- "+a+" ","- "+b+" ")
+open(p,'w').write(s)
+EOF
+grep -c "" requirements.md; awk 'length > 102 {print FILENAME": "FNR": "length}' requirements.md; grep -n "R4\.1[0-3]\|R4\.9" requirements.md design.md | cut -c1-80
+    260
+    requirements.md: 240: 103
+    requirements.md:102:- R4.9 THE SYSTEM SHALL run `validatePlan` on every change a
+    requirements.md:106:- R4.10 WHILE the plan has an error, THE SYSTEM SHALL disabl
+    requirements.md:108:- R4.11 WHEN the cook taps "Make the plan", THE SYSTEM SHALL
+    requirements.md:110:- R4.12 WHILE cooking has started (`cook` is not null), THE
+    exit 0
+[tool:execute] $ cd .kiro/specs/plan-ui && sed -n 236,244p requirements.md
+    ## Non-functional requirements
+    
+    - N1 Accessibility as in `ui.md`. N2 Speed: on the phone project the largest sample's timeline shows
+      within 1 s of the tap, and a kitchen change repaints within 200 ms.
+    - N3 Boundaries: `src/web` imports core only via `src/core/index.js`; no new dependency (decided here).
+    - N4 Pure modules (`state/*.ts` but `hooks.ts`, `effects.ts`; `components/*.ts`; `copy.ts`): no DOM,
+      no `Date.now()`. N5 No `ANTHROPIC` or `sk-ant-` in `src/web`. N6 Glossary words only. N7 No
+      server storage of plans: the share link lives in the fragment, which browsers do not send.
+    exit 0
+[tool:execute] $ cd .kiro/specs/plan-ui && python3 - <<'EOF'
+p='requirements.md'; s=open(p).read()
+a="""- N3 Boundaries: `src/web` imports core only via `src/core/index.js`; no new dependency (decided here).
+- N4 Pure modules"""
+b="""- N3 `src/web` imports core only via `src/core/index.js`; no new dependency (decided here). N4 Pure
+  modules"""
+assert a in s; s=s.replace(a,b)
+a="""(`state/*.ts` but `hooks.ts`, `effects.ts`; `components/*.ts`; `copy.ts`): no DOM,
+  no `Date.now()`. N5 No `ANTHROPIC` or `sk-ant-` in `src/web`. N6 Glossary words only. N7 No
+  server storage of plans: the share link lives in the fragment, which browsers do not send."""
+b="""(`state/*.ts` but `hooks.ts`, `effects.ts`; `components/*.ts`; `copy.ts`) use no DOM and no
+  `Date.now()`. N5 No `ANTHROPIC` or `sk-ant-` in `src/web`. N6 Glossary words only. N7 No server
+  storage of plans: the share link lives in the fragment, which browsers do not send."""
+assert a in s; s=s.replace(a,b)
+s=s.rstrip('\n')+'\n'
+open(p,'w').write(s)
+EOF
+grep -c "" requirements.md; awk 'length > 101 {print FNR": "length}' requirements.md
+    260
+    101: 102
+    167: 102
+    206: 102
+    exit 0
+[tool:execute] $ cd .kiro/specs/plan-ui && python3 - <<'EOF'
+p='requirements.md'; s=open(p).read()
+a="""Open the URL, tap a sample dinner, see a schedule in which every dish lands at once; then paste your
+own recipes, correct them, set kitchen and serving time, and take the plan away as a list, print,
+Dinnerfile or link. Schedules are computed in the browser by `src/core`; the server is only asked
+for `GET /api/samples` and `POST /api/parse`."""
+b="""Open the URL, tap a sample, see a schedule in which every dish lands at once; then paste your own
+recipes, correct them, set kitchen and serving time, and take the plan away. Schedules are computed
+in the browser by `src/core`; the server is asked only for `GET /api/samples` and `POST /api/parse`."""
+assert a in s; s=s.replace(a,b)
+open(p,'w').write(s)
+EOF
+grep -c "" requirements.md
+    259
+    exit 0
+[tool:execute] $ cd .kiro/specs/plan-ui && grep -on "(R[0-9][0-9.]*[^)]*)\|R[0-9]\+\.[0-9]\+" design.md | sort -t: -k2 | awk -F: '{print $1": "$2}' | tr '\n' ' '
+    216: (R1.4) 77: (R1.5, R8.8) 479: (R10.2) 132: (R2.9, R3.6) 133: (R4.14, R5.10) 71: (R4.4) 213: (R5.3) 453: (R7.4) 472: (R7.4) 509: (R8.10) 371: (R8.5) 247: (R8.6) 92: (R9.11) 250: (R9.3) 279: (R9.8) 18: R10.3 162: R4.1 320: R7.10
+    exit 0
+[tool:execute] $ cd .kiro/specs/plan-ui && python3 - <<'EOF'
+p='design.md'; s=open(p).read()
+pairs=[("(R1.5, R8.8)","(R1.5, R8.6)"),("(R2.9, R3.6)","(R2.8)"),("(R4.14, R5.10)","(R4.12)"),("(R8.10)","(R8.8)"),("(R8.5)","(R8.4)"),("(R8.6)","(R8.5)"),("(R9.11)","(R9.9)"),("(R9.8)","(R9.6)")]
+for a,b in pairs:
+    assert a in s, a
+    s=s.replace(a,b)
+open(p,'w').write(s)
+EOF
+grep -c "" design.md
+    640
+    exit 0
+[tool:read] Read File .kiro/specs/plan-ui/design.md
+[tool:read] Read File .kiro/specs/plan-ui/design.md
+[tool:read] Read File .kiro/specs/plan-ui/design.md
+[tool:execute] $ cd .kiro/specs/plan-ui && python3 - <<'EOF'
+p='design.md'; s=open(p).read()
+def rep(a,b):
+    global s
+    assert a in s, "MISSING: "+a[:80]
+    s=s.replace(a,b)
+# intro
+rep("""Requirements: `requirements.md` in this folder. Rules followed without restating them: `ui.md`
+(tokens, type, targets, accessibility, copy), `tech.md`, `structure.md`, `testing.md`,
+`product.md`, and the recipe-graph (`Plan`, `Issue`, `validatePlan`, `parseKitchen`,
+`canonicalPlan`, `compareIds`, `topologicalOrder`, `successors`, fixtures, `fcParams`),
+scheduler (`schedule`, `Schedule`, `ScheduledStep`, `ScheduleError`, `HoldExceededIssue`, H1 to
+H3), dinnerfile (`toDinnerfile`, `fromDinnerfile`, `DinnerfileError`, `ServeTimeSchema`,
+`arbServeTime`, `SUNDAY_ROAST_DINNERFILE`), recipe-reader (routes, message table, `Retry-After`)
+and rebuild ("The axis and `servingMin`") specs.""",
+"""Requirements: `requirements.md` in this folder. Rules followed without restating them: `ui.md`,
+`tech.md`, `structure.md`, `testing.md`, `product.md`, and the recipe-graph, scheduler (H1 to H3),
+dinnerfile (`SUNDAY_ROAST_DINNERFILE`, `arbServeTime`), recipe-reader and rebuild ("The axis and
+`servingMin`") specs, whose types and functions are used by their exact names.""")
+# files table
+rep("""| `src/web/state/route.ts` | `parseHash`, `hashOf` (decided here) |
+| `src/web/state/persist.ts` | `PersistedStateSchema`, `toPersisted`, `loadState`, `saveState` |
+| `src/web/state/api.ts` | response schemas, `fetchSamples`, `postParse` |
+| `src/web/state/dinnerfile-import.ts` | `readDinnerfile` (decided here) |""",
+"""| `src/web/state/route.ts`, `persist.ts` | `parseHash`, `hashOf` (decided here); `PersistedStateSchema`, `toPersisted`, `loadState`, `saveState` |
+| `src/web/state/api.ts`, `dinnerfile-import.ts` | response schemas, `fetchSamples`, `postParse`; `readDinnerfile` (decided here) |""")
+rep("""| `src/web/state/hooks.ts` | `StoreProvider`, `useAppState`, `useDispatch`, `useNow` (Preact; not pure) |
+| `src/web/state/effects.ts` | `startEffects(store, env)`: storage, hash, theme, fetches, share boot (not pure) |
+| `src/web/components/timeline-layout.ts` | `layoutTimeline`, constants (pure) |
+| `src/web/components/plan-list-items.ts` | `planListGroups` (pure) |
+| `src/web/components/*.tsx` | the components of the ownership table |
+| `src/web/screens/Menu.tsx`, `Steps.tsx`, `Plan.tsx` | the screens (`Cook.tsx` belongs to cooking-mode) |""",
+"""| `src/web/state/hooks.ts`, `effects.ts` | `StoreProvider`, `useAppState`, `useDispatch`, `useNow`; `startEffects(store, env)`: storage, hash, theme, fetches, share boot (both not pure) |
+| `src/web/components/timeline-layout.ts`, `plan-list-items.ts` | `layoutTimeline`; `planListGroups` (pure) |
+| `src/web/components/*.tsx`, `screens/{Menu,Steps,Plan}.tsx` | the components table (`Cook.tsx` belongs to cooking-mode) |""")
+rep("""Imports (no cycles): screens → components → `state/hooks.ts` → `state/store.ts` →
+`plan-edit.ts`, `clock.ts`, `cook-slot.ts`, `api.ts` (types), `../copy.ts` →
+`../../core/index.js`. `copy.ts` imports only core types and `clock.ts`. Nothing in `state/`
+imports `components/`; `effects.ts` is imported only by `main.tsx`.""",
+"""Imports (no cycles): screens → components → `state/hooks.ts` → `state/store.ts` → `plan-edit.ts`,
+`clock.ts`, `cook-slot.ts`, `api.ts` (types), `copy.ts` → `../../core/index.js`. `copy.ts` imports
+only core types and `clock.ts`; `state/` never imports `components/`; only `main.tsx` imports
+`effects.ts`.""")
+# store code
+rep("""export type SamplesState =
+  | { status: 'idle' } | { status: 'loading' } | { status: 'loaded'; samples: SampleItem[] } | { status: 'failed' };
+export type ParseState =
+  | { status: 'idle' } | { status: 'busy'; requestId: number; startedAtMs: number }
+  | { status: 'failed'; failure: ParseFailure };""",
+"""export type SamplesState = { status: 'idle' | 'loading' | 'failed' } | { status: 'loaded'; samples: SampleItem[] };
+export type ParseState = { status: 'idle' } | { status: 'busy'; requestId: number; startedAtMs: number }
+  | { status: 'failed'; failure: ParseFailure };""")
+rep("""  samples: SamplesState;          // not persisted
+  parse: ParseState;              // not persisted
+  import: ImportState;            // not persisted
+  pendingLoad: DinnerLoad | null; // waiting for "Replace" (R1.5, R8.6); not persisted
+  notice: string | null;          // not persisted""",
+"""  samples: SamplesState; parse: ParseState; import: ImportState; // not persisted
+  pendingLoad: DinnerLoad | null; // waiting for "Replace" (R1.5, R8.6); not persisted
+  notice: string | null;          // not persisted""")
+# persist
+rep("""export const PersistedStateSchema = z.strictObject({
+  version: z.literal(1),
+  route: z.enum(['menu', 'steps', 'plan', 'cook']),
+  theme: z.enum(['system', 'light', 'dark']),
+  dinner: z.strictObject({
+    plan: z.unknown(),                 // checked by validatePlan: plan must be non-null
+    source: PlanSourceSchema,          // discriminated union of the four kinds
+    kitchen: KitchenSchema,
+    serving: z.strictObject({ time: ServeTimeSchema, atMs: z.int() }).nullable(),
+  }).nullable(),
+  recipeText: z.string().max(200_000),
+  dinnerfileText: z.string().max(1_048_576),
+  cook: CookStateSchema.nullable(),
+});
+export function toPersisted(state: AppState): z.input<typeof PersistedStateSchema>;
+export function loadState(storage: Pick<Storage, 'getItem'>): { state: AppState; notice: string | null };""",
+"""export const PersistedStateSchema = z.strictObject({
+  version: z.literal(1), route: z.enum(['menu', 'steps', 'plan', 'cook']), theme: z.enum(['system', 'light', 'dark']),
+  dinner: z.strictObject({
+    plan: z.unknown(), // validatePlan must give a plan
+    source: PlanSourceSchema, kitchen: KitchenSchema,
+    serving: z.strictObject({ time: ServeTimeSchema, atMs: z.int() }).nullable(),
+  }).nullable(),
+  recipeText: z.string().max(200_000), dinnerfileText: z.string().max(1_048_576), cook: CookStateSchema.nullable(),
+});
+export function toPersisted(state: AppState): z.input<typeof PersistedStateSchema>;
+export function loadState(storage: Pick<Storage, 'getItem'>, cookRegistered: boolean): { state: AppState; notice: string | null };""")
+rep("""The
+route is then passed through `reachable` (cook not registered when the screen table has none).""","""The
+stored route then goes through `reachable(state, cookRegistered)`.""")
+# api
+rep("""export type ParseFailure =
+  | { kind: 'bad_request' } | { kind: 'input_too_long' }
+  | { kind: 'rate_limited'; retryAtMs: number | null } | { kind: 'daily_cap_reached'; retryAtMs: number | null }
+  | { kind: 'model_unavailable' } | { kind: 'model_refused' } | { kind: 'model_output_invalid' }
+  | { kind: 'internal' } | { kind: 'network' } | { kind: 'unexpected'; status: number };""",
+"""export type ParseFailure =
+  | { kind: 'bad_request' | 'input_too_long' | 'model_unavailable' | 'model_refused' | 'model_output_invalid' | 'internal' | 'network' }
+  | { kind: 'rate_limited' | 'daily_cap_reached'; retryAtMs: number | null } | { kind: 'unexpected'; status: number };""")
+# clock
+rep("""export function quarterFloor(chosenMs: number, minute: number): number; // largest m <= minute on a local :00/:15/:30/:45
+export function quarterCeil(chosenMs: number, minute: number): number;""",
+"""export function quarterFloor(chosenMs: number, minute: number): number; // largest m <= minute on a local quarter hour; quarterCeil alike""")
+# sizes table
+rep("""Sizes (measured in the spec session with Node's raw deflate on generated plans; `recordings/`
+does not exist yet, so T7.1 measures each sample and asserts it is under 8,000):
+
+| plan | payload chars | as plain JSON + deflate |
+| ---- | ------------- | ----------------------- |
+| 40 steps, 5 dishes, no detail | 1,427 | 1,828 |
+| 40 steps, 5 dishes, 120-character details | 2,768 | 3,230 |
+| 80 steps, 12 dishes, 120-character details | 5,203 | 5,938 |
+| 80 steps, 120-character titles, 1,000-character details | 13,618 | 14,183 |
+
+The largest sample (Halloween, 5 dishes, a 2 KB text) is expected near the second row.""",
+"""Sizes, measured in the spec session with Node's raw deflate on generated plans (payload, then plain
+JSON + deflate for comparison): 40 steps, 5 dishes, no detail 1,427 (1,828); with 120-character
+details 2,768 (3,230); 80 steps, 12 dishes, 120-character details 5,203 (5,938); 80 steps with
+120-character titles and 1,000-character details 13,618 (14,183). `recordings/` does not exist yet;
+the largest sample (Halloween, 5 dishes, 2 KB of text) is expected near 2,800, and T7.1 measures
+every sample and asserts it is under 8,000.""")
+open(p,'w').write(s)
+EOF
+grep -c "" design.md
+    614
+    exit 0
+
+Now the components table and copy table merges.
+
+[tool:execute] $ cd .kiro/specs/plan-ui && python3 - <<'EOF'
+p='design.md'; s=open(p).read()
+def rep(a,b):
+    global s
+    assert a in s, "MISSING: "+a[:80]
+    s=s.replace(a,b)
+rep("""| `ErrorBoundary` | `components/ErrorBoundary.tsx` | | catches render throws (R10.2) |
+| `Header` | `components/Header.tsx` | | brand link `#/menu`, `ThemeSwitch`, `StartOver` |
+| `ThemeSwitch` | `components/ThemeSwitch.tsx` | `theme` | `<select>` "Theme": System, Light, Dark → `theme/set` |
+| `StartOver` | `components/StartOver.tsx` | | local `confirming`; `start-over` |
+| `ConfirmInline` | `components/ConfirmInline.tsx` | | the second tap: text, confirm and cancel buttons, focus moves to it |""",
+"""| `ErrorBoundary`, `LiveNotice` | `components/<name>.tsx` | `notice` | catches render throws (R10.2); the one `aria-live="polite"` region |
+| `Header`, `ThemeSwitch`, `StartOver` | `components/<name>.tsx` | `theme` | brand link `#/menu`; `<select>` "Theme" → `theme/set`; "Start over" via `ConfirmInline` → `start-over` |
+| `ConfirmInline` | `components/ConfirmInline.tsx` | | every second tap: text, confirm and cancel buttons; focus moves to it, back on cancel |""")
+rep("""| `LiveNotice` | `components/LiveNotice.tsx` | `notice` | the one `aria-live="polite"` region |
+""","")
+rep("""| `Menu` | `screens/Menu.tsx` | `pendingLoad` | `ConfirmReplace`, `SampleList`, `RecipePaste`, `DinnerfilePaste` |""",
+"""| `Menu` | `screens/Menu.tsx` | `pendingLoad` | `ConfirmInline` for a pending load, `SampleList`, `RecipePaste`, `DinnerfilePaste` |""")
+rep("""| `Steps` | `screens/Steps.tsx` | `dinner`, `selectCheck` | `IssueSummary`, a `DishSection` per dish, "Add a dish", "Make the plan" → `plan/enter` |""",
+"""| `Steps` | `screens/Steps.tsx` | `dinner`, `selectCheck` | `IssueList` as summary, a `DishSection` per dish, "Add a dish", "Make the plan" → `plan/enter` |""")
+rep("""| `DishSection` | `components/DishSection.tsx` | | dish name, rename, remove, its steps, "Add a step" |
+| `StepCard` | `components/StepCard.tsx` | | summary, its issues, "Edit", "Remove step" with `ConfirmInline` |""",
+"""| `DishSection`, `StepCard` | `components/<name>.tsx` | | dish name, rename, remove, its issues, steps, "Add a step"; step summary, its issues, "Edit", "Remove step" |""")
+rep("""| `Stepper` | `components/Stepper.tsx` | | `role="group"` with label, "−", `<output>`, "+" |
+| `KitchenControls` | `components/KitchenControls.tsx` | `dinner.kitchen` | three Steppers → `kitchen/set` |""",
+"""| `KitchenControls`, `Stepper` | `components/<name>.tsx` | `dinner.kitchen` | three `Stepper`s (`role="group"`, label, "−", `<output>`, "+") → `kitchen/set` |""")
+rep("""| `WarningList` | `components/WarningList.tsx` | view | `COPY.holdWarning` per warning |
+| `MissingAppliance` | `components/MissingAppliance.tsx` | issues | per appliance: text, steps, "Add an oven"/"Add a burner", "Change the steps" |""",
+"""| `WarningList`, `MissingAppliance` | `components/<name>.tsx` | view; issues | `COPY.holdWarning` per warning; per appliance: text, steps, add button, "Change the steps" |""")
+rep("""| `ExportBar` | `components/ExportBar.tsx` | | "Dinnerfile", "Share link", "Print" (`window.print()`) with `aria-expanded` panels |
+| `DinnerfilePanel` | `components/DinnerfilePanel.tsx` | text | `<pre>`, "Copy", "Download" (Blob, `a[download=Dinnerfile]`), the make line |
+| `SharePanel` | `components/SharePanel.tsx` | link or too-long | read-only `<input>` "Link to this dinner", "Copy link" |""",
+"""| `ExportBar` | `components/ExportBar.tsx` | | "Dinnerfile", "Share link" (`aria-expanded` panels), "Print" (`window.print()`) |
+| `DinnerfilePanel`, `SharePanel` | `components/<name>.tsx` | text; link | `<pre>`, "Copy", "Download" (Blob, `a[download=Dinnerfile]`), make line; read-only `<input>`, "Copy link" or too-long copy |""")
+rep("""`reachable(state, SCREENS.cook !== null)`. Cooking-mode sets `cook` and adds its "Start cooking"
+button to `ExportBar`'s row through `SCREENS.cook !== null` (rendered here, routed by it).""",
+"""`reachable(state, SCREENS.cook !== null)`. When `SCREENS.cook` is set, `ExportBar` also shows a
+"Start cooking" link to `#/cook`; with this spec alone it never appears.""")
+# copy table merges
+rep("""| file too large | `This file is over 1 MB, so it is not a Dinnerfile from this app.` |
+| file unreadable | `This file could not be read. Paste its text instead.` |""",
+"""| file too large / unreadable | `This file is over 1 MB, so it is not a Dinnerfile from this app.` / `This file could not be read. Paste its text instead.` |""")
+rep("""| samples loading | `Loading the sample dinners.` (`aria-busy` on the list) |
+| samples failed | `The sample dinners could not be loaded. Check your connection and try again.` + `Try again` |""",
+"""| samples loading / failed | `Loading the sample dinners.` (`aria-busy`) / `The sample dinners could not be loaded. Check your connection and try again.` + `Try again` |""")
+rep("""| copied | `Copied the Dinnerfile.` / `Copied a link to this dinner. The plan is in the link itself; nothing is stored on the server.` |
+| copy failed | `Could not copy. The text is selected; copy it with your device's copy command.` |""",
+"""| copied / failed | `Copied the Dinnerfile.` / `Copied a link to this dinner. The plan is in the link itself; nothing is stored on the server.` / `Could not copy. The text is selected; copy it with your device's copy command.` |""")
+rep("""| saved unreadable | `Your saved dinner could not be read, so the app started fresh.` |
+| save failed | `This browser did not let the app save your dinner, so a reload will lose it.` |""",
+"""| stored state unreadable / not saved | `Your saved dinner could not be read, so the app started fresh.` / `This browser did not let the app save your dinner, so a reload will lose it.` |""")
+rep("""| share invalid plan | `This share link holds a plan with errors, so it could not be opened.` |
+| share loaded / replace | notice `Opened a shared dinner.`; replace as above |""",
+"""| share invalid plan / opened | `This share link holds a plan with errors, so it could not be opened.` / notice `Opened a shared dinner.` |""")
+rep("""Styles (`components.css`): rows `3rem` tall with lane labels in a `position: sticky; left: 0`
+column of `7rem`; the scroller `overflow-x: auto; max-width: 100%`, the page never wider than
+the viewport.""","""Styles (`components.css`): rows `3rem` tall, lane labels in a `position: sticky; left: 0` column of
+`7rem`, the scroller `overflow-x: auto; max-width: 100%`.""")
+open(p,'w').write(s)
+EOF
+grep -c "" design.md; sed -n '/^## Test plan/,$p' design.md | head -30
+    … (1 earlier lines not shown)
+    ## Test plan
+    
+    Unit tests run under `npm test` (node, no DOM, `TZ` set in `beforeAll` and checked with
+    `new Date(2026, 10, 11).getTimezoneOffset()` so a test cannot pass in the wrong zone). Properties
+    use `fcParams()`.
+    
+    | file | checks |
+    | ---- | ------ |
+    | `test/web/state/clock.test.ts` | every row of the clock table; `quarterFloor`/`Ceil` on and off a quarter; `minuteAt` floors negatives; `Asia/Kathmandu` (+5:45) ticks on local quarters |
+    | `test/web/state/clock.pbt.ts` | P-UI5: `minuteAt(c, clockAt(c, t)) === t`; `resolveServing` result `>= now - 4 h`, `<= now + 21 h`, and `toServeTime` of it equals the input outside DST gaps (London) |
+    | `test/web/state/store.test.ts` | each action row; no-op returns the same object; stale `requestId` ignored; cooking guard (a test-local state with `cook` cast through `unknown`); reachability table; `dinner/load` serving rules with the clock table's instants; `start-over` keeps theme |
+    | `test/web/state/plan-edit.test.ts` | slugify examples; id generation with collisions; remove with dependents on `SUNDAY_ROAST` (`chicken.roast`: `chicken.rest`, `gravy.roux` lose it); duplicates kept; limits; `waitingOn('chicken.prep')` = every chicken and gravy step after it; `stepOrder` with a cycle |
+    | `test/web/state/plan-edit.pbt.ts` | P-UI6: over `arbPlan()`, `removeStep`/`removeDish` give plans passing `PlanSchema` with no new `unknown_dependency`, other fields untouched; `addStep`/`addDish` ids match their patterns and are unique |
+    | `test/web/state/route.test.ts`, `persist.test.ts` | each hash form; each load failure and notice; `toPersisted` → `loadState` gives the persisted fields back |
+    | `test/web/state/api.test.ts` | fake `fetch`: samples ok, bad JSON, schema failure, network; parse 200, each code, `Retry-After` `120`, `0`, `abc`, missing; 200 with a bad body; abort |
+    | `test/web/state/dinnerfile-import.test.ts` | `SUNDAY_ROAST_DINNERFILE` → plan route; with a cycle edit → steps route; an `unsupported_line` file → line problems; bad kitchen line → notice |
+    | `test/web/state/share-link.test.ts` | the version 1 body of a two-step plan written out by hand; each decode error with a crafted payload (version 2, bad base64, deflate of 300 KB zeros, JSON with an index out of range, a cycle); each sample (from the fixture library) under 8,000 with its length in a comment |
+    | `test/web/state/share-link.pbt.ts` | P-UI1 round trip over `arbPlanAndKitchen()` × `arbServeTime()`; P-UI2 decode is total over strings and single-byte mutations of real payloads |
+    | `test/web/components/timeline-layout.test.ts` (+ `.pbt.ts`) | H1 table, midnight ticks, two overlapping rests → two `Hands-free n` rows; P-UI3: bars never overlap in a row, each step on exactly its lanes or one hands-free row, hands-free row count = peak overlap by an oracle loop over minutes, `leftPx`/`widthPx` by the formula |
+    | `test/web/components/plan-list-items.test.ts` (+ `.pbt.ts`) | H1 and H3 tables, midnight headings; P-UI4: every step once, (start, id) order, group minutes strictly increasing |
+    | `test/web/copy.test.ts` | every `COPY` string and copy-function output on sample arguments: no `!` except the warning mark, no `task`/`job`, no emoji, sentence case for headings and buttons, no `ANTHROPIC` |
+    
+    E2E (`e2e/`, both projects; `test.use({ locale: 'en-GB', timezoneId: 'Europe/London' })`;
+    `page.clock.install({ time: '2026-11-11T17:00:00Z' })` unless stated). `e2e/support.ts` has
+    `seedDinner(page, plan, kitchen, serve)` (writes a persisted state with `addInitScript`),
+    `fakeParse(page, status, body, headers?)`, `expectNoAxeViolations(page)` and
+    `expectNoPageScroll(page)` (`scrollWidth <= clientWidth` on the root). Hand-known plans come from
+    `test/support/fixtures.ts`.
+    
+    | spec | flows |
+    exit 0
+[tool:execute] $ cd .kiro/specs/plan-ui && python3 - <<'EOF'
+p='design.md'; s=open(p).read()
+def rep(a,b):
+    global s
+    assert a in s, "MISSING: "+a[:80]
+    s=s.replace(a,b)
+rep("""| `test/web/state/api.test.ts` | fake `fetch`: samples ok, bad JSON, schema failure, network; parse 200, each code, `Retry-After` `120`, `0`, `abc`, missing; 200 with a bad body; abort |
+| `test/web/state/dinnerfile-import.test.ts` | `SUNDAY_ROAST_DINNERFILE` → plan route; with a cycle edit → steps route; an `unsupported_line` file → line problems; bad kitchen line → notice |""",
+"""| `test/web/state/api.test.ts`, `dinnerfile-import.test.ts` | fake `fetch`: samples ok, bad JSON, schema failure, network; parse 200, each code, `Retry-After` `120`, `0`, `abc`, missing; 200 with a bad body; abort. `SUNDAY_ROAST_DINNERFILE` → route `plan`; with a cycle edit → `steps`; an `unsupported_line` file → line problems; a bad kitchen line → notice |""")
+rep("""Unit tests run under `npm test` (node, no DOM, `TZ` set in `beforeAll` and checked with
+`new Date(2026, 10, 11).getTimezoneOffset()` so a test cannot pass in the wrong zone). Properties
+use `fcParams()`.""","""Unit tests run under `npm test` (node, no DOM; `TZ` set in `beforeAll` and checked with
+`getTimezoneOffset()` so no test passes in the wrong zone). Properties use `fcParams()`.""")
+rep("""`waitingOn('chicken.prep')` = every chicken and gravy step after it""","""`waitingOn('chicken.prep')` = roast, rest, carve, roux, simmer, strain""")
+rep("""each sample (from the fixture library) under 8,000 with its length in a comment""","""each recorded sample (`recordings/*.json` through `validatePlan`) under 8,000, its length in a comment""")
+open(p,'w').write(s)
+EOF
+grep -c "" design.md; sed -n '/^| spec | flows/,$p' design.md
+    599
+    | spec | flows |
+    | ---- | ----- |
+    | `menu.spec.ts` | five sample titles in order; "Plan this dinner" on the first opens Plan in one tap with the h1 from `GET /api/samples`; samples request aborted → failure copy, "Try again" lists them |
+    | `paste.spec.ts` | counter `0 of 12,000`; 12,001 characters disables with the copy; success → Steps with `SUNDAY_ROAST`; each code of the messages table with its exact copy, `rate_limited` with `Retry-After: 120` → `Try again after 17:02`; abort → network copy; delayed route → busy copy, `5 s` after `runFor(5000)`, Cancel |
+    | `dinnerfile.spec.ts` | `SUNDAY_ROAST_DINNERFILE` with `# kitchen burners=4 ovens=1 cooks=1` and `# serve 19:30` added → Plan, `Start at 17:40`; a file with a `$(X)` line → its error, "Show line n" selects it; `setInputFiles` upload |
+    | `steps.spec.ts` | seeded `SUNDAY_ROAST`: minutes of `Roast the chicken` 75 → 85, Make the plan → `Start at 17:30`, `Takes 2 h`; remove it → confirmation names two steps, notice; seeded plan with an unknown prerequisite → summary, error beside the step, button disabled, unchecking enables it; add a dish |
+    | `plan.spec.ts` | seeded H1 at 19:30: list as the H1 table; burners 4 → 1 → roux `19:08–19:10`; ovens 1 → 0 → missing-appliance copy naming `Roast the chicken`, "Add an oven" restores; clock 17:41 → past note `Earliest serving time 19:35`, button sets it; serving `00:30` → `Serve at 00:30 tomorrow`; tap the Oven 1 bar → list item focused; `expectNoPageScroll` while the timeline scrolls |
+    | `share.spec.ts` | link from seeded H1 → new context, same clock → Plan, list text equal; damaged link → Menu with copy; link while another dinner is stored → replace prompt |
+    | `print.spec.ts` | `emulateMedia({ media: 'print' })`: visible exactly the h1, summary, plan list and Dinnerfile `pre`; header, nav, controls, timeline hidden; computed `color` `rgb(0, 0, 0)` on `rgb(255, 255, 255)` |
+    | `shell.spec.ts` | nav states per screen; reload keeps route and plan; Back/Forward; `#/plan` with no dinner → Menu; Start over needs two taps; theme Dark on a light system sets `data-theme` and `--color-bg` |
+    | `a11y.spec.ts` | light and dark: Menu, Menu with an error, Steps with an editor open and issues, Plan, Plan with each panel open, missing appliance; 200% zoom (`deviceScaleFactor` unchanged, CSS `zoom` via viewport 195 px wide) with `expectNoPageScroll` |
+    | `perf.spec.ts` | N2 on the phone project: sample tap to timeline visible < 1 s; stepper tap to list update < 200 ms (`performance.now` in the page) |
+    exit 0
+[tool:execute] $ cat > /tmp/plan-ui-measure/check.ts <<'EOF'
+import { schedule } from '~/hackathons-2026/kiroween/makedinner/src/core/index.ts';
+import { SUNDAY_ROAST, HOME_KITCHEN } from '~/hackathons-2026/kiroween/makedinner/test/support/fixtures.ts';
+const show = (label: string, plan: typeof SUNDAY_ROAST, k: typeof HOME_KITCHEN) => {
+  const r = schedule(plan, k);
+  if (!r.ok) { console.log(label, r.error.kind); return; }
+  console.log(label, 'span', r.value.spanMin, r.value.steps.map((s) => `${s.id}:${s.startMin}/${s.endMin}/B${s.lanes.burner}O${s.lanes.oven}C${s.lanes.cook}/sl${s.slackMin}`).join(' '));
+};
+show('H1', SUNDAY_ROAST, HOME_KITCHEN);
+show('H2', SUNDAY_ROAST, { ...HOME_KITCHEN, burners: 1 });
+show('roast85', { ...SUNDAY_ROAST, steps: SUNDAY_ROAST.steps.map((s) => (s.id === 'chicken.roast' ? { ...s, minutes: 85 } : s)) }, HOME_KITCHEN);
+show('ovens0', SUNDAY_ROAST, { ...HOME_KITCHEN, ovens: 0 });
+EOF
+npx tsx /tmp/plan-ui-measure/check.ts
+    H1 span 110 chicken.carve:-5/0/BnullOnullC1/sl0 chicken.prep:-110/-100/BnullOnullC1/sl0 chicken.rest:-25/-5/BnullOnullCnull/sl0 chicken.roast:-100/-25/BnullO1Cnull/sl0 gravy.roux:-20/-18/B1OnullC1/sl0 gravy.simmer:-18/-8/B1OnullCnull/sl0 gravy.strain:-8/-6/BnullOnullC1/sl0 greens.boil:-10/-6/B2OnullCnull/sl0 greens.shred:-100/-95/BnullOnullC1/sl75 greens.toss:-6/-5/BnullOnullC1/sl0
+    H2 span 110 chicken.carve:-5/0/BnullOnullC1/sl0 chicken.prep:-110/-100/BnullOnullC1/sl0 chicken.rest:-25/-5/BnullOnullCnull/sl0 chicken.roast:-100/-25/BnullO1Cnull/sl0 gravy.roux:-22/-20/B1OnullC1/sl0 gravy.simmer:-20/-10/B1OnullCnull/sl0 gravy.strain:-8/-6/BnullOnullC1/sl0 greens.boil:-10/-6/B1OnullCnull/sl0 greens.shred:-100/-95/BnullOnullC1/sl73 greens.toss:-6/-5/BnullOnullC1/sl0
+    roast85 span 120 chicken.carve:-5/0/BnullOnullC1/sl0 chicken.prep:-120/-110/BnullOnullC1/sl0 chicken.rest:-25/-5/BnullOnullCnull/sl0 chicken.roast:-110/-25/BnullO1Cnull/sl0 gravy.roux:-20/-18/B1OnullC1/sl0 gravy.simmer:-18/-8/B1OnullCnull/sl0 gravy.strain:-8/-6/BnullOnullC1/sl0 greens.boil:-10/-6/B2OnullCnull/sl0 greens.shred:-110/-105/BnullOnullC1/sl85 greens.toss:-6/-5/BnullOnullC1/sl0
+    ovens0 missing_appliance
+    exit 0
+[tool:edit] Replace in File .kiro/specs/plan-ui/design.md

@@ -1,4 +1,4 @@
-import type { Kitchen, Step } from './schema.js';
+import type { Kitchen, Plan, Step } from './schema.js';
 
 export type Resource = 'burner' | 'oven' | 'cook';
 export const RESOURCES: readonly Resource[] = ['burner', 'oven', 'cook'];
@@ -113,4 +113,29 @@ export function earliestFit(
     if (full === null) return start;
     start = full + 1;
   }
+}
+
+/** A step's interval on the axis: it is active in the minutes `startMin <= t < endMin`. */
+export interface Interval {
+  startMin: number;
+  endMin: number;
+}
+
+/**
+ * A timeline holding every step's resources over `[max(startMin, fromMin), endMin)`.
+ * `plan` must be canonical; a step with no interval in `intervals` holds nothing.
+ */
+export function timelineFrom(
+  plan: Plan,
+  cap: Capacity,
+  intervals: ReadonlyMap<string, Interval>,
+  fromMin: number,
+): Timeline {
+  const tl = createTimeline(cap);
+  for (const step of plan.steps) {
+    const interval = intervals.get(step.id);
+    if (interval === undefined) continue;
+    tl.add(resourcesOf(step), Math.max(interval.startMin, fromMin), interval.endMin);
+  }
+  return tl;
 }

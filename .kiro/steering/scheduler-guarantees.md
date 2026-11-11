@@ -57,6 +57,12 @@ in `src/core` (cooking mode calls `rebuild` from core) and have no network acces
   by `slack(s)` keeps G1 to G3 true; delaying by `slack(s) + 1` breaks at least one of them
   (an end after minute 0 breaks G3). `critical(s)` iff `slack(s) = 0`. Holds are not part of slack.
 
+- **G9 as late as possible.** Every step whose result does not keep sits at its latest valid
+  position: with everything else fixed, no delay `d >= 1` up to its deadline keeps G1 to G3
+  true. (Added by hand on 2026-11-11: the scheduler implementation session ran a mutation
+  check, removed the right-justify pass, and no property failed. This is the property that
+  pass exists to make true.)
+
 ## Algorithm note (reviewed by hand, 2026-11-11)
 
 Kiro's first draft resolved a conflict between the brief's prep-forward pass and G4.1 by never

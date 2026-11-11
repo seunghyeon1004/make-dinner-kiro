@@ -18,7 +18,7 @@ reported and need the user's decision, not a code change).
 
 ## T1. Types
 
-- [ ] T1.1 Example tests for the new schemas: `ProgressEntrySchema` (both states, unknown keys,
+- [x] T1.1 Example tests for the new schemas: `ProgressEntrySchema` (both states, unknown keys,
   non-integer minutes, `extraMin` −1 and 1441 rejected, 0 and 1440 accepted), `ProgressSchema`,
   `RebuiltStepSchema` and `RebuiltScheduleSchema` bounds at their edges (`startMin` −38400 and
   1440, `endMin` 1441 rejected), the refine (a step with `endMin < startMin`, an end after
@@ -28,7 +28,7 @@ reported and need the user's decision, not a code change).
   Files: `test/core/schema.test.ts`, `src/core/schema.ts` (stubs).
   Covers: RQ3.1, RQ3.2.
   Command: `npx vitest run --project examples test/core/schema.test.ts`
-- [ ] T1.2 Implement the schemas, `AXIS_MIN` export, `REBUILD_LIMITS` and the types until T1.1
+- [x] T1.2 Implement the schemas, `AXIS_MIN` export, `REBUILD_LIMITS` and the types until T1.1
   passes, changing no existing schema.
   Files: `src/core/schema.ts`.
   Covers: RQ3.1, RQ3.2.
@@ -36,7 +36,7 @@ reported and need the user's decision, not a code change).
 
 ## T2. Test support
 
-- [ ] T2.1 Add `H1_SCHEDULE`, `H3_SCHEDULE` and the progress fixtures of RB-a, RB-b, RB-b2, RB-c
+- [x] T2.1 Add `H1_SCHEDULE`, `H3_SCHEDULE` and the progress fixtures of RB-a, RB-b, RB-b2, RB-c
   and E1 to E8 exactly as in the design, each with its expected rebuild in a comment. Example
   test: the two schedules pass `ScheduleSchema` and their starts, ends and lanes equal the
   scheduler's H1 and H3 tables written out in the test; every progress fixture passes
@@ -44,7 +44,7 @@ reported and need the user's decision, not a code change).
   Files: `test/support/fixtures.ts`, `test/core/schema.test.ts`.
   Covers: RQ11.1.
   Command: `npx vitest run --project examples test/core/schema.test.ts`
-- [ ] T2.2 Example tests for the rebuild oracles against hand work: on RB-a, RB-b and E7 written
+- [x] T2.2 Example tests for the rebuild oracles against hand work: on RB-a, RB-b and E7 written
   out in the test, `oraclePinnedIntervals`, `oracleRebuildWaits`, `oracleRebuildHoldExceeded`
   and `oracleRebuildSlack` give the table values and `oracleForwardRepair` the forward-repair
   starts; RB-a to RB-c give no violation of any kind; the three hand-made broken rebuilds give
@@ -53,12 +53,12 @@ reported and need the user's decision, not a code change).
   Files: `test/meta/oracles.test.ts`, `test/support/oracles.ts` (stubs).
   Covers: RQ11.1.
   Command: `npx vitest run --project examples test/meta/oracles.test.ts`
-- [ ] T2.3 Implement the rebuild oracles with plain loops, importing from `src/core` only types
+- [x] T2.3 Implement the rebuild oracles with plain loops, importing from `src/core` only types
   and schemas, until T2.2 passes.
   Files: `test/support/oracles.ts`.
   Covers: RQ11.1.
   Command: `npx vitest run --project examples test/meta/oracles.test.ts`
-- [ ] T2.4 Example tests from `fc.sample` with a fixed seed: default `arbProgress` runs respect
+- [x] T2.4 Example tests from `fc.sample` with a fixed seed: default `arbProgress` runs respect
   precedence among pinned steps and have no capacity violation at `t >= now`
   (`oracleRebuildViolations` on the pinned steps alone); across 200 samples there is at least one
   early start, one done overrun, one running step with `extraMin > 0`, one overrun without taps,
@@ -68,7 +68,7 @@ reported and need the user's decision, not a code change).
   Files: `test/meta/arbitraries.test.ts`, `test/support/arbitraries.ts` (stubs).
   Covers: RQ11.1.
   Command: `npx vitest run --project examples test/meta/arbitraries.test.ts`
-- [ ] T2.5 Implement `arbScheduled`, `arbNow`, `arbProgress`, `followPlan` and `arbOnPlan` until
+- [x] T2.5 Implement `arbScheduled`, `arbNow`, `arbProgress`, `followPlan` and `arbOnPlan` until
   T2.4 passes, changing no existing generator.
   Files: `test/support/arbitraries.ts`.
   Covers: RQ11.1.
@@ -76,7 +76,7 @@ reported and need the user's decision, not a code change).
 
 ## T3. Forward repair and re-align
 
-- [ ] T3.1 Example tests: `timelineFrom` clips at `fromMin`; `forwardRepair` gives the
+- [x] T3.1 Example tests: `timelineFrom` clips at `fromMin`; `forwardRepair` gives the
   forward-repair starts of RB-a, RB-b, RB-b2, RB-c, E3 and E8 (ready order: boil before toss);
   `reAlign` on RB-a's and E3's forward-repair intervals gives their final starts and on RB-b's
   moves nothing.
@@ -84,7 +84,7 @@ reported and need the user's decision, not a code change).
   `src/core/passes/re-align.ts` (stubs).
   Covers: RQ2.2, RQ2.3, RQ4.1, RQ4.2, RQ6.1, RQ6.3.
   Command: `npx vitest run --project examples test/core/rebuild.test.ts`
-- [ ] T3.2 Implement `Interval`, `timelineFrom`, `forwardRepair` and `reAlign` with their bounds
+- [x] T3.2 Implement `Interval`, `timelineFrom`, `forwardRepair` and `reAlign` with their bounds
   (N1) until T3.1 passes.
   Files: `src/core/timeline.ts`, `src/core/passes/forward-repair.ts`, `src/core/passes/re-align.ts`.
   Covers: RQ4.1, RQ4.2, RQ6.1, RQ6.3, N1.
@@ -92,14 +92,14 @@ reported and need the user's decision, not a code change).
 
 ## T4. Lanes and readout
 
-- [ ] T4.1 Example tests: `assignRebuildLanes` on RB-a, RB-b, E6 and E7 gives the lanes in the
+- [x] T4.1 Example tests: `assignRebuildLanes` on RB-a, RB-b, E6 and E7 gives the lanes in the
   design (H1's lanes, boil burner 2, both oven steps lane 1); `rebuildReadout` gives the slack,
   wait and warning values of RB-a, RB-b, RB-b2, RB-c, E1, E2, E5, E5′ and E6, with the exact
   messages of RB-a.
   Files: `test/core/rebuild.test.ts`, `src/core/passes/lanes.ts`, `src/core/passes/readout.ts`.
   Covers: RQ7.1, RQ7.2, RQ8.1–RQ8.4.
   Command: `npx vitest run --project examples test/core/rebuild.test.ts`
-- [ ] T4.2 Implement `assignRebuildLanes` and `rebuildReadout` until T4.1 passes, changing no
+- [x] T4.2 Implement `assignRebuildLanes` and `rebuildReadout` until T4.1 passes, changing no
   scheduler pass.
   Files: `src/core/passes/lanes.ts`, `src/core/passes/readout.ts`.
   Covers: RQ7.1, RQ7.2, RQ8.1–RQ8.4.

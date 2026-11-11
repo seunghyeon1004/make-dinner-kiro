@@ -556,6 +556,7 @@ changes no run count or input). "Both sizes" means `arbPlanAndKitchen()` and
 | G7.1 same input | two calls deep-equal; the arguments equal deep copies taken before the call | R1.7 | `arbPlanAndKitchen()` |
 | G7.2 order-free | `schedule(arbShuffledPlan(p), k)` deep-equals `schedule(p, k)`; also for `arbBrokenPlan` inputs (equal `err`) | R8.3 | `arbPlanAndKitchen()`, graph-rule `arbBrokenPlan` cases |
 | G8 slack | for every step: `oracleValid` with the step delayed by `slackMin` is true, by `slackMin + 1` false; `slackMin === oracleSlack`; `critical === (slackMin === 0)` | R7.1, R7.2 | `arbPlanAndKitchen()` |
+| G9 as late as possible | for every step with `holdMin !== null`: `oracleLatestPosition` (every delay `1..deadline - end`, resources of the new minutes free) equals its current `startMin` | G9 (steering) | `arbPlanAndKitchen()`, both sizes |
 | P-SC1 errors | for each rule in `ERROR_CODES`, `schedule` on `arbBrokenPlan(rule)` is `err` with kind `missing_appliance` iff the rule is `missing_appliance`, else `invalid_plan`, and its issues equal the error issues of `validatePlan` (+ `checkKitchen`) | R1.2, R1.4 | `arbBrokenPlan` |
 | P-SC2 total | `schedule(fc.jsonValue() or arbPlanLikeValue(), fc.jsonValue() or arbKitchen())` never throws; invalid kitchens give `invalid_kitchen` when the plan is valid | R1.3, R1.6 | as stated |
 | P-SC3 passes | after each of passes 1, 2, 3: `oracleValid`; pass 2 moves only keeps steps, never later, never before `T0`; pass 3 moves only hot steps, never earlier | R4.2, R4.3, R5.1, R5.2, R8.2 | both sizes |

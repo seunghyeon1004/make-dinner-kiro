@@ -1,5 +1,18 @@
 import fc from 'fast-check';
-import type { Appliance, Dish, ErrorCode, Kitchen, Plan, Step } from '../../src/core/schema.js';
+import { schedule } from '../../src/core/schedule.js';
+import { AXIS_MIN } from '../../src/core/schema.js';
+import type {
+  Appliance,
+  Dish,
+  ErrorCode,
+  Kitchen,
+  Plan,
+  Progress,
+  ProgressEntry,
+  RebuiltSchedule,
+  Schedule,
+  Step,
+} from '../../src/core/schema.js';
 
 // Generators for tests (testing.md). They may be extended to cover more cases, never narrowed
 // to avoid a failing case.
@@ -802,4 +815,256 @@ export function arbBrokenPlan(rule: ErrorCode): fc.Arbitrary<BrokenCase> {
   return fc
     .tuple(arbEquippedKitchen, brokenFor(rule))
     .map(([kitchen, { input, target }]): BrokenCase => ({ rule, input, kitchen, target }));
+}
+
+// ---------------------------------------------------------------------------------------
+// Rebuild generators (rebuild spec): a schedule, the minute it is now, and what the cook did.
+
+/** A schedule `rebuild` accepts: a `schedule` output or a rebuilt one. */
+export type AnySchedule = Schedule | RebuiltSchedule;
+
+/** What the cook did and when: progress per step, and `now` on the axis. */
+export interface Run {
+  progress: Progress;
+  now: number;
+}
+
+export interface RunOpts {
+  /** Some steps are started before their prerequisites are done. */
+  outOfOrder?: boolean;
+  /** Resources are not checked: two steps may run on one unit. */
+  overCapacity?: boolean;
+  /** A rebuild that already happened: its facts stay, the cook goes on from there. */
+  base?: Run;
+}
+
+/** A valid plan and kitchen run through `schedule`; an error is a bug and throws. */
+export function arbScheduled(opts: Omit<PlanOpts, 'appliances'> = {}): fc.Arbitrary<Schedule> {
+  return arbPlanAndKitchen(opts).map(({ plan, kitchen }) => {
+    const result = schedule(plan, kitchen);
+    if (!result.ok) throw new Error(`arbScheduled: ${JSON.stringify(result.error)}`);
+    return result.value;
+  });
+}
+
+const REBUILD_MAX_MIN = 1440;
+const servingOf = (s: AnySchedule): number => ('servingMin' in s ? s.servingMin : 0);
+const clampMinute = (minute: number): number =>
+  Math.min(REBUILD_MAX_MIN, Math.max(AXIS_MIN, minute));
+
+/** `[earliest start - 10, serving + 30]`, a third of the draws on a start or an end of a step. */
+export function arbNow(s: AnySchedule): fc.Arbitrary<number> {
+  const low = clampMinute(Math.min(...s.steps.map((x) => x.startMin)) - 10);
+  const high = clampMinute(servingOf(s) + 30);
+  const edges = s.steps.flatMap((x) => [x.startMin, x.endMin]);
+  return fc.oneof(
+    { weight: 2, arbitrary: fc.integer({ min: low, max: high }) },
+    { weight: 1, arbitrary: fc.constantFrom(...edges).map(clampMinute) },
+  );
+}
+
+/** What one step does in a run, drawn up front. */
+interface RunDraw {
+  /** Minutes later (or earlier, if negative) than planned that the cook gets to it. */
+  startShift: number;
+  /** Minutes longer (or shorter) than `minutes` it really takes. */
+  durDelta: number;
+  /** The extra minutes the cook has tapped if the step is still running. */
+  taps: number;
+  /** The cook starts it without waiting for its prerequisites (only with `outOfOrder`). */
+  ignoresAfter: boolean;
+  /** For a step running in `base`: how much earlier (or later) than expected it really ends. */
+  endShift: number;
+}
+
+const TAP_CHOICES: readonly number[] = [0, 0, 0, 5, 10, 15, 20, 30];
+
+const arbRunDraw = (outOfOrder: boolean): fc.Arbitrary<RunDraw> =>
+  fc.record({
+    startShift: fc.integer({ min: -10, max: 15 }),
+    durDelta: fc.integer({ min: -5, max: 20 }),
+    taps: fc.constantFrom(...TAP_CHOICES),
+    ignoresAfter: outOfOrder
+      ? fc.integer({ min: 0, max: 4 }).map((n) => n === 0)
+      : fc.constant(false),
+    endShift: fc.integer({ min: -15, max: 30 }),
+  });
+
+interface Actual {
+  startMin: number;
+  endMin: number;
+}
+
+/**
+ * Plays the meal: base facts are placed first, then the other steps one at a time, the ready
+ * step with the smallest `(planned start + shift, id)` first, each at the first minute from
+ * which its resources are free for its real duration (every minute counts as free with
+ * `overCapacity`). Returns the real interval of every step.
+ */
+function playRun(s: AnySchedule, draws: readonly RunDraw[], opts: RunOpts): Map<string, Actual> {
+  const steps = [...s.plan.steps].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const drawOf = new Map<string, RunDraw>(steps.map((x, i) => [x.id, draws[i] as RunDraw]));
+  const kitchenOf: Record<'burner' | 'oven' | 'cook', number> = {
+    burner: s.kitchen.burners,
+    oven: s.kitchen.ovens,
+    cook: s.kitchen.cooks,
+  };
+  const used = new Map<string, number>();
+  const placed = new Map<string, Actual>();
+  const resourcesOfStep = (step: Step): ('burner' | 'oven' | 'cook')[] => {
+    const out: ('burner' | 'oven' | 'cook')[] = [];
+    if (step.appliance !== 'none') out.push(step.appliance);
+    if (step.handsOn) out.push('cook');
+    return out;
+  };
+  const place = (step: Step, startMin: number, endMin: number): void => {
+    placed.set(step.id, { startMin, endMin });
+    for (const r of resourcesOfStep(step)) {
+      for (let minute = startMin; minute < endMin; minute++) {
+        used.set(`${r}:${minute}`, (used.get(`${r}:${minute}`) ?? 0) + 1);
+      }
+    }
+  };
+  const plannedStart = (id: string): number => s.steps.find((x) => x.id === id)?.startMin ?? 0;
+  const floorMin = opts.base === undefined ? AXIS_MIN : opts.base.now;
+
+  // Facts of an earlier rebuild stay.
+  for (const step of steps) {
+    const fact = opts.base?.progress[step.id];
+    const draw = drawOf.get(step.id);
+    if (fact === undefined || draw === undefined || opts.base === undefined) continue;
+    if (fact.state === 'done') {
+      place(step, fact.startMin, fact.endMin);
+    } else {
+      const expected = Math.max(fact.startMin + step.minutes + fact.extraMin, opts.base.now);
+      place(step, fact.startMin, Math.max(opts.base.now, expected + draw.endShift));
+    }
+  }
+
+  const todo = steps.filter((x) => !placed.has(x.id));
+  while (todo.length > 0) {
+    let pick: Step | undefined;
+    let pickDesired = 0;
+    for (const step of todo) {
+      const draw = drawOf.get(step.id) as RunDraw;
+      if (!draw.ignoresAfter && !step.after.every((p) => placed.has(p))) continue;
+      const desired = Math.max(floorMin, plannedStart(step.id) + draw.startShift);
+      if (
+        pick === undefined ||
+        desired < pickDesired ||
+        (desired === pickDesired && step.id < pick.id)
+      ) {
+        pick = step;
+        pickDesired = desired;
+      }
+    }
+    if (pick === undefined) throw new Error('playRun: no ready step');
+    const draw = drawOf.get(pick.id) as RunDraw;
+    const duration = Math.max(0, pick.minutes + draw.durDelta);
+    let start = pickDesired;
+    if (!draw.ignoresAfter) {
+      for (const p of pick.after) start = Math.max(start, placed.get(p)?.endMin ?? start);
+    }
+    for (;;) {
+      if (opts.overCapacity === true || duration === 0) break;
+      let full: number | null = null;
+      for (let minute = start; minute < start + duration && full === null; minute++) {
+        for (const r of resourcesOfStep(pick)) {
+          if ((used.get(`${r}:${minute}`) ?? 0) + 1 > kitchenOf[r]) full = minute;
+        }
+      }
+      if (full === null) break;
+      start = full + 1;
+    }
+    place(pick, start, start + duration);
+    todo.splice(todo.indexOf(pick), 1);
+  }
+  return placed;
+}
+
+/**
+ * The cook's run as progress at `now`: a step that has not started is absent, one that ended
+ * is done at its real times, one under way is running with the minutes the cook tapped.
+ */
+function cutRun(
+  s: AnySchedule,
+  actual: ReadonlyMap<string, Actual>,
+  draws: readonly RunDraw[],
+  now: number,
+  base: Run | undefined,
+): Progress {
+  const steps = [...s.plan.steps].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const progress: Progress = {};
+  steps.forEach((step, i) => {
+    const real = actual.get(step.id);
+    const draw = draws[i] as RunDraw;
+    if (real === undefined || real.startMin > now) return;
+    if (real.endMin <= now) {
+      progress[step.id] = { state: 'done', startMin: real.startMin, endMin: real.endMin };
+      return;
+    }
+    const before = base?.progress[step.id];
+    const alreadyTapped = before?.state === 'running' ? before.extraMin : 0;
+    progress[step.id] = {
+      state: 'running',
+      startMin: real.startMin,
+      extraMin: Math.min(1440, alreadyTapped + draw.taps),
+    };
+  });
+  return progress;
+}
+
+/**
+ * Plays a meal on `s` and cuts it at a `now`: early and late starts, steps that take longer
+ * or shorter, running steps with or without tapped minutes. A run respects precedence and
+ * capacity unless `outOfOrder` or `overCapacity` say otherwise; with `base` the facts of an
+ * earlier rebuild stay and the meal goes on from its `now`.
+ */
+export function arbProgress(s: AnySchedule, opts: RunOpts = {}): fc.Arbitrary<Run> {
+  const n = s.plan.steps.length;
+  const arbDraws = fc.array(arbRunDraw(opts.outOfOrder === true), { minLength: n, maxLength: n });
+  const arbNowDraw =
+    opts.base === undefined
+      ? fc.tuple(fc.integer({ min: 0, max: 7 }), arbNow(s))
+      : fc.tuple(fc.constant(0), fc.integer({ min: 0, max: 90 }));
+  return fc.tuple(arbDraws, arbNowDraw).map(([draws, [pickNow, drawn]]): Run => {
+    const actual = playRun(s, draws, opts);
+    let now: number;
+    if (opts.base !== undefined) {
+      now = Math.min(REBUILD_MAX_MIN, opts.base.now + drawn);
+    } else if (pickNow === 6) {
+      now = clampMinute(Math.max(...[...actual.values()].map((x) => x.endMin)));
+    } else if (pickNow === 7) {
+      now = clampMinute(Math.min(...s.steps.map((x) => x.startMin)) - 1);
+    } else {
+      now = drawn;
+    }
+    return { progress: cutRun(s, actual, draws, now, opts.base), now };
+  });
+}
+
+/**
+ * The cook goes on exactly as `s` says up to `now`, on top of what `base` already knows: a
+ * pending step planned to start before `now` is done at its planned interval if that ends by
+ * `now`, else running with no extra minutes; a running step whose interval in `s` ends by
+ * `now` is done at it; everything else is kept.
+ */
+export function followPlan(s: AnySchedule, base: Progress, now: number): Progress {
+  const progress: Progress = { ...base };
+  for (const step of s.steps) {
+    const known: ProgressEntry | undefined = base[step.id];
+    if (known?.state === 'done') continue;
+    if (known === undefined && step.startMin >= now) continue;
+    if (step.endMin <= now) {
+      progress[step.id] = { state: 'done', startMin: step.startMin, endMin: step.endMin };
+    } else if (known === undefined) {
+      progress[step.id] = { state: 'running', startMin: step.startMin, extraMin: 0 };
+    }
+  }
+  return progress;
+}
+
+/** A cook who follows the schedule exactly up to some `now` (the premise of R4). */
+export function arbOnPlan(s: Schedule): fc.Arbitrary<Run> {
+  return arbNow(s).map((now): Run => ({ progress: followPlan(s, {}, now), now }));
 }

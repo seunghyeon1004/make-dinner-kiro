@@ -16,6 +16,7 @@ import {
   oracleCompletenessViolations,
   oracleHoldExceeded,
   oracleLaneViolations,
+  oracleLatestPosition,
   oracleLongestChain,
   oraclePrecedenceViolations,
   oracleSlack,
@@ -271,6 +272,23 @@ it(
       }),
       fcParams(),
     );
+  },
+  TIMEOUT_MS,
+);
+
+it(
+  'G9 as late as possible: no step whose result does not keep has a valid later position',
+  () => {
+    forBothSizes(({ plan, kitchen }, s) => {
+      const starts = startsOf(s.steps);
+      for (const step of plan.steps) {
+        if (step.holdMin === null) continue;
+        expect([step.id, oracleLatestPosition(plan, kitchen, starts, step.id)]).toEqual([
+          step.id,
+          starts[step.id],
+        ]);
+      }
+    });
   },
   TIMEOUT_MS,
 );
