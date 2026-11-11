@@ -227,20 +227,20 @@ design's copy tables give it, in the task that first shows it.
 
 ## T6. Paste recipes and import a Dinnerfile
 
-- [ ] T6.1 Example tests, then implementation, for `postParse` with a fake `fetch`: 200 with
+- [x] T6.1 Example tests, then implementation, for `postParse` with a fake `fetch`: 200 with
   `SUNDAY_ROAST`; every code of `tech.md` to its `ParseFailure` (`not_found`, `invalid_plan` and
   an unknown code to `unexpected`); `Retry-After` `120`, `0`, `abc` and absent; a 200 failing the
   schema; a throw; an abort gives `cancelled`; the request body and content type.
   Files: `test/web/state/api.test.ts`, `src/web/state/api.ts`.
   Covers: R2.3, R2.5–R2.7.
   Command: `npx vitest run --project examples test/web/state/api.test.ts && npm run typecheck`
-- [ ] T6.2 Example tests, then implementation, for `recipe-text/set`, `parse/start`,
+- [x] T6.2 Example tests, then implementation, for `recipe-text/set`, `parse/start`,
   `parse/done` (route `steps`, `DEFAULT_KITCHEN`, no serving, `recipeText` cleared), a stale
   `requestId` ignored, `parse/failed`, `parse/cancel`.
   Files: `test/web/state/store.test.ts`, `src/web/state/store.ts`.
   Covers: R2.4, R2.5, R2.8.
   Command: `npx vitest run --project examples test/web/state/store.test.ts && npm run typecheck`
-- [ ] T6.3 `RecipePaste` and the parse request in `effects.ts` (one `AbortController`). E2E
+- [x] T6.3 `RecipePaste` and the parse request in `effects.ts` (one `AbortController`). E2E
   first with `fakeParse`: counter `0 of 12,000` and its update; 12,001 characters disable the
   button with the copy; empty text disables it with `Paste at least one recipe.`; success opens
   Steps with `SUNDAY_ROAST`; each code of the design's messages table shows its exact copy,
@@ -251,7 +251,7 @@ design's copy tables give it, in the task that first shows it.
   `src/web/state/effects.ts`, `src/web/copy.ts`, `e2e/paste.spec.ts`.
   Covers: R2.1–R2.8, R10.1, R11.2.
   Command: `npx playwright test e2e/paste.spec.ts && npm run typecheck && npm run lint`
-- [ ] T6.4 Example tests, then implementation, for `readDinnerfile`: `SUNDAY_ROAST_DINNERFILE`
+- [x] T6.4 Example tests, then implementation, for `readDinnerfile`: `SUNDAY_ROAST_DINNERFILE`
   gives route `plan`, `DEFAULT_KITCHEN` and no serve; with `# kitchen burners=4 ovens=1 cooks=1`
   and `# serve 19:30` they come through; with `# kitchen burners=9 ovens=1 cooks=1` the default
   kitchen and the notice; a cycle edit gives route `steps`; a `$(X)` line gives one `line`
@@ -259,7 +259,7 @@ design's copy tables give it, in the task that first shows it.
   Files: `test/web/state/dinnerfile-import.test.ts`, `src/web/state/dinnerfile-import.ts`.
   Covers: R3.2–R3.5.
   Command: `npx vitest run --project examples test/web/state/dinnerfile-import.test.ts && npm run typecheck`
-- [ ] T6.5 `DinnerfilePaste`. E2E first: pasting `SUNDAY_ROAST_DINNERFILE` with the two lines
+- [x] T6.5 `DinnerfilePaste`. E2E first: pasting `SUNDAY_ROAST_DINNERFILE` with the two lines
   added opens Plan with `Start at 17:40`; a file with a `$(X)` line lists its error and "Show
   line n" selects exactly that line (`selectionStart`, `selectionEnd`); `setInputFiles` with the
   same text opens it; a 1 MB + 1 byte file shows the too-large copy; the text survives a reload.
@@ -270,7 +270,7 @@ design's copy tables give it, in the task that first shows it.
 
 ## T7. Export, share and print
 
-- [ ] T7.1 Example tests for `share-link.ts`: the version 1 body of a two-step, one-dish plan
+- [x] T7.1 Example tests for `share-link.ts`: the version 1 body of a two-step, one-dish plan
   written out by hand (before compression, through an exported-for-test `shareBody`, decided
   here); decode errors from crafted payloads (version 2, a `*` character, bad base64, deflate of
   300 KB of zeros, JSON with an index out of range, a cycle, a bad serve time); `encodeShare` on
@@ -279,12 +279,12 @@ design's copy tables give it, in the task that first shows it.
   Files: `test/web/state/share-link.test.ts`, `src/web/state/share-link.ts` (stubs).
   Covers: R8.3–R8.6.
   Command: `npx vitest run --project examples test/web/state/share-link.test.ts`
-- [ ] T7.2 Implement `share-link.ts` until T7.1 passes; add properties P-UI1 (round trip) and
+- [x] T7.2 Implement `share-link.ts` until T7.1 passes; add properties P-UI1 (round trip) and
   P-UI2 (decode total) with `fcParams()`.
   Files: `src/web/state/share-link.ts`, `test/web/state/share-link.pbt.ts`.
   Covers: R8.3–R8.6, R8.9.
   Command: `npx vitest run --project examples test/web/state/share-link.test.ts && npx vitest run --project props test/web/state/share-link.pbt.ts && npm run typecheck`
-- [ ] T7.3 Opening a share link: boot decoding in `effects.ts`, hash replacement, the replace
+- [x] T7.3 Opening a share link: boot decoding in `effects.ts`, hash replacement, the replace
   prompt. E2E first: a link made in a test from seeded H1 opens, in a new context with the same
   clock, the Plan screen with list text equal to the source page's; a link with one payload
   character changed opens Menu with the damaged-link copy and leaves the stored dinner; a version
@@ -293,7 +293,7 @@ design's copy tables give it, in the task that first shows it.
   `e2e/share.spec.ts`.
   Covers: R8.5, R8.6, R9.3.
   Command: `npx playwright test e2e/share.spec.ts && npm run typecheck && npm run lint`
-- [ ] T7.4 `ExportBar` and `DinnerfilePanel`. E2E first, seeded H1: "Dinnerfile" sets
+- [x] T7.4 `ExportBar` and `DinnerfilePanel`. E2E first, seeded H1: "Dinnerfile" sets
   `aria-expanded="true"` and the `<pre>` text equals `SUNDAY_ROAST_DINNERFILE` with the `# kitchen`
   and `# serve 19:30` lines; "Download" gives a file named `Dinnerfile` with the same text; "Copy"
   with clipboard permission shows the copied notice, without it the copy-failed copy and the text
@@ -302,7 +302,7 @@ design's copy tables give it, in the task that first shows it.
   `src/web/copy.ts`, `e2e/export.spec.ts`.
   Covers: R8.1, R8.2, R8.7.
   Command: `npx playwright test e2e/export.spec.ts && npm run typecheck && npm run lint`
-- [ ] T7.5 `SharePanel`, link computed by an effect when the dinner changes. E2E first: "Share
+- [x] T7.5 `SharePanel`, link computed by an effect when the dinner changes. E2E first: "Share
   link" fills `Link to this dinner` with a URL starting `<baseURL>/#/share/1.` and shows the copied
   notice; a seeded 80-step plan with 1,000-character details shows the too-long copy with its
   length and no link.
@@ -310,7 +310,7 @@ design's copy tables give it, in the task that first shows it.
   `src/web/copy.ts`, `e2e/share.spec.ts`.
   Covers: R8.3, R8.4, R8.7.
   Command: `npx playwright test e2e/share.spec.ts && npm run typecheck && npm run lint`
-- [ ] T7.6 `print.css` and the print-only Dinnerfile. E2E first: under
+- [x] T7.6 `print.css` and the print-only Dinnerfile. E2E first: under
   `emulateMedia({ media: 'print' })` exactly the `<h1>`, summary, plan list and Dinnerfile `<pre>`
   are visible; header, nav, controls, timeline and panels are hidden; text is `rgb(0, 0, 0)` on
   `rgb(255, 255, 255)` in both colour schemes.

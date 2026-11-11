@@ -4,6 +4,7 @@ import { hasErrors } from '../../core/index.js';
 import { DishNameForm } from '../components/DishNameForm.js';
 import { DishSection } from '../components/DishSection.js';
 import { IssueSummary } from '../components/IssueList.js';
+import { UnplacedSteps } from '../components/UnplacedSteps.js';
 import { placeIssues } from '../components/issue-placement.js';
 import {
   COPY,
@@ -86,6 +87,14 @@ export function Steps(): VNode {
           onEdit={setEditing}
         />
       ))}
+      <UnplacedSteps
+        plan={plan}
+        order={order}
+        placement={placement}
+        editing={editing}
+        readOnly={cooking}
+        onEdit={setEditing}
+      />
       {!cooking && (
         <section class="add-dish" aria-label={MANAGE_COPY.addDish}>
           {adding ? (

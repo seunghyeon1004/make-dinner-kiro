@@ -103,6 +103,13 @@ export type PlanUiAction =
   | { type: 'notice/set'; text: string }
   | { type: 'notice/clear' }
   | { type: 'start-over' }
+  | { type: 'recipe-text/set'; text: string }
+  | { type: 'dinnerfile-text/set'; text: string }
+  | { type: 'parse/start'; requestId: number; nowMs: number }
+  | { type: 'parse/done'; requestId: number; plan: Plan; nowMs: number }
+  | { type: 'parse/failed'; requestId: number; failure: ParseFailure }
+  | { type: 'parse/cancel' }
+  | { type: 'import/failed'; heading: string; problems: ImportProblem[] }
   | { type: 'samples/loading' }
   | { type: 'samples/loaded'; samples: SampleItem[] }
   | { type: 'samples/failed' }
@@ -216,6 +223,45 @@ export function reduce(state: AppState, action: Action): AppState {
       return state.notice === null ? state : { ...state, notice: null };
     case 'start-over':
       return { ...initialState(), theme: state.theme, samples: state.samples };
+    case 'recipe-text/set':
+      return { ...state, recipeText: action.text, parse: { status: 'idle' } };
+    case 'dinnerfile-text/set':
+      return { ...state, dinnerfileText: action.text, import: { status: 'idle' } };
+    case 'parse/start':
+      return {
+        ...state,
+        parse: { status: 'busy', requestId: action.requestId, startedAtMs: action.nowMs },
+      };
+    case 'parse/done': {
+      if (state.parse.status !== 'busy' || state.parse.requestId !== action.requestId) return state;
+      const load: DinnerLoad = {
+        plan: action.plan,
+        source: { kind: 'recipes' },
+        kitchen: DEFAULT_KITCHEN,
+        serve: null,
+        suggested: null,
+        route: 'steps',
+        notice: null,
+      };
+      return reduce(
+        { ...state, parse: { status: 'idle' } },
+        {
+          type: 'dinner/load',
+          load,
+          nowMs: action.nowMs,
+        },
+      );
+    }
+    case 'parse/failed':
+      if (state.parse.status !== 'busy' || state.parse.requestId !== action.requestId) return state;
+      return { ...state, parse: { status: 'failed', failure: action.failure } };
+    case 'parse/cancel':
+      return state.parse.status === 'idle' ? state : { ...state, parse: { status: 'idle' } };
+    case 'import/failed':
+      return {
+        ...state,
+        import: { status: 'failed', heading: action.heading, problems: action.problems },
+      };
     case 'samples/loading':
       return { ...state, samples: { status: 'loading' } };
     case 'samples/loaded':

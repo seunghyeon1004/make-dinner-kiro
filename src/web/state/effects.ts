@@ -1,8 +1,11 @@
-import { fetchSamples } from './api.js';
+import { fetchSamples, postParse } from './api.js';
 import type { FetchLike } from './api.js';
 import { parseHash, hashOf } from './route.js';
+import { systemClock } from './clock.js';
+import type { Clock } from './clock.js';
 import { saveState } from './persist.js';
-import { COPY } from '../copy.js';
+import { COPY, PASTE_COPY, SHARE_COPY } from '../copy.js';
+import { decodeShare } from './share-link.js';
 import type { AppState, Store } from './store.js';
 
 /** Everything the effects touch outside the store, so they can run against fakes. */
@@ -11,6 +14,7 @@ export interface EffectsEnv {
   window: Pick<Window, 'location' | 'history' | 'addEventListener' | 'removeEventListener'>;
   document: Document;
   fetch: FetchLike;
+  clock?: Clock;
   /** True once cooking-mode has registered its screen (`SCREENS.cook !== null`). */
   cookRegistered: boolean;
 }
@@ -44,10 +48,54 @@ export function startEffects(store: Store, env: EffectsEnv): () => void {
     const desired = hashOf(store.getState().route);
     if (win.location.hash !== desired) win.history.replaceState(null, '', desired);
   };
-  replaceHash();
+
+  // A share link is decoded in the browser (R8.5). The fragment is replaced before the state
+  // changes, so the app's own hash sync adds no history entry and the payload leaves the bar.
+  const clock = env.clock ?? systemClock;
+  const openShare = async (version: number, payload: string): Promise<void> => {
+    const decoded = await decodeShare(version, payload);
+    if (!decoded.ok) {
+      const { error } = decoded;
+      const text =
+        error.kind === 'unknown_version'
+          ? SHARE_COPY.version
+          : error.kind === 'invalid_plan'
+            ? SHARE_COPY.invalidPlan
+            : SHARE_COPY.damaged;
+      win.history.replaceState(null, '', hashOf('menu'));
+      store.dispatch({ type: 'navigate', route: 'menu', cookRegistered: env.cookRegistered });
+      store.dispatch({ type: 'notice/set', text });
+      return;
+    }
+    // With a dinner stored the cook is asked on the Menu; without one the shared plan opens.
+    const asks = store.getState().dinner !== null;
+    win.history.replaceState(null, '', hashOf(asks ? 'menu' : 'plan'));
+    if (asks) {
+      store.dispatch({ type: 'navigate', route: 'menu', cookRegistered: env.cookRegistered });
+    }
+    store.dispatch({
+      type: 'dinner/load',
+      nowMs: clock.nowMs(),
+      load: {
+        plan: decoded.value.plan,
+        source: { kind: 'share' },
+        kitchen: decoded.value.kitchen,
+        serve: decoded.value.serve,
+        suggested: null,
+        route: 'plan',
+        notice: SHARE_COPY.opened,
+      },
+    });
+  };
+  if (target.kind === 'share') void openShare(target.version, target.payload);
+  else replaceHash();
 
   const onHashChange = (): void => {
     const next = parseHash(win.location.hash);
+    if (next.kind === 'share') {
+      void openShare(next.version, next.payload);
+      return;
+    }
     if (next.kind === 'route' && next.route !== store.getState().route) {
       store.dispatch({ type: 'navigate', route: next.route, cookRegistered: env.cookRegistered });
     }
@@ -102,12 +150,43 @@ export function startEffects(store: Store, env: EffectsEnv): () => void {
     });
   };
 
+  // Parse: one request at a time, owned here. The store says `busy`; leaving `busy` aborts it.
+  let inFlight: { requestId: number; controller: AbortController } | null = null;
+  const syncParse = (): void => {
+    const { parse, recipeText } = store.getState();
+    if (parse.status !== 'busy') {
+      if (inFlight !== null) {
+        const stopped = inFlight;
+        inFlight = null;
+        stopped.controller.abort();
+      }
+      return;
+    }
+    if (inFlight?.requestId === parse.requestId) return;
+    inFlight?.controller.abort();
+    const { requestId } = parse;
+    const controller = new AbortController();
+    inFlight = { requestId, controller };
+    void postParse(env.fetch, recipeText, controller.signal, clock.nowMs()).then((result) => {
+      if (inFlight?.requestId === requestId) inFlight = null;
+      if (result.ok) {
+        store.dispatch({ type: 'parse/done', requestId, plan: result.value, nowMs: clock.nowMs() });
+      } else if (result.error.kind === 'cancelled') {
+        store.dispatch({ type: 'notice/set', text: PASTE_COPY.stopped });
+      } else {
+        store.dispatch({ type: 'parse/failed', requestId, failure: result.error });
+      }
+    });
+  };
+
   const unsubscribe = store.subscribe(() => {
     apply();
     fetchSamplesWhenWanted();
+    syncParse();
   });
   apply();
   fetchSamplesWhenWanted();
+  syncParse();
   // Boot save: the state that was loaded (or just fresh) is written once.
   saveState(env.storage, store.getState());
 

@@ -1,0 +1,36 @@
+/* Print layout (plan-ui R8.8): the title, the summary, the plan list and the Dinnerfile text,
+   black on white. Everything marked .no-print is hidden; .print-only shows only here. */
+.print-only {
+  display: none;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block;
+  }
+
+  *,
+  *::before,
+  *::after {
+    background: #fff !important;
+    color: #000 !important;
+    border-color: #000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  .plan-group {
+    break-inside: avoid;
+  }
+
+  .dinnerfile-print {
+    margin: 1rem 0 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: 1rem;
+  }
+}

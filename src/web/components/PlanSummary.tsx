@@ -23,7 +23,7 @@ export function PlanSummary(props: { view: ScheduleView; chosenMs: number; nowMs
       <p>{serveAt(formatClock(servingMs), formatDay(servingMs, nowMs))}</p>
       <p>{takes(formatDuration(view.spanMin))}</p>
       {startMs < nowMs && (
-        <div class="summary__past">
+        <div class="summary__past no-print">
           <p>{pastStart(formatDuration(view.spanMin), formatClock(earliestMs))}</p>
           <button
             type="button"

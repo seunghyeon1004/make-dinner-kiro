@@ -9,3 +9,5 @@ Look at what you build: after each screen works, take a screenshot at 390x844 in
 Working rule: when the design is ambiguous or slightly off in a way that touches no requirement's intent, choose the reading closest to the requirement and to ui.md, write it under "Decisions I made", and continue. Stop and ask only when a requirement would have to change.
 
 Do not commit. Do not start `npm run dev`. End with the report kiro-conduct.md asks for, with the real counts from `npm test`, `npm run test:props`, `npm run typecheck`, `npm run lint`, `npx prettier --check .`, `npm run build` and `npm run test:e2e`.
+
+Answer to last session's open question: yes, the Steps screen gets a fallback section "Steps with no dish" for steps whose `dish` matches no dish, so an imported Dinnerfile with an `unknown_dish` error can be fixed; add it with its test as part of T6 (it is reachable through Dinnerfile import).

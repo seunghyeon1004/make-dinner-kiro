@@ -2,6 +2,7 @@ import { render } from 'preact';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/components.css';
+import './styles/print.css';
 import { App, SCREENS } from './app.js';
 import { StoreProvider } from './state/hooks.js';
 import { startEffects } from './state/effects.js';

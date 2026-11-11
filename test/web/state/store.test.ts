@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Plan } from '../../../src/core/index.js';
 import {
   createStore,
+  DEFAULT_KITCHEN,
   initialState,
   reachable,
   reduce,
@@ -571,5 +572,108 @@ describe('the cooking guard (R4.12)', () => {
   ];
   it.each(actions.map((a) => [a.type, a] as const))('%s is a no-op while cooking', (_, action) => {
     expect(reduce(cooking, action)).toBe(cooking);
+  });
+});
+
+describe('recipe text and parse/* (T6.2)', () => {
+  const NOW = Date.parse('2026-11-11T17:00:00Z');
+  const busy = (): AppState => ({
+    ...initialState(),
+    recipeText: 'Roast it.',
+    parse: { status: 'busy', requestId: 7, startedAtMs: NOW },
+  });
+
+  it('R2.8 recipe-text/set and dinnerfile-text/set store the text and reset parse and import', () => {
+    const failed: AppState = {
+      ...initialState(),
+      parse: { status: 'failed', failure: { kind: 'network' } },
+      import: { status: 'failed', heading: 'h', problems: [] },
+    };
+    const next = reduce(reduce(failed, { type: 'recipe-text/set', text: 'abc' }), {
+      type: 'dinnerfile-text/set',
+      text: 'def',
+    });
+    expect(next.recipeText).toBe('abc');
+    expect(next.dinnerfileText).toBe('def');
+    expect(next.parse).toEqual({ status: 'idle' });
+    expect(next.import).toEqual({ status: 'idle' });
+  });
+
+  it('R2.4 parse/start sets busy with the request id and start time', () => {
+    const next = reduce(initialState(), { type: 'parse/start', requestId: 7, nowMs: NOW });
+    expect(next.parse).toEqual({ status: 'busy', requestId: 7, startedAtMs: NOW });
+  });
+
+  it('R2.5 parse/done opens Steps with the default kitchen, no serving time, text cleared', () => {
+    const next = reduce(busy(), {
+      type: 'parse/done',
+      requestId: 7,
+      plan: SUNDAY_ROAST,
+      nowMs: NOW,
+    });
+    expect(next.route).toBe('steps');
+    expect(next.dinner).toEqual({
+      plan: SUNDAY_ROAST,
+      source: { kind: 'recipes' },
+      kitchen: DEFAULT_KITCHEN,
+      serving: null,
+    });
+    expect(next.recipeText).toBe('');
+    expect(next.parse).toEqual({ status: 'idle' });
+  });
+
+  it('R2.5 parse/done while a dinner exists waits for Replace and keeps the text', () => {
+    const state = { ...busy(), dinner: dinnerOf(BROKEN_ROAST) };
+    const next = reduce(state, {
+      type: 'parse/done',
+      requestId: 7,
+      plan: SUNDAY_ROAST,
+      nowMs: NOW,
+    });
+    expect(next.dinner).toBe(state.dinner);
+    expect(next.pendingLoad?.source).toEqual({ kind: 'recipes' });
+    expect(next.parse).toEqual({ status: 'idle' });
+    expect(next.recipeText).toBe('Roast it.');
+  });
+
+  it('R2.5 a stale requestId is ignored by parse/done and parse/failed', () => {
+    const state = busy();
+    expect(
+      reduce(state, { type: 'parse/done', requestId: 6, plan: SUNDAY_ROAST, nowMs: NOW }),
+    ).toBe(state);
+    expect(
+      reduce(state, { type: 'parse/failed', requestId: 6, failure: { kind: 'network' } }),
+    ).toBe(state);
+  });
+
+  it('R2.6 parse/failed keeps the text and records the failure', () => {
+    const next = reduce(busy(), {
+      type: 'parse/failed',
+      requestId: 7,
+      failure: { kind: 'rate_limited', retryAtMs: NOW + 120_000 },
+    });
+    expect(next.parse).toEqual({
+      status: 'failed',
+      failure: { kind: 'rate_limited', retryAtMs: NOW + 120_000 },
+    });
+    expect(next.recipeText).toBe('Roast it.');
+  });
+
+  it('R2.4 parse/cancel returns to idle; a later parse/done for that request is ignored', () => {
+    const cancelled = reduce(busy(), { type: 'parse/cancel' });
+    expect(cancelled.parse).toEqual({ status: 'idle' });
+    expect(
+      reduce(cancelled, { type: 'parse/done', requestId: 7, plan: SUNDAY_ROAST, nowMs: NOW }),
+    ).toBe(cancelled);
+  });
+
+  it('R3.3 import/failed records the heading and problems', () => {
+    const problems = [{ kind: 'line', line: 3, message: 'Line 3: nope' }] as const;
+    const next = reduce(initialState(), {
+      type: 'import/failed',
+      heading: 'H',
+      problems: [...problems],
+    });
+    expect(next.import).toEqual({ status: 'failed', heading: 'H', problems: [...problems] });
   });
 });

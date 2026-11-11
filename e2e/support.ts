@@ -58,3 +58,28 @@ export async function expectNoPageScroll(page: Page): Promise<void> {
   }));
   expect(widths.scroll).toBeLessThanOrEqual(widths.client);
 }
+
+/** Answers `POST /api/parse` with a fixed status, JSON body and headers; the request body is returned. */
+export async function fakeParse(
+  page: Page,
+  status: number,
+  body: unknown,
+  headers: Record<string, string> = {},
+): Promise<{ lastBody: () => unknown }> {
+  let last: unknown = null;
+  await page.route('**/api/parse', async (route) => {
+    last = route.request().postDataJSON();
+    await route.fulfill({
+      status,
+      contentType: 'application/json',
+      headers,
+      body: JSON.stringify(body),
+    });
+  });
+  return { lastBody: () => last };
+}
+
+/** A parse error body as the server sends it (tech.md). */
+export function parseError(code: string): { error: { code: string; message: string } } {
+  return { error: { code, message: 'Plain English from the server.' } };
+}

@@ -59,3 +59,10 @@ export function useNow(clock: Clock, everyMs: number): number {
   }, [clock, everyMs]);
   return now;
 }
+
+let lastRequestId = 0;
+/** A fresh id for a parse request, so a late answer to an old request can be ignored. */
+export function newRequestId(): number {
+  lastRequestId += 1;
+  return lastRequestId;
+}

@@ -128,6 +128,11 @@ export function StepEditor(props: Props): VNode | null {
           value={step.dish}
           onChange={(event) => update({ dish: event.currentTarget.value })}
         >
+          {!props.plan.dishes.some((dish) => dish.id === step.dish) && (
+            <option value={step.dish} disabled>
+              {step.dish} {EDITOR_COPY.notADish}
+            </option>
+          )}
           {props.plan.dishes.map((dish) => (
             <option key={dish.id} value={dish.id}>
               {dish.name}

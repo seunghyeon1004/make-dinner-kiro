@@ -1,4 +1,5 @@
-import { formatDuration } from './state/clock.js';
+import type { ParseFailure } from './state/api.js';
+import { formatClock, formatDuration } from './state/clock.js';
 
 /**
  * Every string the cook sees (plan-ui R10.3). Pure: no DOM, no clock.
@@ -209,6 +210,8 @@ export const STEPS_COPY = {
   keeps: 'Keeps',
   waitsForNothing: 'Waits for nothing',
   cookingStarted: 'Cooking has started, so the plan cannot be changed here.',
+  noDishHeading: 'Steps with no dish',
+  noDishHint: 'These steps name a dish that is not in the plan. Edit each one to pick a dish.',
 } as const;
 
 function count(n: number, one: string, many: string): string {
@@ -265,6 +268,7 @@ export const EDITOR_COPY = {
   alreadyWaits: '(already waits for this step)',
   notAStep: '(not a step in this plan)',
   thisStep: '(this step)',
+  notADish: '(not a dish in this plan)',
   titleError: 'Give the step a title.',
   minutesError: 'Enter whole minutes from 1 to 480.',
   holdError: 'Enter whole minutes from 0 to 480.',
@@ -305,4 +309,115 @@ export function removeDishAsk(
   dependentTitles: readonly string[],
 ): string {
   return `Remove the dish ${name} and its ${count(stepCount, 'step', 'steps')}?${dependentsSentence(dependentTitles)}`;
+}
+
+// Paste recipes (T6.3)
+export const PASTE_COPY = {
+  heading: 'Your own recipes',
+  label: 'Recipe text',
+  hint: 'Paste the recipes for every dish of one dinner.',
+  submit: 'Read recipes',
+  cancel: 'Cancel',
+  empty: 'Paste at least one recipe.',
+  tooLong: 'The recipe text is over 12,000 characters. Shorten it or split it into two dinners.',
+  busy: 'Reading your recipes. This can take up to a minute.',
+  stopped: 'Stopped reading the recipes.',
+} as const;
+
+/** The counter under the recipe text: "9 of 12,000 characters"; `n` is in code points. */
+export function recipeCounter(n: number): string {
+  return `${n.toLocaleString('en-US')} of 12,000 characters`;
+}
+
+/** The elapsed seconds of a running request: "5 s". */
+export function elapsedSeconds(seconds: number): string {
+  return `${seconds} s`;
+}
+
+const MEANWHILE = 'Meanwhile, sample dinners and Dinnerfiles still work.';
+const INSTEAD = 'Use a sample dinner or open a Dinnerfile instead.';
+
+/** What happened and what to do next, for a parse that gave no plan (R2.6, R2.7). */
+export function parseFailureText(failure: ParseFailure, locale?: string): string {
+  switch (failure.kind) {
+    case 'bad_request':
+      return 'The recipe reader could not read this request. Reload the page and try again.';
+    case 'input_too_long':
+      return PASTE_COPY.tooLong;
+    case 'rate_limited': {
+      const when =
+        failure.retryAtMs === null
+          ? 'Try again in a few minutes.'
+          : `Try again after ${formatClock(failure.retryAtMs, locale)}.`;
+      return `You have read several recipes in a short time. ${when} ${MEANWHILE}`;
+    }
+    case 'daily_cap_reached': {
+      const when =
+        failure.retryAtMs === null ? 'tomorrow' : `at ${formatClock(failure.retryAtMs, locale)}`;
+      return `The recipe reader has reached its limit for today. It starts again ${when}. ${INSTEAD}`;
+    }
+    case 'model_unavailable':
+      return `The recipe reader is not available on this server right now. ${INSTEAD}`;
+    case 'model_refused':
+      return 'The recipe reader declined to read this text. Check that it is a recipe, or use a sample dinner.';
+    case 'model_output_invalid':
+      return 'The recipe reader returned steps this app cannot use. Try again, or paste fewer dishes at a time.';
+    case 'network':
+      return 'The server could not be reached. Check your connection and try again. Sample dinners you have opened and Dinnerfiles work offline.';
+    case 'internal':
+    case 'unexpected':
+      return 'Something went wrong on the server. Try again, or use a sample dinner or a Dinnerfile.';
+  }
+}
+
+// Dinnerfile import (T6.4, T6.5)
+export const DINNERFILE_COPY = {
+  heading: 'A Dinnerfile',
+  label: 'Dinnerfile text',
+  open: 'Open Dinnerfile',
+  fileLabel: 'Open a Dinnerfile from this device',
+  unreadable: 'This Dinnerfile could not be read. Fix these lines and open it again.',
+  invalidPlan: 'This Dinnerfile was read, but its plan is not valid:',
+  kitchenLineIgnored:
+    'The kitchen line in the Dinnerfile is not valid, so the usual kitchen is used: 4 burners, 1 oven, 1 cook.',
+  fileTooLarge: 'This file is over 1 MB, so it is not a Dinnerfile from this app.',
+  fileUnreadable: 'This file could not be read. Paste its text instead.',
+  empty: 'Paste a Dinnerfile or open one from this device.',
+} as const;
+
+/** The button beside a line problem: "Show line 57". */
+export function showLine(line: number): string {
+  return `Show line ${line}`;
+}
+
+// Share links (T7.3)
+export const SHARE_COPY = {
+  opened: 'Opened a shared dinner.',
+  damaged:
+    'This share link is damaged or incomplete, so it could not be opened. Ask for the link again, or open a Dinnerfile.',
+  version: 'This share link was made by a newer version of Make Dinner and cannot be opened here.',
+  invalidPlan: 'This share link holds a plan with errors, so it could not be opened.',
+} as const;
+
+// Export (T7.4)
+export const EXPORT_COPY = {
+  heading: 'Take the plan with you',
+  dinnerfile: 'Dinnerfile',
+  shareLink: 'Share link',
+  print: 'Print',
+  copy: 'Copy',
+  download: 'Download',
+  copyLink: 'Copy link',
+  linkLabel: 'Link to this dinner',
+  makeLine:
+    'Run make -n -f Dinnerfile dinner to see GNU Make print the steps in an order that works.',
+  copiedDinnerfile: 'Copied the Dinnerfile.',
+  copiedLink:
+    'Copied a link to this dinner. The plan is in the link itself; nothing is stored on the server.',
+  copyFailed: "Could not copy. The text is selected; copy it with your device's copy command.",
+} as const;
+
+/** The share panel when the link would be over the limit (R8.4); `length` counts the whole URL. */
+export function shareTooLong(length: number): string {
+  return `This plan is too long for a link (${length.toLocaleString('en-US')} characters; the limit is 8,000). Share the Dinnerfile instead.`;
 }

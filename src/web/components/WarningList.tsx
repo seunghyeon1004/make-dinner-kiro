@@ -16,7 +16,7 @@ function firstUserTitle(view: ScheduleView, stepId: string): string | null {
 export function WarningList(props: { view: ScheduleView }): VNode {
   const { view } = props;
   return (
-    <section aria-labelledby="warnings-heading">
+    <section aria-labelledby="warnings-heading" class="no-print">
       <h2 id="warnings-heading">{COPY.warningsHeading}</h2>
       {view.warnings.length === 0 ? (
         <p>{COPY.noWarnings}</p>

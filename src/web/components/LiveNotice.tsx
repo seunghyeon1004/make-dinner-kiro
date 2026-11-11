@@ -5,7 +5,7 @@ import { useAppState } from '../state/hooks.js';
 export function LiveNotice(): VNode {
   const notice = useAppState((state) => state.notice);
   return (
-    <div class="live-notice" role="status" aria-live="polite">
+    <div class="live-notice no-print" role="status" aria-live="polite">
       {notice}
     </div>
   );
