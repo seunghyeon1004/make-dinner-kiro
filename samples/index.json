@@ -1,0 +1,42 @@
+[
+  {
+    "id": "sunday-roast",
+    "title": "Sunday roast",
+    "blurb": "Roast chicken with crisp potatoes, pan gravy and buttered greens, the classic where everything wants the oven at once.",
+    "dishes": ["Roast chicken with lemon and thyme", "Crispy roast potatoes", "Pan gravy", "Buttered greens"],
+    "kitchen": { "burners": 4, "ovens": 2, "cooks": 1 },
+    "servingTime": "13:30"
+  },
+  {
+    "id": "halloween-party",
+    "title": "Halloween dinner party",
+    "blurb": "Pumpkin soup in mugs, sticky blood-orange drumsticks, black rice, witch-finger breadsticks and caramel apples for six.",
+    "dishes": ["Pumpkin soup in mugs", "Sticky blood-orange drumsticks", "Midnight rice", "Witch-finger breadsticks", "Caramel apples"],
+    "kitchen": { "burners": 4, "ovens": 2, "cooks": 2 },
+    "servingTime": "19:30"
+  },
+  {
+    "id": "weeknight-curry",
+    "title": "Weeknight curry",
+    "blurb": "Chickpea and spinach curry with basmati rice, cucumber raita and pan-cooked flatbreads.",
+    "dishes": ["Chickpea and spinach curry", "Basmati rice", "Cucumber raita", "Quick flatbreads"],
+    "kitchen": { "burners": 4, "ovens": 1, "cooks": 1 },
+    "servingTime": "19:00"
+  },
+  {
+    "id": "vegetarian-feast",
+    "title": "Vegetarian feast",
+    "blurb": "Mushroom Wellington with maple roast carrots, garlic mash, onion gravy and green beans with almonds.",
+    "dishes": ["Mushroom Wellington", "Maple roast carrots", "Garlic mash", "Onion gravy", "Green beans with almonds"],
+    "kitchen": { "burners": 4, "ovens": 2, "cooks": 2 },
+    "servingTime": "19:00"
+  },
+  {
+    "id": "korean-table",
+    "title": "Korean home dinner",
+    "blurb": "Steamed rice, soybean paste stew, bulgogi, seasoned spinach and pan-fried tofu, all on the table at once.",
+    "dishes": ["Steamed rice (bap)", "Doenjang-jjigae (soybean paste stew)", "Bulgogi", "Sigeumchi-namul (seasoned spinach)", "Dubu-buchim (pan-fried tofu)"],
+    "kitchen": { "burners": 4, "ovens": 1, "cooks": 1 },
+    "servingTime": "19:00"
+  }
+]

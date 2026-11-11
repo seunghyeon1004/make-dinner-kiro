@@ -1,0 +1,15 @@
+{
+  "sampleId": "tiny-salad",
+  "textSha256": "bfa43cdb7952384cde4e1ececc569692f4cbada28598cee2363c2a7eb0fa5b4e",
+  "model": "hand-made-not-a-recording",
+  "recordedAt": "2026-11-11T00:00:00.000Z",
+  "raw": {
+    "title": "Tiny salad",
+    "dishes": [{ "id": "salad", "name": "Green salad" }],
+    "steps": [
+      { "id": "salad.wash", "dish": "salad", "title": "Wash and dry the leaves", "minutes": 5, "appliance": "none", "handsOn": true, "after": [], "holdMin": null },
+      { "id": "salad.dressing", "dish": "salad", "title": "Whisk the dressing", "minutes": 2, "appliance": "none", "handsOn": true, "after": [], "holdMin": null },
+      { "id": "salad.toss", "dish": "salad", "title": "Toss the salad", "minutes": 1, "appliance": "none", "handsOn": true, "after": ["salad.wash", "salad.dressing"], "holdMin": 5 }
+    ]
+  }
+}

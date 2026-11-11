@@ -1,0 +1,4 @@
+[
+  { "id": "tiny-roast", "title": "Tiny roast", "blurb": "A hand-made test sample, not a real recording.", "dishes": ["Roast chicken", "Peas"], "kitchen": { "burners": 1, "ovens": 1, "cooks": 1 }, "servingTime": "13:00" },
+  { "id": "tiny-salad", "title": "Tiny salad", "blurb": "A second hand-made test sample, with no appliances.", "dishes": ["Green salad"], "kitchen": { "burners": 0, "ovens": 0, "cooks": 1 }, "servingTime": "19:00" }
+]

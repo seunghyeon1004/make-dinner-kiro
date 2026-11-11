@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { createApp } from '../../src/server/app.js';
-import { fakeLogger } from '../support/fakes.js';
+import { makeTestApp } from '../support/server.js';
 
 function makeApp() {
-  return createApp({ publicDir: '/nonexistent-public-dir', logger: fakeLogger().logger });
+  return makeTestApp().app;
 }
 
 describe('GET /api/health (tech.md, Deploy: health check)', () => {

@@ -2,15 +2,15 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createApp } from '../../src/server/app.js';
-import { fakeLogger } from '../support/fakes.js';
+import type { Hono } from 'hono';
+import { makeTestApp } from '../support/server.js';
 
 const INDEX_HTML = '<!doctype html><title>shell</title>';
 const ASSET_JS = 'console.log("asset");';
 const OUTSIDE_TEXT = 'outside the public directory';
 
 let root = '';
-let app: ReturnType<typeof createApp>;
+let app: Hono;
 
 beforeAll(() => {
   root = mkdtempSync(join(tmpdir(), 'make-dinner-static-'));
@@ -19,7 +19,7 @@ beforeAll(() => {
   writeFileSync(join(publicDir, 'index.html'), INDEX_HTML);
   writeFileSync(join(publicDir, 'assets', 'main.js'), ASSET_JS);
   writeFileSync(join(root, 'outside.txt'), OUTSIDE_TEXT);
-  app = createApp({ publicDir, logger: fakeLogger().logger });
+  app = makeTestApp({ publicDir }).app;
 });
 
 afterAll(() => {

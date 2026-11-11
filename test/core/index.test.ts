@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as core from '../../src/core/index.js';
+import * as api from '../../src/core/api.js';
 import * as dinnerfile from '../../src/core/dinnerfile.js';
 import * as graph from '../../src/core/graph.js';
 import * as normalise from '../../src/core/normalise.js';
@@ -60,6 +61,15 @@ const VALUES = {
   fromDinnerfile: [dinnerfile.fromDinnerfile, 'function'],
   SERVE_TIME_PATTERN: [schema.SERVE_TIME_PATTERN, 'object'],
   ServeTimeSchema: [schema.ServeTimeSchema, 'object'],
+  // The recipe-reader review (Q5): the response schemas shared with the web code.
+  RECIPE_TEXT_MAX: [api.RECIPE_TEXT_MAX, 'number'],
+  API_ERROR_CODES: [api.API_ERROR_CODES, 'object'],
+  ApiErrorSchema: [api.ApiErrorSchema, 'object'],
+  SampleEntrySchema: [api.SampleEntrySchema, 'object'],
+  SampleItemSchema: [api.SampleItemSchema, 'object'],
+  SamplesResponseSchema: [api.SamplesResponseSchema, 'object'],
+  ParseRequestSchema: [api.ParseRequestSchema, 'object'],
+  ParseResponseSchema: [api.ParseResponseSchema, 'object'],
 } as const;
 
 describe('N4 the public surface of src/core/index.ts', () => {
@@ -108,6 +118,12 @@ describe('N4 the public surface of src/core/index.ts', () => {
     expectTypeOf<core.DinnerfileError>().toEqualTypeOf<dinnerfile.DinnerfileError>();
     expectTypeOf<core.DinnerfileErrorCode>().toEqualTypeOf<dinnerfile.DinnerfileErrorCode>();
     expectTypeOf<core.MetadataKeyword>().toEqualTypeOf<dinnerfile.MetadataKeyword>();
+    expectTypeOf<core.ApiErrorCode>().toEqualTypeOf<api.ApiErrorCode>();
+    expectTypeOf<core.SampleEntry>().toEqualTypeOf<api.SampleEntry>();
+    expectTypeOf<core.SampleItem>().toEqualTypeOf<api.SampleItem>();
+    expectTypeOf<core.SamplesResponse>().toEqualTypeOf<api.SamplesResponse>();
+    expectTypeOf<core.ParseRequest>().toEqualTypeOf<api.ParseRequest>();
+    expectTypeOf<core.ParseResponse>().toEqualTypeOf<api.ParseResponse>();
     expectTypeOf<core.Result<number, string>>().toEqualTypeOf<result.Result<number, string>>();
   });
 

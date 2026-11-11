@@ -1,0 +1,188 @@
+{
+  "sampleId": "weeknight-curry",
+  "textSha256": "6c9098492b8bdabef9d538271ab1bec568f1bdc4cd168a83c5356d5df944a082",
+  "model": "claude-opus-5-5",
+  "recordedAt": "2026-11-11T07:29:31.023Z",
+  "raw": {
+    "title": "Chickpea and spinach curry with rice, raita and flatbreads",
+    "dishes": [
+      {
+        "id": "curry",
+        "name": "Chickpea and spinach curry"
+      },
+      {
+        "id": "rice",
+        "name": "Basmati rice"
+      },
+      {
+        "id": "raita",
+        "name": "Cucumber raita"
+      },
+      {
+        "id": "flatbreads",
+        "name": "Quick flatbreads"
+      }
+    ],
+    "steps": [
+      {
+        "id": "curry.chop",
+        "dish": "curry",
+        "title": "Chop the onion, garlic and ginger",
+        "detail": "1 onion, 3 cloves garlic, a thumb of ginger",
+        "minutes": 6,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [],
+        "holdMin": null
+      },
+      {
+        "id": "curry.fry-onion",
+        "dish": "curry",
+        "title": "Fry the onion until golden",
+        "detail": "In oil, stirring",
+        "minutes": 8,
+        "appliance": "burner",
+        "handsOn": true,
+        "after": [
+          "curry.chop"
+        ],
+        "holdMin": 5
+      },
+      {
+        "id": "curry.fry-spices",
+        "dish": "curry",
+        "title": "Fry the garlic, ginger and curry powder",
+        "detail": "2 tbsp curry powder",
+        "minutes": 1,
+        "appliance": "burner",
+        "handsOn": true,
+        "after": [
+          "curry.fry-onion"
+        ],
+        "holdMin": 0
+      },
+      {
+        "id": "curry.simmer",
+        "dish": "curry",
+        "title": "Simmer with the chickpeas and tomatoes",
+        "detail": "2 tins chickpeas, 1 tin tomatoes, lid off, stir once or twice",
+        "minutes": 20,
+        "appliance": "burner",
+        "handsOn": false,
+        "after": [
+          "curry.fry-spices"
+        ],
+        "holdMin": 15
+      },
+      {
+        "id": "curry.spinach",
+        "dish": "curry",
+        "title": "Stir in the spinach until wilted",
+        "detail": "200 g spinach. Holds on low heat for 20 minutes.",
+        "minutes": 2,
+        "appliance": "burner",
+        "handsOn": true,
+        "after": [
+          "curry.simmer"
+        ],
+        "holdMin": 20
+      },
+      {
+        "id": "rice.rinse",
+        "dish": "rice",
+        "title": "Rinse the rice",
+        "detail": "300 g rice, until the water runs clear",
+        "minutes": 3,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [],
+        "holdMin": null
+      },
+      {
+        "id": "rice.cook",
+        "dish": "rice",
+        "title": "Boil the rice, then cook covered on lowest heat",
+        "detail": "450 ml water, bring to the boil, lid on, lowest heat 12 minutes",
+        "minutes": 12,
+        "appliance": "burner",
+        "handsOn": false,
+        "after": [
+          "rice.rinse"
+        ],
+        "holdMin": 0
+      },
+      {
+        "id": "rice.stand",
+        "dish": "rice",
+        "title": "Leave covered off the heat, then fluff",
+        "detail": "Stays hot under the lid for 15 minutes.",
+        "minutes": 10,
+        "appliance": "none",
+        "handsOn": false,
+        "after": [
+          "rice.cook"
+        ],
+        "holdMin": 15
+      },
+      {
+        "id": "raita.make",
+        "dish": "raita",
+        "title": "Make the raita",
+        "detail": "Grate half a cucumber, squeeze out the water, stir into 250 g yoghurt with chopped mint and a pinch of salt. Keeps in the fridge.",
+        "minutes": 5,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [],
+        "holdMin": null
+      },
+      {
+        "id": "flatbreads.dough",
+        "dish": "flatbreads",
+        "title": "Mix the dough",
+        "detail": "250 g self-raising flour, 250 g yoghurt, pinch of salt",
+        "minutes": 5,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [],
+        "holdMin": null
+      },
+      {
+        "id": "flatbreads.rest",
+        "dish": "flatbreads",
+        "title": "Rest the dough",
+        "minutes": 15,
+        "appliance": "none",
+        "handsOn": false,
+        "after": [
+          "flatbreads.dough"
+        ],
+        "holdMin": null
+      },
+      {
+        "id": "flatbreads.roll",
+        "dish": "flatbreads",
+        "title": "Divide into 6 and roll out thin",
+        "minutes": 6,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [
+          "flatbreads.rest"
+        ],
+        "holdMin": null
+      },
+      {
+        "id": "flatbreads.cook",
+        "dish": "flatbreads",
+        "title": "Cook the flatbreads in a dry hot pan in batches",
+        "detail": "About 2 minutes a side, very hot dry frying pan. Eat within 10 minutes.",
+        "minutes": 12,
+        "appliance": "burner",
+        "handsOn": true,
+        "after": [
+          "flatbreads.roll"
+        ],
+        "holdMin": 10
+      }
+    ]
+  }
+}

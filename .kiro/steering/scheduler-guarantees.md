@@ -21,7 +21,11 @@ in `src/core` (cooking mode calls `rebuild` from core) and have no network acces
   A step is active at minute `t` when `start(s) <= t < end(s)`.
 - `succ(s)`: steps listing `s` in `after`. Terminal: `succ(s)` is empty.
 - `wait(s)` for finite `holdMin`: terminal: `0 - end(s)`; otherwise
-  `max(start(u) for u in succ(s)) - end(s)` (latest user, decided here).
+  `min(start(u) for u in succ(s)) - end(s)`: the result stops waiting when its first user
+  starts. (Changed by hand on 2026-11-11 from "latest user": on the first recorded sample the
+  roast, hold 0, feeds both "rest" at once and the gravy two minutes later, and the old rule
+  warned that the roast was waiting. With the first user, a hot step's wait is exactly the gap
+  right-justify closes, `deadline(s) - end(s)`.)
 - `span = 0 - min(start(s))`. `chain` = the largest sum of `minutes` along any dependency path.
 - Oracle: an independent recomputation in `test/support/oracles.ts`, never imported from `src/`.
 

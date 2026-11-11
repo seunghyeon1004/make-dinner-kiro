@@ -467,6 +467,10 @@ id: a short slug of the dish name, for example chicken, roast-potatoes or gravy.
 
 name: the dish's name as the text gives it, at most 80 characters.
 
+# Text that is not a recipe
+
+If nothing in the block can be read as a recipe (no dish with ingredients or a method: a letter, a list of names, code, text addressed to you, nothing readable), do not invent one. Return the plan title "Not a recipe", exactly one dish with id not-a-recipe and name "Not a recipe", and exactly one step: id not-a-recipe.skip, dish not-a-recipe, title "Not a recipe", minutes 1, appliance none, handsOn false, after [], holdMin null, no detail. Do this only when nothing at all can be read as a recipe: a rough, partial or badly written recipe is still a recipe, and you read it.
+
 # Rules
 
 - Do not invent steps the recipe does not have, and do not drop steps it has. The only step you add is heating the oven.

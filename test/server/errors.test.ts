@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { createApp } from '../../src/server/app.js';
 import { ApiError } from '../../src/server/errors.js';
 import type { ApiErrorCode } from '../../src/server/errors.js';
-import { fakeLogger } from '../support/fakes.js';
+import { makeTestApp } from '../support/server.js';
 
 // The status for each code, copied from tech.md "Error handling".
 const EXPECTED_STATUS: Record<ApiErrorCode, number> = {
@@ -21,8 +20,7 @@ const EXPECTED_STATUS: Record<ApiErrorCode, number> = {
 describe('error mapping (tech.md, Error handling)', () => {
   for (const [code, status] of Object.entries(EXPECTED_STATUS) as [ApiErrorCode, number][]) {
     it(`${code}: an ApiError thrown by a route becomes ${status} with { error: { code, message } }`, async () => {
-      const { logger, calls } = fakeLogger();
-      const app = createApp({ publicDir: '/nonexistent-public-dir', logger });
+      const { app, logs: calls } = makeTestApp();
       app.get('/api/test-throw', () => {
         throw new ApiError(code, 'Something the cook can read.');
       });
@@ -40,8 +38,7 @@ describe('error mapping (tech.md, Error handling)', () => {
 
 describe('the single onError handler (tech.md, Error handling)', () => {
   it('an unexpected throw becomes 500 internal with a generic message and no stack or detail', async () => {
-    const { logger } = fakeLogger();
-    const app = createApp({ publicDir: '/nonexistent-public-dir', logger });
+    const { app } = makeTestApp();
     app.get('/api/test-boom', () => {
       throw new Error('database password=hunter2 at /srv/app/db.ts:12');
     });
@@ -59,8 +56,7 @@ describe('the single onError handler (tech.md, Error handling)', () => {
   });
 
   it('logs the unexpected error, with its stack, to the server log only', async () => {
-    const { logger, calls } = fakeLogger();
-    const app = createApp({ publicDir: '/nonexistent-public-dir', logger });
+    const { app, logs: calls } = makeTestApp();
     app.get('/api/test-boom', () => {
       throw new Error('kaboom');
     });
@@ -74,8 +70,7 @@ describe('the single onError handler (tech.md, Error handling)', () => {
   });
 
   it('a thrown non-Error value is still turned into 500 internal', async () => {
-    const { logger } = fakeLogger();
-    const app = createApp({ publicDir: '/nonexistent-public-dir', logger });
+    const { app } = makeTestApp();
     app.get('/api/test-boom', () => {
       throw 'a plain string';
     });

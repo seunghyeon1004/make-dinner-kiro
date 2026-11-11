@@ -1596,3 +1596,215 @@ export function arbBreakingEdit(plan: Plan): fc.Arbitrary<BreakingCase> {
       return { text: lines.join('\n'), code, line: at === null ? null : at + 1, edit };
     });
 }
+
+// ---------------------------------------------------------------------------------------
+// recipe-reader (limits, client keys, prompt, recorded match)
+
+const SECOND_MS = 1_000;
+const DAY_MS = 86_400_000;
+
+export interface LimiterRun {
+  limit: number;
+  windowSec: number;
+  maxClients: number;
+  startMs: number;
+  events: Array<{ dtMs: number; client: string }>;
+}
+
+/** Calls to the rate limiter: time never goes back, and the edges of the window are hit. */
+export function arbLimiterRun(): fc.Arbitrary<LimiterRun> {
+  return fc
+    .record({
+      limit: fc.integer({ min: 1, max: 6 }),
+      windowSec: fc.integer({ min: 1, max: 1200 }),
+      maxClients: fc.oneof(fc.constant(10_000), fc.integer({ min: 1, max: 4 })),
+      startMs: fc.integer({ min: 0, max: 2_000_000_000_000 }),
+    })
+    .chain((base) => {
+      const windowMs = base.windowSec * SECOND_MS;
+      const dtMs = fc.oneof(
+        fc.constant(0),
+        fc.integer({ min: 1, max: 999 }),
+        fc.integer({ min: 1000, max: 2 * windowMs }),
+        fc.constantFrom(windowMs - 1, windowMs, windowMs + 1),
+      );
+      const event = fc.record({ dtMs, client: fc.constantFrom('a', 'b', 'c', 'd', 'e', 'f') });
+      return fc.array(event, { maxLength: 120 }).map((events) => ({ ...base, events }));
+    });
+}
+
+export interface CapRun {
+  cap: number;
+  startMs: number;
+  events: Array<{ dtMs: number }>;
+}
+
+/** Calls to the daily cap: anywhere in 2020 to 2035, or within 5 s before a UTC midnight. */
+export function arbCapRun(): fc.Arbitrary<CapRun> {
+  const start = fc.oneof(
+    fc.integer({ min: Date.UTC(2020, 0, 1), max: Date.UTC(2035, 11, 31) }),
+    fc
+      .tuple(
+        fc.integer({ min: Date.UTC(2020, 0, 1) / DAY_MS, max: Date.UTC(2035, 11, 31) / DAY_MS }),
+        fc.integer({ min: 0, max: 5_000 }),
+      )
+      .map(([day, before]) => (Math.floor(day) + 1) * DAY_MS - before),
+  );
+  const dtMs = fc.oneof(
+    fc.constant(0),
+    fc.integer({ min: 1, max: 60_000 }),
+    fc.constantFrom(DAY_MS - 1, DAY_MS, DAY_MS + 1),
+    fc.integer({ min: 1, max: 3 * DAY_MS }),
+  );
+  return fc.record({
+    cap: fc.integer({ min: 1, max: 10 }),
+    startMs: start,
+    events: fc.array(fc.record({ dtMs }), { maxLength: 150 }),
+  });
+}
+
+const hex4 = (value: number, upper: boolean, pad: boolean): string => {
+  const text = value.toString(16);
+  const cased = upper ? text.toUpperCase() : text;
+  return pad ? cased.padStart(4, '0') : cased;
+};
+
+/** IPv4, full and compressed IPv6, IPv4-mapped IPv6 in either case; IPv6 with or without a zone. */
+export function arbIpAddress(): fc.Arbitrary<string> {
+  const octet = fc.integer({ min: 0, max: 255 });
+  const ipv4 = fc.tuple(octet, octet, octet, octet).map((o) => o.join('.'));
+  const hextet = fc.integer({ min: 0, max: 0xffff });
+  const style = fc.record({ upper: fc.boolean(), pad: fc.boolean() });
+  const zone = fc.constantFrom('', '', '%eth0', '%1');
+  const full = fc
+    .tuple(fc.array(hextet, { minLength: 8, maxLength: 8 }), style, zone)
+    .map(([parts, s, z]) => parts.map((p) => hex4(p, s.upper, s.pad)).join(':') + z);
+  const compressed = fc
+    .tuple(
+      fc.array(fc.integer({ min: 1, max: 0xffff }), { maxLength: 4 }),
+      fc.array(fc.integer({ min: 1, max: 0xffff }), { maxLength: 3 }),
+      style,
+      zone,
+    )
+    .map(([head, tail, s, z]) => {
+      const h = head.map((p) => hex4(p, s.upper, s.pad)).join(':');
+      const t = tail.map((p) => hex4(p, s.upper, s.pad)).join(':');
+      return `${h}::${t}${z}`;
+    });
+  const mapped = fc
+    .tuple(ipv4, fc.constantFrom('::ffff:', '::FFFF:', '::Ffff:'))
+    .map(([v4, prefix]) => prefix + v4);
+  return fc.oneof(
+    { weight: 3, arbitrary: ipv4 },
+    { weight: 2, arbitrary: full },
+    { weight: 2, arbitrary: compressed },
+    { weight: 1, arbitrary: mapped },
+  );
+}
+
+/** An `X-Forwarded-For` header (or none) and a TCP peer (or none). */
+export function arbForwardedFor(): fc.Arbitrary<{
+  header: string | undefined;
+  peer: string | undefined;
+}> {
+  const withPort = (ip: string, port: number, bracket: boolean): string => {
+    const isV6 = ip.includes(':');
+    if (isV6) return bracket ? `[${ip}]:${port}` : `[${ip}]`;
+    return bracket ? `${ip}:${port}` : ip;
+  };
+  const entry = fc.oneof(
+    { weight: 4, arbitrary: arbIpAddress() },
+    {
+      weight: 3,
+      arbitrary: fc
+        .tuple(arbIpAddress(), fc.integer({ min: 1, max: 65535 }), fc.boolean())
+        .map(([ip, port, bracket]) => withPort(ip, port, bracket)),
+    },
+    {
+      weight: 2,
+      arbitrary: fc.constantFrom(
+        '',
+        ' ',
+        'unknown',
+        'garbage',
+        '999.1.1.1',
+        '1.2.3',
+        '[::1',
+        'for=1.2.3.4',
+      ),
+    },
+    { weight: 1, arbitrary: fc.string({ maxLength: 12 }).map((s) => s.replaceAll(',', ';')) },
+  );
+  const header = fc.oneof(
+    fc.constant(undefined),
+    fc.array(entry, { minLength: 1, maxLength: 4 }).map((entries) => entries.join(', ')),
+    fc.array(entry, { minLength: 1, maxLength: 4 }).map((entries) => entries.join(',')),
+  );
+  const peer = fc.oneof(fc.constant(undefined), arbIpAddress(), fc.constantFrom('', 'nonsense'));
+  return fc.record({ header, peer });
+}
+
+const TAGS = [
+  '<recipes>',
+  '</recipes>',
+  '< /RECIPES >',
+  '<recipes >',
+  '</ Recipes>',
+  '<  RECIPES  >',
+  '< / recipes >',
+];
+
+/** `arbRecipeText()` with recipes tags, in several spellings, inserted at random positions. */
+export function arbTagInjectedText(): fc.Arbitrary<string> {
+  return fc
+    .tuple(
+      arbRecipeText(),
+      fc.array(fc.tuple(fc.constantFrom(...TAGS), fc.nat(1000)), { minLength: 1, maxLength: 5 }),
+    )
+    .map(([text, tags]) => {
+      let out = text;
+      for (const [tag, pick] of tags) {
+        const at = out.length === 0 ? 0 : pick % (out.length + 1);
+        out = out.slice(0, at) + tag + out.slice(at);
+      }
+      return out;
+    });
+}
+
+/**
+ * Changes that `normaliseRecipeText` undoes: line endings to CRLF or CR, spaces and tabs at
+ * line ends, extra blank lines where the text already has one, white space before and after,
+ * NFD on some lines. `text` is already normalised.
+ */
+export function arbPerturbedText(text: string): fc.Arbitrary<string> {
+  const lines = text.split('\n');
+  const perLine = fc.array(
+    fc.record({
+      trailing: fc.constantFrom('', ' ', '\t', '  \t '),
+      decompose: fc.boolean(),
+      extraBlank: fc.oneof(fc.constant(0), fc.integer({ min: 1, max: 3 })),
+      blankFill: fc.constantFrom('', ' ', '\t'),
+    }),
+    { minLength: lines.length, maxLength: lines.length },
+  );
+  return fc
+    .tuple(
+      perLine,
+      fc.constantFrom('\r\n', '\r', '\n'),
+      fc.constantFrom('', ' ', '\n', ' \t\n\n'),
+      fc.constantFrom('', ' ', '\n', '\n \t'),
+    )
+    .map(([marks, eol, before, after]) => {
+      const out: string[] = [];
+      lines.forEach((line, i) => {
+        const mark = marks[i];
+        const shown = mark?.decompose === true ? line.normalize('NFD') : line;
+        out.push(shown + (line === '' ? (mark?.blankFill ?? '') : (mark?.trailing ?? '')));
+        // Only where the text already has a blank line may more blank lines be added.
+        if (line === '' && mark !== undefined) {
+          for (let k = 0; k < mark.extraBlank; k++) out.push(mark.blankFill);
+        }
+      });
+      return before + out.join(eol) + after;
+    });
+}

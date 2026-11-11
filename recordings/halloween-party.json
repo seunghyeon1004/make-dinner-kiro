@@ -1,0 +1,336 @@
+{
+  "sampleId": "halloween-party",
+  "textSha256": "36081c3c587cfd3159f169949ad86ab36e90f6dc0374003da514524b3aaa8c4a",
+  "model": "claude-opus-5-5",
+  "recordedAt": "2026-11-11T07:29:19.995Z",
+  "raw": {
+    "title": "Halloween dinner party for six",
+    "dishes": [
+      {
+        "id": "soup",
+        "name": "Pumpkin soup in mugs"
+      },
+      {
+        "id": "drumsticks",
+        "name": "Sticky blood-orange drumsticks"
+      },
+      {
+        "id": "rice",
+        "name": "Midnight rice"
+      },
+      {
+        "id": "breadsticks",
+        "name": "Witch-finger breadsticks"
+      },
+      {
+        "id": "apples",
+        "name": "Caramel apples"
+      }
+    ],
+    "steps": [
+      {
+        "id": "soup.prep",
+        "dish": "soup",
+        "title": "Cut the pumpkin into wedges, scoop the seeds and toss with oil and salt",
+        "detail": "1.2 kg pumpkin",
+        "minutes": 10,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [],
+        "holdMin": null
+      },
+      {
+        "id": "soup.preheat",
+        "dish": "soup",
+        "title": "Heat the oven",
+        "detail": "Hot oven",
+        "minutes": 15,
+        "appliance": "oven",
+        "handsOn": false,
+        "after": [],
+        "holdMin": 15
+      },
+      {
+        "id": "soup.roast",
+        "dish": "soup",
+        "title": "Roast the pumpkin wedges",
+        "detail": "Until soft and catching at the edges",
+        "minutes": 40,
+        "appliance": "oven",
+        "handsOn": false,
+        "after": [
+          "soup.preheat",
+          "soup.prep"
+        ],
+        "holdMin": 10
+      },
+      {
+        "id": "soup.soften",
+        "dish": "soup",
+        "title": "Soften the onion and garlic in butter",
+        "detail": "1 chopped onion, 2 garlic cloves, in a big pot, stirring",
+        "minutes": 8,
+        "appliance": "burner",
+        "handsOn": true,
+        "after": [],
+        "holdMin": 10
+      },
+      {
+        "id": "soup.simmer",
+        "dish": "soup",
+        "title": "Add the roasted pumpkin flesh and stock and simmer",
+        "detail": "1 litre stock",
+        "minutes": 15,
+        "appliance": "burner",
+        "handsOn": false,
+        "after": [
+          "soup.roast",
+          "soup.soften"
+        ],
+        "holdMin": 10
+      },
+      {
+        "id": "soup.blend",
+        "dish": "soup",
+        "title": "Blend the soup until smooth",
+        "detail": "Stick blender. Sits on the lowest heat for 30 minutes.",
+        "minutes": 3,
+        "appliance": "burner",
+        "handsOn": true,
+        "after": [
+          "soup.simmer"
+        ],
+        "holdMin": 30
+      },
+      {
+        "id": "soup.ladle",
+        "dish": "soup",
+        "title": "Ladle the soup into mugs",
+        "detail": "At the last moment",
+        "minutes": 3,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [
+          "soup.blend"
+        ],
+        "holdMin": 0
+      },
+      {
+        "id": "drumsticks.marinade",
+        "dish": "drumsticks",
+        "title": "Whisk the marinade and turn the drumsticks in it",
+        "detail": "Juice of 2 blood oranges, 3 tbsp soy, 2 tbsp honey, grated ginger; 12 drumsticks",
+        "minutes": 5,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [],
+        "holdMin": null
+      },
+      {
+        "id": "drumsticks.marinate",
+        "dish": "drumsticks",
+        "title": "Marinate the drumsticks",
+        "detail": "At least 30 minutes, can sit all afternoon",
+        "minutes": 30,
+        "appliance": "none",
+        "handsOn": false,
+        "after": [
+          "drumsticks.marinade"
+        ],
+        "holdMin": null
+      },
+      {
+        "id": "drumsticks.preheat",
+        "dish": "drumsticks",
+        "title": "Heat the oven",
+        "minutes": 15,
+        "appliance": "oven",
+        "handsOn": false,
+        "after": [],
+        "holdMin": 15
+      },
+      {
+        "id": "drumsticks.bake",
+        "dish": "drumsticks",
+        "title": "Bake the drumsticks on a lined tray",
+        "detail": "Baste halfway",
+        "minutes": 45,
+        "appliance": "oven",
+        "handsOn": false,
+        "after": [
+          "drumsticks.preheat",
+          "drumsticks.marinate"
+        ],
+        "holdMin": 5
+      },
+      {
+        "id": "drumsticks.rest",
+        "dish": "drumsticks",
+        "title": "Rest the drumsticks",
+        "minutes": 5,
+        "appliance": "none",
+        "handsOn": false,
+        "after": [
+          "drumsticks.bake"
+        ],
+        "holdMin": 15
+      },
+      {
+        "id": "rice.rinse",
+        "dish": "rice",
+        "title": "Rinse the black rice",
+        "detail": "400 g",
+        "minutes": 2,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [],
+        "holdMin": null
+      },
+      {
+        "id": "rice.simmer",
+        "dish": "rice",
+        "title": "Bring the rice to the boil, cover and simmer on low",
+        "detail": "800 ml water, pinch of salt. Don't lift the lid.",
+        "minutes": 35,
+        "appliance": "burner",
+        "handsOn": false,
+        "after": [
+          "rice.rinse"
+        ],
+        "holdMin": 0
+      },
+      {
+        "id": "rice.steam",
+        "dish": "rice",
+        "title": "Leave the rice covered off the heat to steam",
+        "minutes": 10,
+        "appliance": "none",
+        "handsOn": false,
+        "after": [
+          "rice.simmer"
+        ],
+        "holdMin": 0
+      },
+      {
+        "id": "rice.fluff",
+        "dish": "rice",
+        "title": "Fluff the rice with a fork",
+        "detail": "Stays hot in the covered pan for 20 minutes",
+        "minutes": 1,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [
+          "rice.steam"
+        ],
+        "holdMin": 20
+      },
+      {
+        "id": "breadsticks.dough",
+        "dish": "breadsticks",
+        "title": "Mix and knead the dough",
+        "detail": "300 g flour, a sachet of yeast, salt, 200 ml warm water, a glug of oil; knead 8 minutes. Time estimated.",
+        "minutes": 10,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [],
+        "holdMin": 0
+      },
+      {
+        "id": "breadsticks.rise",
+        "dish": "breadsticks",
+        "title": "Let the dough rise somewhere warm",
+        "minutes": 45,
+        "appliance": "none",
+        "handsOn": false,
+        "after": [
+          "breadsticks.dough"
+        ],
+        "holdMin": 15
+      },
+      {
+        "id": "breadsticks.shape",
+        "dish": "breadsticks",
+        "title": "Roll into 16 fingers and press an almond into each tip",
+        "minutes": 12,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [
+          "breadsticks.rise"
+        ],
+        "holdMin": 15
+      },
+      {
+        "id": "breadsticks.preheat",
+        "dish": "breadsticks",
+        "title": "Heat the oven",
+        "minutes": 15,
+        "appliance": "oven",
+        "handsOn": false,
+        "after": [],
+        "holdMin": 15
+      },
+      {
+        "id": "breadsticks.bake",
+        "dish": "breadsticks",
+        "title": "Bake the breadsticks",
+        "detail": "Until golden",
+        "minutes": 15,
+        "appliance": "oven",
+        "handsOn": false,
+        "after": [
+          "breadsticks.preheat",
+          "breadsticks.shape"
+        ],
+        "holdMin": 20
+      },
+      {
+        "id": "apples.sticks",
+        "dish": "apples",
+        "title": "Push sticks into the apples",
+        "detail": "6 small apples",
+        "minutes": 3,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [],
+        "holdMin": null
+      },
+      {
+        "id": "apples.caramel",
+        "dish": "apples",
+        "title": "Cook the sugar and water to a deep amber caramel",
+        "detail": "200 g sugar, 60 ml water, small pan, no stirring; watch it the whole time",
+        "minutes": 12,
+        "appliance": "burner",
+        "handsOn": true,
+        "after": [],
+        "holdMin": 0
+      },
+      {
+        "id": "apples.dip",
+        "dish": "apples",
+        "title": "Dip the apples and stand them on baking paper",
+        "minutes": 5,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [
+          "apples.caramel",
+          "apples.sticks"
+        ],
+        "holdMin": 0
+      },
+      {
+        "id": "apples.set",
+        "dish": "apples",
+        "title": "Leave the caramel apples to set",
+        "detail": "They keep all evening",
+        "minutes": 30,
+        "appliance": "none",
+        "handsOn": false,
+        "after": [
+          "apples.dip"
+        ],
+        "holdMin": null
+      }
+    ]
+  }
+}

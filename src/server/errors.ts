@@ -1,18 +1,9 @@
 import type { Context, ErrorHandler, NotFoundHandler } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import type { ApiErrorCode } from '../core/index.js';
 import type { Logger } from './log.js';
 
-export type ApiErrorCode =
-  | 'bad_request'
-  | 'input_too_long'
-  | 'invalid_plan'
-  | 'rate_limited'
-  | 'daily_cap_reached'
-  | 'model_unavailable'
-  | 'model_refused'
-  | 'model_output_invalid'
-  | 'not_found'
-  | 'internal';
+export type { ApiErrorCode };
 
 const STATUS = {
   bad_request: 400,

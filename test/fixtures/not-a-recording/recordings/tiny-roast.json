@@ -1,0 +1,20 @@
+{
+  "sampleId": "tiny-roast",
+  "textSha256": "68bbcf6bdabe7257c48aa13ffcbc491e442b10de7a125cb70d993d1655f8566a",
+  "model": "hand-made-not-a-recording",
+  "recordedAt": "2026-11-11T00:00:00.000Z",
+  "raw": {
+    "title": "Tiny roast",
+    "dishes": [
+      { "id": "chicken", "name": "Roast chicken" },
+      { "id": "peas", "name": "Peas" }
+    ],
+    "steps": [
+      { "id": "chicken.preheat", "dish": "chicken", "title": "Heat the oven", "detail": "200C", "minutes": 15, "appliance": "oven", "handsOn": false, "after": [], "holdMin": 15 },
+      { "id": "chicken.rub", "dish": "chicken", "title": "Rub the chicken with butter", "minutes": 10, "appliance": "none", "handsOn": true, "after": [], "holdMin": null },
+      { "id": "chicken.roast", "dish": "chicken", "title": "Roast the chicken", "minutes": 75, "appliance": "oven", "handsOn": false, "after": ["chicken.preheat", "chicken.rub"], "holdMin": 5 },
+      { "id": "chicken.rest", "dish": "chicken", "title": "Rest the roast under foil", "minutes": 20, "appliance": "none", "handsOn": false, "after": ["chicken.roast"], "holdMin": 30 },
+      { "id": "peas.boil", "dish": "peas", "title": "Boil the peas", "minutes": 4, "appliance": "burner", "handsOn": false, "after": [], "holdMin": 0 }
+    ]
+  }
+}

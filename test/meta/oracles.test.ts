@@ -72,6 +72,8 @@ import {
   oracleTopologicalOrder,
   oracleWarnings,
   respectsPrecedence,
+  oracleMaxInWindow,
+  oracleUtcDay,
 } from '../support/oracles.js';
 
 interface Spec {
@@ -1451,5 +1453,22 @@ describe('R10.2 oracleNeededSteps and oracleDishLastSteps', () => {
       gravy: ['gravy.strain'],
       greens: ['greens.toss'],
     });
+  });
+});
+
+describe('recipe-reader oracles, hand-worked', () => {
+  it('oracleMaxInWindow: the busiest window of 10 s', () => {
+    // Windows start at a call and are half open: [0, 10000) holds 0, 1000, 9999 (3 calls);
+    // 10000 is outside it. [9999, 19999) holds 9999, 10000 (2 calls).
+    expect(oracleMaxInWindow([0, 1_000, 9_999, 10_000], 10_000)).toBe(3);
+    expect(oracleMaxInWindow([], 10_000)).toBe(0);
+    expect(oracleMaxInWindow([5, 5, 5], 1)).toBe(3);
+    expect(oracleMaxInWindow([0, 10_000, 20_000], 10_000)).toBe(1);
+  });
+
+  it('oracleUtcDay: the day changes exactly at 00:00:00.000 UTC', () => {
+    expect(oracleUtcDay(Date.UTC(2026, 10, 11, 23, 59, 59, 999))).toBe('2026-11-11');
+    expect(oracleUtcDay(Date.UTC(2026, 10, 12, 0, 0, 0, 0))).toBe('2026-11-12');
+    expect(oracleUtcDay(0)).toBe('1970-01-01');
   });
 });

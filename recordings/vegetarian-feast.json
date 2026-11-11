@@ -1,0 +1,314 @@
+{
+  "sampleId": "vegetarian-feast",
+  "textSha256": "18b2dd6e43e35f4f717f5ebf359fe78ecb4dd16e47e6f8755b8fa249b98e04e2",
+  "model": "claude-opus-5-5",
+  "recordedAt": "2026-11-11T07:29:46.979Z",
+  "raw": {
+    "title": "Mushroom Wellington dinner",
+    "dishes": [
+      {
+        "id": "wellington",
+        "name": "Mushroom Wellington"
+      },
+      {
+        "id": "carrots",
+        "name": "Maple Roast Carrots"
+      },
+      {
+        "id": "mash",
+        "name": "Garlic Mash"
+      },
+      {
+        "id": "gravy",
+        "name": "Onion Gravy"
+      },
+      {
+        "id": "beans",
+        "name": "Green Beans with Almonds"
+      }
+    ],
+    "steps": [
+      {
+        "id": "wellington.chop",
+        "dish": "wellington",
+        "title": "Finely chop the mushrooms and shallots",
+        "detail": "600 g mushrooms, 2 shallots; less time with a food processor.",
+        "minutes": 12,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [],
+        "holdMin": null
+      },
+      {
+        "id": "wellington.cook",
+        "dish": "wellington",
+        "title": "Cook the mushrooms until dark and dry",
+        "detail": "Wide pan, high heat, stirring often, until all the liquid has gone.",
+        "minutes": 15,
+        "appliance": "burner",
+        "handsOn": true,
+        "after": [
+          "wellington.chop"
+        ],
+        "holdMin": null
+      },
+      {
+        "id": "wellington.cool",
+        "dish": "wellington",
+        "title": "Stir in thyme and mustard and cool the filling completely",
+        "detail": "Can be made the day before.",
+        "minutes": 30,
+        "appliance": "none",
+        "handsOn": false,
+        "after": [
+          "wellington.cook"
+        ],
+        "holdMin": null
+      },
+      {
+        "id": "wellington.assemble",
+        "dish": "wellington",
+        "title": "Wrap the filling in puff pastry, egg wash and score",
+        "detail": "Spread filling down the middle, fold over, seal, brush with beaten egg, score the top.",
+        "minutes": 10,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [
+          "wellington.cool"
+        ],
+        "holdMin": null
+      },
+      {
+        "id": "wellington.preheat",
+        "dish": "wellington",
+        "title": "Heat the oven",
+        "detail": "200C",
+        "minutes": 15,
+        "appliance": "oven",
+        "handsOn": false,
+        "after": [],
+        "holdMin": 15
+      },
+      {
+        "id": "wellington.bake",
+        "dish": "wellington",
+        "title": "Bake the Wellington",
+        "detail": "200C until deep golden.",
+        "minutes": 35,
+        "appliance": "oven",
+        "handsOn": false,
+        "after": [
+          "wellington.preheat",
+          "wellington.assemble"
+        ],
+        "holdMin": 0
+      },
+      {
+        "id": "wellington.rest",
+        "dish": "wellington",
+        "title": "Rest the Wellington",
+        "detail": "Rest before slicing so it holds together; slice at the table.",
+        "minutes": 10,
+        "appliance": "none",
+        "handsOn": false,
+        "after": [
+          "wellington.bake"
+        ],
+        "holdMin": 15
+      },
+      {
+        "id": "carrots.peel",
+        "dish": "carrots",
+        "title": "Peel and halve the carrots lengthways",
+        "detail": "800 g carrots.",
+        "minutes": 8,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [],
+        "holdMin": null
+      },
+      {
+        "id": "carrots.toss",
+        "dish": "carrots",
+        "title": "Toss the carrots with oil, maple syrup and salt",
+        "minutes": 1,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [
+          "carrots.peel"
+        ],
+        "holdMin": null
+      },
+      {
+        "id": "carrots.preheat",
+        "dish": "carrots",
+        "title": "Heat the oven",
+        "detail": "200C",
+        "minutes": 15,
+        "appliance": "oven",
+        "handsOn": false,
+        "after": [],
+        "holdMin": 15
+      },
+      {
+        "id": "carrots.roast",
+        "dish": "carrots",
+        "title": "Roast the carrots",
+        "detail": "200C",
+        "minutes": 30,
+        "appliance": "oven",
+        "handsOn": false,
+        "after": [
+          "carrots.preheat",
+          "carrots.toss"
+        ],
+        "holdMin": 15
+      },
+      {
+        "id": "mash.peel",
+        "dish": "mash",
+        "title": "Peel and chop the potatoes",
+        "detail": "1.2 kg potatoes.",
+        "minutes": 10,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [],
+        "holdMin": null
+      },
+      {
+        "id": "mash.boil",
+        "dish": "mash",
+        "title": "Boil the potatoes with the garlic and drain",
+        "detail": "With 4 whole garlic cloves, until completely tender.",
+        "minutes": 20,
+        "appliance": "burner",
+        "handsOn": false,
+        "after": [
+          "mash.peel"
+        ],
+        "holdMin": 0
+      },
+      {
+        "id": "mash.steam",
+        "dish": "mash",
+        "title": "Let the potatoes steam dry in the colander",
+        "minutes": 3,
+        "appliance": "none",
+        "handsOn": false,
+        "after": [
+          "mash.boil"
+        ],
+        "holdMin": 5
+      },
+      {
+        "id": "mash.mash",
+        "dish": "mash",
+        "title": "Mash with butter and warm milk",
+        "detail": "Covered, it stays hot for 20 minutes.",
+        "minutes": 5,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [
+          "mash.steam"
+        ],
+        "holdMin": 20
+      },
+      {
+        "id": "gravy.slice",
+        "dish": "gravy",
+        "title": "Slice the onions",
+        "detail": "3 onions.",
+        "minutes": 5,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [],
+        "holdMin": null
+      },
+      {
+        "id": "gravy.onions",
+        "dish": "gravy",
+        "title": "Cook the onions slowly in butter until soft and brown",
+        "detail": "Stir every few minutes.",
+        "minutes": 25,
+        "appliance": "burner",
+        "handsOn": false,
+        "after": [
+          "gravy.slice"
+        ],
+        "holdMin": 20
+      },
+      {
+        "id": "gravy.flour",
+        "dish": "gravy",
+        "title": "Stir in the flour and cook",
+        "minutes": 1,
+        "appliance": "burner",
+        "handsOn": true,
+        "after": [
+          "gravy.onions"
+        ],
+        "holdMin": 0
+      },
+      {
+        "id": "gravy.simmer",
+        "dish": "gravy",
+        "title": "Add the stock and soy and simmer",
+        "detail": "500 ml vegetable stock, a splash of soy.",
+        "minutes": 10,
+        "appliance": "burner",
+        "handsOn": false,
+        "after": [
+          "gravy.flour"
+        ],
+        "holdMin": 20
+      },
+      {
+        "id": "beans.trim",
+        "dish": "beans",
+        "title": "Top and tail the green beans",
+        "detail": "400 g green beans; can be done ahead.",
+        "minutes": 5,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [],
+        "holdMin": null
+      },
+      {
+        "id": "beans.almonds",
+        "dish": "beans",
+        "title": "Toast the flaked almonds in a dry pan",
+        "detail": "Shake the pan.",
+        "minutes": 3,
+        "appliance": "burner",
+        "handsOn": true,
+        "after": [],
+        "holdMin": null
+      },
+      {
+        "id": "beans.boil",
+        "dish": "beans",
+        "title": "Boil the beans and drain",
+        "minutes": 4,
+        "appliance": "burner",
+        "handsOn": false,
+        "after": [
+          "beans.trim"
+        ],
+        "holdMin": 0
+      },
+      {
+        "id": "beans.toss",
+        "dish": "beans",
+        "title": "Toss the beans with butter and the almonds",
+        "minutes": 1,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [
+          "beans.boil",
+          "beans.almonds"
+        ],
+        "holdMin": 5
+      }
+    ]
+  }
+}

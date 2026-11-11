@@ -1,0 +1,238 @@
+{
+  "sampleId": "sunday-roast",
+  "textSha256": "4eb970c8ed2148686749991ca82ba90414f2146e80b66cbd505035cb3b79e19b",
+  "model": "claude-opus-5-5",
+  "recordedAt": "2026-11-11T07:29:02.859Z",
+  "raw": {
+    "title": "Roast chicken with lemon and thyme",
+    "dishes": [
+      {
+        "id": "chicken",
+        "name": "Roast chicken with lemon and thyme"
+      },
+      {
+        "id": "roast-potatoes",
+        "name": "Crispy roast potatoes"
+      },
+      {
+        "id": "gravy",
+        "name": "Pan gravy"
+      },
+      {
+        "id": "greens",
+        "name": "Buttered greens"
+      }
+    ],
+    "steps": [
+      {
+        "id": "chicken.preheat",
+        "dish": "chicken",
+        "title": "Heat the oven",
+        "detail": "200C",
+        "minutes": 15,
+        "appliance": "oven",
+        "handsOn": false,
+        "after": [],
+        "holdMin": 15
+      },
+      {
+        "id": "chicken.prep",
+        "dish": "chicken",
+        "title": "Butter, season and stuff the chicken",
+        "detail": "Pat dry, rub with soft butter, salt and pepper; halved lemon and thyme sprigs inside.",
+        "minutes": 10,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [],
+        "holdMin": null
+      },
+      {
+        "id": "chicken.roast",
+        "dish": "chicken",
+        "title": "Roast the chicken",
+        "detail": "200C, until the juices run clear.",
+        "minutes": 75,
+        "appliance": "oven",
+        "handsOn": false,
+        "after": [
+          "chicken.preheat",
+          "chicken.prep"
+        ],
+        "holdMin": 0
+      },
+      {
+        "id": "chicken.rest",
+        "dish": "chicken",
+        "title": "Rest the chicken under foil",
+        "minutes": 20,
+        "appliance": "none",
+        "handsOn": false,
+        "after": [
+          "chicken.roast"
+        ],
+        "holdMin": 30
+      },
+      {
+        "id": "chicken.carve",
+        "dish": "chicken",
+        "title": "Carve the chicken",
+        "detail": "Right before it goes to the table.",
+        "minutes": 5,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [
+          "chicken.rest"
+        ],
+        "holdMin": 5
+      },
+      {
+        "id": "roast-potatoes.peel",
+        "dish": "roast-potatoes",
+        "title": "Peel and chunk the potatoes",
+        "detail": "1 kg floury potatoes, big chunks.",
+        "minutes": 10,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [],
+        "holdMin": null
+      },
+      {
+        "id": "roast-potatoes.boil",
+        "dish": "roast-potatoes",
+        "title": "Boil the potatoes",
+        "detail": "Salted water, until the edges are soft.",
+        "minutes": 10,
+        "appliance": "burner",
+        "handsOn": false,
+        "after": [
+          "roast-potatoes.peel"
+        ],
+        "holdMin": 0
+      },
+      {
+        "id": "roast-potatoes.rough",
+        "dish": "roast-potatoes",
+        "title": "Drain and shake the potatoes to rough them up",
+        "minutes": 2,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [
+          "roast-potatoes.boil"
+        ],
+        "holdMin": 10
+      },
+      {
+        "id": "roast-potatoes.preheat",
+        "dish": "roast-potatoes",
+        "title": "Heat the oven",
+        "detail": "200C",
+        "minutes": 15,
+        "appliance": "oven",
+        "handsOn": false,
+        "after": [],
+        "holdMin": 15
+      },
+      {
+        "id": "roast-potatoes.roast",
+        "dish": "roast-potatoes",
+        "title": "Roast the potatoes in hot oil",
+        "detail": "200C, turning once.",
+        "minutes": 50,
+        "appliance": "oven",
+        "handsOn": false,
+        "after": [
+          "roast-potatoes.preheat",
+          "roast-potatoes.rough"
+        ],
+        "holdMin": 10
+      },
+      {
+        "id": "gravy.roux",
+        "dish": "gravy",
+        "title": "Pour off fat and cook the flour in the roasting tin",
+        "detail": "2 tbsp flour on the hob.",
+        "minutes": 2,
+        "appliance": "burner",
+        "handsOn": true,
+        "after": [
+          "chicken.roast"
+        ],
+        "holdMin": 0
+      },
+      {
+        "id": "gravy.stock",
+        "dish": "gravy",
+        "title": "Whisk in the stock bit by bit",
+        "detail": "500 ml stock. Time estimated.",
+        "minutes": 3,
+        "appliance": "burner",
+        "handsOn": true,
+        "after": [
+          "gravy.roux"
+        ],
+        "holdMin": 0
+      },
+      {
+        "id": "gravy.simmer",
+        "dish": "gravy",
+        "title": "Simmer the gravy",
+        "detail": "Gently, stirring now and then.",
+        "minutes": 10,
+        "appliance": "burner",
+        "handsOn": false,
+        "after": [
+          "gravy.stock"
+        ],
+        "holdMin": 5
+      },
+      {
+        "id": "gravy.strain",
+        "dish": "gravy",
+        "title": "Strain the gravy into a jug",
+        "minutes": 2,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [
+          "gravy.simmer"
+        ],
+        "holdMin": 15
+      },
+      {
+        "id": "greens.shred",
+        "dish": "greens",
+        "title": "Shred the cabbage",
+        "detail": "Half a savoy cabbage.",
+        "minutes": 5,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [],
+        "holdMin": null
+      },
+      {
+        "id": "greens.boil",
+        "dish": "greens",
+        "title": "Boil the cabbage and peas, then drain",
+        "detail": "With a mug of frozen peas.",
+        "minutes": 4,
+        "appliance": "burner",
+        "handsOn": false,
+        "after": [
+          "greens.shred"
+        ],
+        "holdMin": 0
+      },
+      {
+        "id": "greens.toss",
+        "dish": "greens",
+        "title": "Toss with butter and pepper",
+        "minutes": 1,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [
+          "greens.boil"
+        ],
+        "holdMin": 5
+      }
+    ]
+  }
+}

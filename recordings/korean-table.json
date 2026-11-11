@@ -1,0 +1,236 @@
+{
+  "sampleId": "korean-table",
+  "textSha256": "7ba243da4c8c29ad345e436fc2118c6d07ecffe7573e88d52e82ca75585aedd5",
+  "model": "claude-opus-5-5",
+  "recordedAt": "2026-11-11T07:30:00.986Z",
+  "raw": {
+    "title": "A Korean home dinner for four",
+    "dishes": [
+      {
+        "id": "rice",
+        "name": "Steamed rice (bap)"
+      },
+      {
+        "id": "doenjang-jjigae",
+        "name": "Doenjang-jjigae (soybean paste stew)"
+      },
+      {
+        "id": "bulgogi",
+        "name": "Bulgogi"
+      },
+      {
+        "id": "sigeumchi-namul",
+        "name": "Sigeumchi-namul (seasoned spinach)"
+      },
+      {
+        "id": "dubu-buchim",
+        "name": "Dubu-buchim (pan-fried tofu)"
+      }
+    ],
+    "steps": [
+      {
+        "id": "rice.wash",
+        "dish": "rice",
+        "title": "Wash the rice",
+        "detail": "3 cups short-grain rice, changing the water three or four times.",
+        "minutes": 4,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [],
+        "holdMin": null
+      },
+      {
+        "id": "rice.soak",
+        "dish": "rice",
+        "title": "Soak the rice",
+        "minutes": 30,
+        "appliance": "none",
+        "handsOn": false,
+        "after": [
+          "rice.wash"
+        ],
+        "holdMin": null
+      },
+      {
+        "id": "rice.cook",
+        "dish": "rice",
+        "title": "Drain, add fresh water, bring to the boil and cook covered",
+        "detail": "3 cups fresh water in a heavy pot; once boiling, cover and cook on the lowest heat for 15 minutes. Time to reach the boil estimated.",
+        "minutes": 20,
+        "appliance": "burner",
+        "handsOn": false,
+        "after": [
+          "rice.soak"
+        ],
+        "holdMin": 0
+      },
+      {
+        "id": "rice.steam",
+        "dish": "rice",
+        "title": "Let the rice steam off the heat, lid on",
+        "minutes": 10,
+        "appliance": "none",
+        "handsOn": false,
+        "after": [
+          "rice.cook"
+        ],
+        "holdMin": 25
+      },
+      {
+        "id": "doenjang-jjigae.cut",
+        "dish": "doenjang-jjigae",
+        "title": "Cut the courgette, onion, potato and tofu into cubes",
+        "detail": "1 courgette, 1 onion, 1 potato, 1 block tofu, bite-sized. Can be done ahead.",
+        "minutes": 8,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [],
+        "holdMin": null
+      },
+      {
+        "id": "doenjang-jjigae.stock",
+        "dish": "doenjang-jjigae",
+        "title": "Boil the stock and dissolve the doenjang",
+        "detail": "700 ml anchovy stock, 3 tbsp doenjang.",
+        "minutes": 5,
+        "appliance": "burner",
+        "handsOn": true,
+        "after": [],
+        "holdMin": 0
+      },
+      {
+        "id": "doenjang-jjigae.simmer",
+        "dish": "doenjang-jjigae",
+        "title": "Simmer the potato and onion",
+        "minutes": 10,
+        "appliance": "burner",
+        "handsOn": false,
+        "after": [
+          "doenjang-jjigae.stock",
+          "doenjang-jjigae.cut"
+        ],
+        "holdMin": 0
+      },
+      {
+        "id": "doenjang-jjigae.simmer-2",
+        "dish": "doenjang-jjigae",
+        "title": "Add courgette, tofu and chilli and simmer",
+        "detail": "Add a sliced chilli. Holds on a low flame for 15 minutes.",
+        "minutes": 6,
+        "appliance": "burner",
+        "handsOn": false,
+        "after": [
+          "doenjang-jjigae.simmer"
+        ],
+        "holdMin": 15
+      },
+      {
+        "id": "bulgogi.marinade",
+        "dish": "bulgogi",
+        "title": "Mix the marinade",
+        "detail": "Soy sauce, grated pear, sugar, garlic, sesame oil, black pepper.",
+        "minutes": 6,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [],
+        "holdMin": null
+      },
+      {
+        "id": "bulgogi.marinate",
+        "dish": "bulgogi",
+        "title": "Toss the beef in the marinade and marinate",
+        "detail": "600 g thinly sliced beef. Longer is fine, up to overnight.",
+        "minutes": 30,
+        "appliance": "none",
+        "handsOn": false,
+        "after": [
+          "bulgogi.marinade"
+        ],
+        "holdMin": null
+      },
+      {
+        "id": "bulgogi.stir-fry",
+        "dish": "bulgogi",
+        "title": "Stir-fry the beef in two batches",
+        "detail": "Very hot pan. Serve within 5 minutes.",
+        "minutes": 8,
+        "appliance": "burner",
+        "handsOn": true,
+        "after": [
+          "bulgogi.marinate"
+        ],
+        "holdMin": 5
+      },
+      {
+        "id": "sigeumchi-namul.blanch",
+        "dish": "sigeumchi-namul",
+        "title": "Blanch the spinach",
+        "detail": "300 g spinach in boiling water. Time to boil the water not included.",
+        "minutes": 1,
+        "appliance": "burner",
+        "handsOn": true,
+        "after": [],
+        "holdMin": 0
+      },
+      {
+        "id": "sigeumchi-namul.rinse",
+        "dish": "sigeumchi-namul",
+        "title": "Rinse in cold water and squeeze dry",
+        "minutes": 3,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [
+          "sigeumchi-namul.blanch"
+        ],
+        "holdMin": null
+      },
+      {
+        "id": "sigeumchi-namul.dress",
+        "dish": "sigeumchi-namul",
+        "title": "Dress the spinach",
+        "detail": "Soy sauce, garlic, sesame oil, sesame seeds. Served at room temperature; keeps.",
+        "minutes": 2,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [
+          "sigeumchi-namul.rinse"
+        ],
+        "holdMin": null
+      },
+      {
+        "id": "dubu-buchim.slice",
+        "dish": "dubu-buchim",
+        "title": "Slice the tofu and pat dry",
+        "minutes": 4,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [],
+        "holdMin": null
+      },
+      {
+        "id": "dubu-buchim.sauce",
+        "dish": "dubu-buchim",
+        "title": "Mix the soy-and-spring-onion sauce",
+        "minutes": 2,
+        "appliance": "none",
+        "handsOn": true,
+        "after": [],
+        "holdMin": null
+      },
+      {
+        "id": "dubu-buchim.fry",
+        "dish": "dubu-buchim",
+        "title": "Fry the tofu until golden and spoon over the sauce",
+        "detail": "A little oil, turning once. Good for 15 minutes.",
+        "minutes": 10,
+        "appliance": "burner",
+        "handsOn": false,
+        "after": [
+          "dubu-buchim.slice",
+          "dubu-buchim.sauce"
+        ],
+        "holdMin": 15
+      }
+    ]
+  }
+}

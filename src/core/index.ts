@@ -90,3 +90,22 @@ export type {
   DinnerfileOptions,
   MetadataKeyword,
 } from './dinnerfile.js';
+
+export {
+  API_ERROR_CODES,
+  ApiErrorSchema,
+  ParseRequestSchema,
+  ParseResponseSchema,
+  RECIPE_TEXT_MAX,
+  SampleEntrySchema,
+  SampleItemSchema,
+  SamplesResponseSchema,
+} from './api.js';
+export type {
+  ApiErrorCode,
+  ParseRequest,
+  ParseResponse,
+  SampleEntry,
+  SampleItem,
+  SamplesResponse,
+} from './api.js';

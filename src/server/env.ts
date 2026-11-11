@@ -9,9 +9,10 @@ const EnvSchema = z
   .object({
     ANTHROPIC_API_KEY: z.string().optional(),
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
-    PARSE_RATE_PER_IP: positiveInt.default(5),
+    PARSE_RATE_PER_IP: positiveInt.max(100).default(5),
     PARSE_RATE_WINDOW_SEC: positiveInt.default(600),
     PARSE_DAILY_CAP: positiveInt.default(200),
+    PARSE_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).default(60_000),
     TRUST_PROXY: z
       .enum(['true', 'false'])
       .default('false')
@@ -24,6 +25,7 @@ const EnvSchema = z
     parseRatePerIp: raw.PARSE_RATE_PER_IP,
     parseRateWindowSec: raw.PARSE_RATE_WINDOW_SEC,
     parseDailyCap: raw.PARSE_DAILY_CAP,
+    parseTimeoutMs: raw.PARSE_TIMEOUT_MS,
     trustProxy: raw.TRUST_PROXY,
     logLevel: raw.LOG_LEVEL,
   }));

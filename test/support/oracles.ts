@@ -1421,3 +1421,61 @@ export function decodeEchoLine(
   }
   return null;
 }
+
+// --- recipe-reader oracles (limits) ---
+
+/**
+ * The most calls inside any window of `windowMs`: for each time `a`, the number of times `b`
+ * with `a <= b < a + windowMs`. Plain loops; the limiter's own bookkeeping is not used.
+ */
+export function oracleMaxInWindow(times: readonly number[], windowMs: number): number {
+  let best = 0;
+  for (const a of times) {
+    let inside = 0;
+    for (const b of times) {
+      if (a <= b && b < a + windowMs) inside += 1;
+    }
+    if (inside > best) best = inside;
+  }
+  return best;
+}
+
+/** The UTC calendar day of a millisecond time, as `YYYY-MM-DD`; independent of day arithmetic. */
+export function oracleUtcDay(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+/**
+ * Replaces every `<recipes>` or `</recipes>` tag (case-insensitive, white space allowed
+ * around the slash and the name) with `[recipes]` or `[/recipes]`, by scanning character
+ * by character. Written without the regular expression the prompt module uses.
+ */
+export function oracleNeutraliseTags(text: string): string {
+  const isSpace = (ch: string | undefined): boolean => ch !== undefined && /\s/.test(ch);
+  let out = '';
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] === '<') {
+      let j = i + 1;
+      while (isSpace(text[j])) j += 1;
+      let slash = false;
+      if (text[j] === '/') {
+        slash = true;
+        j += 1;
+        while (isSpace(text[j])) j += 1;
+      }
+      if (text.slice(j, j + 7).toLowerCase() === 'recipes') {
+        j += 7;
+        while (isSpace(text[j])) j += 1;
+        if (text[j] === '>') {
+          out += slash ? '[/recipes]' : '[recipes]';
+          i = j + 1;
+          continue;
+        }
+      }
+    }
+    out += text[i];
+    i += 1;
+  }
+  return out;
+}
