@@ -494,7 +494,7 @@ const H1: readonly Row[] = [
   ['chicken.carve', -5, 0, null, null, 1, 0, 0],
   ['chicken.prep', -110, -100, null, null, 1, 0, null],
   ['chicken.rest', -25, -5, null, null, null, 0, 0],
-  ['chicken.roast', -100, -25, null, 1, null, 0, 5],
+  ['chicken.roast', -100, -25, null, 1, null, 0, 0],
   ['gravy.roux', -20, -18, 1, null, 1, 0, 0],
   ['gravy.simmer', -18, -8, 1, null, null, 0, 0],
   ['gravy.strain', -8, -6, null, null, 1, 0, 6],
@@ -506,7 +506,7 @@ const H2: readonly Row[] = [
   ['chicken.carve', -5, 0, null, null, 1, 0, 0],
   ['chicken.prep', -110, -100, null, null, 1, 0, null],
   ['chicken.rest', -25, -5, null, null, null, 0, 0],
-  ['chicken.roast', -100, -25, null, 1, null, 0, 3],
+  ['chicken.roast', -100, -25, null, 1, null, 0, 0],
   ['gravy.roux', -22, -20, 1, null, 1, 0, 0],
   ['gravy.simmer', -20, -10, 1, null, null, 0, 2],
   ['gravy.strain', -8, -6, null, null, 1, 0, 6],
@@ -658,6 +658,20 @@ describe('R10.1 oracleHoldExceeded on the hand-worked tables', () => {
       { stepId: 'b.chop', waitMin: 10, holdMin: 5 },
     ]);
     expect(oracleWaits(TWO_CHOPS, starts)).toEqual({ 'a.chop': 0, 'b.chop': 10 });
+  });
+});
+
+describe('G4.3 a result with several users waits only until the first user starts (steering definition, 2026-11-11)', () => {
+  it('H1 with the roast started at -107 (ends -32): rest starts at -25, roux at -20; wait 7, not 12', () => {
+    const starts = { ...startsOf(stepsOf(H1)), 'chicken.roast': -107 };
+    expect(oracleWaits(SUNDAY_ROAST, starts)['chicken.roast']).toBe(7);
+    expect(oracleHoldExceeded(SUNDAY_ROAST, starts)).toEqual([
+      { stepId: 'chicken.roast', waitMin: 7, holdMin: 5 },
+    ]);
+  });
+  it('H1 with the roux moved to -2 (the later user): the roast still waits 0 for rest', () => {
+    const starts = { ...startsOf(stepsOf(H1)), 'gravy.roux': -2 };
+    expect(oracleWaits(SUNDAY_ROAST, starts)['chicken.roast']).toBe(0);
   });
 });
 
@@ -844,7 +858,7 @@ const RB_A_ROWS: readonly RebuiltRow[] = [
   ['chicken.carve', 10, 15, 0, 0],
   ['chicken.prep', -110, -100, 0, null],
   ['chicken.rest', -10, 10, 0, 0],
-  ['chicken.roast', -100, -10, 0, 6],
+  ['chicken.roast', -100, -10, 0, 0],
   ['gravy.roux', -4, -2, 0, 0],
   ['gravy.simmer', -2, 8, 0, 0],
   ['gravy.strain', 8, 10, 0, 5],
@@ -856,7 +870,7 @@ const RB_B_ROWS: readonly RebuiltRow[] = [
   ['chicken.carve', -5, 0, 0, 2],
   ['chicken.prep', -110, -100, 0, null],
   ['chicken.rest', -25, -5, 0, 0],
-  ['chicken.roast', -100, -25, 0, 13],
+  ['chicken.roast', -100, -25, 0, 0],
   ['gravy.roux', -12, -10, 0, 0],
   ['gravy.simmer', -10, 0, 0, 0],
   ['gravy.strain', 0, 2, 0, 0],
@@ -868,7 +882,7 @@ const RB_C_ROWS: readonly RebuiltRow[] = [
   ['chicken.carve', -5, 0, 0, 0],
   ['chicken.prep', -110, -100, 0, null],
   ['chicken.rest', -25, -5, 0, 0],
-  ['chicken.roast', -100, -25, 0, 5],
+  ['chicken.roast', -100, -25, 0, 0],
   ['gravy.roux', -20, -18, 0, 0],
   ['gravy.simmer', -18, -8, 0, 0],
   ['gravy.strain', -8, -6, 0, 6],
@@ -963,21 +977,15 @@ describe.each([
 );
 
 describe('RQ11.1 oracleRebuildHoldExceeded on the hand-worked rebuilds', () => {
-  it('RB-a: roast waits 6 > 5 and toss 7 > 5', () => {
+  it('RB-a: only toss waits past its hold (7 > 5); the roast ends at -10, when rest starts', () => {
     expect(
       oracleRebuildHoldExceeded(SUNDAY_ROAST, ivOf(rebuiltStepsOf(RB_A_ROWS, H1_SCHEDULE)), 15),
-    ).toEqual([
-      { stepId: 'chicken.roast', waitMin: 6, holdMin: 5 },
-      { stepId: 'greens.toss', waitMin: 7, holdMin: 5 },
-    ]);
+    ).toEqual([{ stepId: 'greens.toss', waitMin: 7, holdMin: 5 }]);
   });
-  it('RB-b: roast waits 13 > 5 and toss 7 > 5', () => {
+  it('RB-b: only toss waits past its hold (7 > 5); the roast ends at -25, when rest starts', () => {
     expect(
       oracleRebuildHoldExceeded(SUNDAY_ROAST, ivOf(rebuiltStepsOf(RB_B_ROWS, H1_SCHEDULE)), 2),
-    ).toEqual([
-      { stepId: 'chicken.roast', waitMin: 13, holdMin: 5 },
-      { stepId: 'greens.toss', waitMin: 7, holdMin: 5 },
-    ]);
+    ).toEqual([{ stepId: 'greens.toss', waitMin: 7, holdMin: 5 }]);
   });
   it('RB-c: no step waits past its hold', () => {
     expect(
@@ -1127,6 +1135,25 @@ describe('RQ11.1 oracleForwardRepair searches upward, oracleRebuildWaits clamps'
     const waits = oracleRebuildWaits(SUNDAY_ROAST, iv, 2);
     expect(waits['greens.boil']).toBe(0);
     expect(waits['greens.toss']).toBe(7);
+  });
+});
+
+describe('RQ8.3 oracleRebuildWaits measures to the first user, then clamps', () => {
+  it('E2: the roast ends at -27, rest starts at -25 and roux at -20: wait 2, not 7', () => {
+    const iv: Iv = {
+      ...ivOf(rebuiltStepsOf(RB_C_ROWS, H1_SCHEDULE)),
+      'chicken.roast': { startMin: -102, endMin: -27 },
+    };
+    expect(oracleRebuildWaits(SUNDAY_ROAST, iv, 0)['chicken.roast']).toBe(2);
+    expect(oracleRebuildHoldExceeded(SUNDAY_ROAST, iv, 0)).toEqual([]);
+  });
+  it('a first user that started before the result ended clamps the wait to 0', () => {
+    const iv: Iv = {
+      ...ivOf(rebuiltStepsOf(RB_C_ROWS, H1_SCHEDULE)),
+      'chicken.roast': { startMin: -100, endMin: -10 },
+    };
+    // rest starts at -25, before the roast ended at -10; roux at -20.
+    expect(oracleRebuildWaits(SUNDAY_ROAST, iv, 0)['chicken.roast']).toBe(0);
   });
 });
 

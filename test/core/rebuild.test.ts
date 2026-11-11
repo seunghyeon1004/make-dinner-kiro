@@ -410,7 +410,7 @@ const H1_WAITS: Waits = {
   'chicken.carve': 0,
   'chicken.prep': null,
   'chicken.rest': 0,
-  'chicken.roast': 5,
+  'chicken.roast': 0,
   'gravy.roux': 0,
   'gravy.simmer': 0,
   'gravy.strain': 6,
@@ -450,17 +450,11 @@ const warning = (stepId: string, waitMin: number, holdMin: number, message: stri
 });
 
 describe('RQ8 rebuildReadout on the hand-worked rebuilds', () => {
-  it('RB-a: slack 0 everywhere, the waits of the table, and the two warnings with their exact messages', () => {
+  it('RB-a: slack 0 everywhere, the waits of the table (the roast waits 0: rest starts when it ends), and the one warning with its exact message', () => {
     expect(readoutOf(RB_A_FINAL, RB_A_PROGRESS, -60, 15)).toEqual({
       slack: ALL_SLACK_ZERO,
-      wait: { ...H1_WAITS, 'chicken.roast': 6, 'gravy.strain': 5, 'greens.toss': 7 },
+      wait: { ...H1_WAITS, 'gravy.strain': 5, 'greens.toss': 7 },
       warnings: [
-        warning(
-          'chicken.roast',
-          6,
-          5,
-          'Step chicken.roast will be ready 6 minutes before the step that uses it and can wait only 5 minutes. More ovens, burners or cooks may help.',
-        ),
         warning(
           'greens.toss',
           7,
@@ -470,20 +464,16 @@ describe('RQ8 rebuildReadout on the hand-worked rebuilds', () => {
       ],
     });
   });
-  it('RB-b: the tin juices wait 13 minutes for the late roux, toss waits 7; carve waits 2 for serving at 2', () => {
+  it('RB-b: the roast waits 0 for rest, which starts as it ends, however late the roux; toss waits 7; carve waits 2 for serving at 2', () => {
     expect(readoutOf(RB_B_FINAL, RB_B_PROGRESS, -12, 2)).toEqual({
       slack: ALL_SLACK_ZERO,
       wait: {
         ...H1_WAITS,
         'chicken.carve': 2,
-        'chicken.roast': 13,
         'gravy.strain': 0,
         'greens.toss': 7,
       },
-      warnings: [
-        warning('chicken.roast', 13, 5, ROAST_MSG(13)),
-        warning('greens.toss', 7, 5, TOSS_MSG(7)),
-      ],
+      warnings: [warning('greens.toss', 7, 5, TOSS_MSG(7))],
     });
   });
   it('RB-b2: shred, moved to [-92,-87), has slack 67 (68 reaches the roux on the cook at -20); pinned rows 0', () => {
@@ -499,22 +489,22 @@ describe('RQ8 rebuildReadout on the hand-worked rebuilds', () => {
       warnings: [],
     });
   });
-  it('E1: the roast, done at -35, waits 15 > 5; nothing else moves', () => {
+  it('E1: the roast, done at -35, waits 10 > 5 until rest starts at -25 (not 15, to the roux at -20); nothing else moves', () => {
     const r = readoutOf(h1With({ 'chicken.roast': iv(-100, -35) }), E1_PROGRESS, -35, 0);
-    expect(r.wait).toEqual({ ...H1_WAITS, 'chicken.roast': 15 });
+    expect(r.wait).toEqual({ ...H1_WAITS, 'chicken.roast': 10 });
     expect(r.slack).toEqual(ALL_SLACK_ZERO);
-    expect(r.warnings).toEqual([warning('chicken.roast', 15, 5, ROAST_MSG(15))]);
+    expect(r.warnings).toEqual([warning('chicken.roast', 10, 5, ROAST_MSG(10))]);
   });
-  it('E2: the roast, started early, ends at -27 and waits 7 > 5; shred keeps its slack 75', () => {
+  it('E2: the roast, started early, ends at -27 and waits 2 until rest starts at -25, within its hold; shred keeps its slack 75', () => {
     const r = readoutOf(
       h1With({ 'chicken.prep': iv(-110, -102), 'chicken.roast': iv(-102, -27) }),
       E2_PROGRESS,
       -100,
       0,
     );
-    expect(r.wait).toEqual({ ...H1_WAITS, 'chicken.roast': 7 });
+    expect(r.wait).toEqual({ ...H1_WAITS, 'chicken.roast': 2 });
     expect(r.slack).toEqual({ ...ALL_SLACK_ZERO, 'greens.shred': 75 });
-    expect(r.warnings).toEqual([warning('chicken.roast', 7, 5, ROAST_MSG(7))]);
+    expect(r.warnings).toEqual([]);
   });
   it('E5: all done, carve late; serving at 3: strain waits 9 (hold 15), toss waits 8 > 5', () => {
     const r = readoutOf(h1With({ 'chicken.carve': iv(-5, 3) }), E5_PROGRESS, 3, 3);
@@ -597,7 +587,7 @@ const H1_ROWS: Record<string, Row> = {
   'chicken.carve': [-5, 0, 0, true, 0],
   'chicken.prep': [-110, -100, 0, true, null],
   'chicken.rest': [-25, -5, 0, true, 0],
-  'chicken.roast': [-100, -25, 0, true, 5],
+  'chicken.roast': [-100, -25, 0, true, 0],
   'gravy.roux': [-20, -18, 0, true, 0],
   'gravy.simmer': [-18, -8, 0, true, 0],
   'gravy.strain': [-8, -6, 0, true, 6],
@@ -611,13 +601,13 @@ const ALL_IDS = Object.keys(H1_ROWS);
 const idsExcept = (...skip: string[]): string[] => ALL_IDS.filter((id) => !skip.includes(id));
 
 describe('RQ1 to RQ9 rebuild: the hand-worked rebuilds of the design, every column', () => {
-  it('RB-a: roast needs 15 more minutes at -60; serving 15, span 125, chain 110, two warnings, seven moves', () => {
+  it('RB-a: roast needs 15 more minutes at -60; serving 15, span 125, chain 110, one warning, seven moves', () => {
     const r = rebuilt(H1_SCHEDULE, RB_A_PROGRESS, RB_A_NOW);
     expect(rowsOf(r)).toEqual({
       'chicken.carve': [10, 15, 0, true, 0],
       'chicken.prep': [-110, -100, 0, false, null],
       'chicken.rest': [-10, 10, 0, true, 0],
-      'chicken.roast': [-100, -10, 0, false, 6],
+      'chicken.roast': [-100, -10, 0, false, 0],
       'gravy.roux': [-4, -2, 0, true, 0],
       'gravy.simmer': [-2, 8, 0, true, 0],
       'gravy.strain': [8, 10, 0, true, 5],
@@ -632,12 +622,6 @@ describe('RQ1 to RQ9 rebuild: the hand-worked rebuilds of the design, every colu
     expect(r.schedule.kitchen).toEqual(HOME_KITCHEN);
     expect(r.schedule.plan).toEqual(H1_SCHEDULE.plan);
     expect(r.schedule.warnings).toEqual([
-      warning(
-        'chicken.roast',
-        6,
-        5,
-        'Step chicken.roast will be ready 6 minutes before the step that uses it and can wait only 5 minutes. More ovens, burners or cooks may help.',
-      ),
       warning(
         'greens.toss',
         7,
@@ -658,13 +642,13 @@ describe('RQ1 to RQ9 rebuild: the hand-worked rebuilds of the design, every colu
     expect(r.diff.servingShiftMin).toBe(15);
   });
 
-  it('RB-b: 8 minutes behind on the roux at -12; serving 2, span 112, warnings roast 13 and toss 7', () => {
+  it('RB-b: 8 minutes behind on the roux at -12; serving 2, span 112, one warning, toss 7', () => {
     const r = rebuilt(H1_SCHEDULE, RB_B_PROGRESS, RB_B_NOW);
     expect(rowsOf(r)).toEqual({
       'chicken.carve': [-5, 0, 0, true, 2],
       'chicken.prep': [-110, -100, 0, false, null],
       'chicken.rest': [-25, -5, 0, false, 0],
-      'chicken.roast': [-100, -25, 0, false, 13],
+      'chicken.roast': [-100, -25, 0, false, 0],
       'gravy.roux': [-12, -10, 0, true, 0],
       'gravy.simmer': [-10, 0, 0, true, 0],
       'gravy.strain': [0, 2, 0, true, 0],
@@ -674,10 +658,7 @@ describe('RQ1 to RQ9 rebuild: the hand-worked rebuilds of the design, every colu
     });
     expect(laneRowsOf(r)).toEqual(H1_LANES);
     expect([r.schedule.servingMin, r.schedule.spanMin, r.schedule.chainMin]).toEqual([2, 112, 110]);
-    expect(warningsOf(r)).toEqual([
-      ['chicken.roast', 13, 5],
-      ['greens.toss', 7, 5],
-    ]);
+    expect(warningsOf(r)).toEqual([['greens.toss', 7, 5]]);
     expect(movesOf(r)).toEqual([
       ['gravy.roux', -20, -12],
       ['gravy.simmer', -18, -10],
@@ -692,7 +673,7 @@ describe('RQ1 to RQ9 rebuild: the hand-worked rebuilds of the design, every colu
     expect(rowsOf(r)).toEqual(
       h1Rows({
         'chicken.prep': [-110, -100, 0, false, null],
-        'chicken.roast': [-100, -25, 0, false, 5],
+        'chicken.roast': [-100, -25, 0, false, 0],
         'greens.shred': [-92, -87, 67, false, null],
       }),
     );
@@ -709,7 +690,7 @@ describe('RQ1 to RQ9 rebuild: the hand-worked rebuilds of the design, every colu
     expect(rowsOf(r)).toEqual(
       h1Rows({
         'chicken.prep': [-110, -100, 0, false, null],
-        'chicken.roast': [-100, -25, 0, false, 5],
+        'chicken.roast': [-100, -25, 0, false, 0],
         'greens.shred': [-100, -95, 0, false, null],
       }),
     );
@@ -723,21 +704,21 @@ describe('RQ1 to RQ9 rebuild: the hand-worked rebuilds of the design, every colu
 });
 
 describe('RQ1 to RQ9 rebuild: the situations E1 to E8 of the design', () => {
-  it('E1 finished early: nothing moves (R3), serving 0, the roast waits 15 > 5', () => {
+  it('E1 finished early: nothing moves (R3), serving 0, the roast waits 10 > 5', () => {
     const r = rebuilt(H1_SCHEDULE, E1_PROGRESS, E1_NOW);
     expect(r.diff.moved).toEqual([]);
     expect(r.schedule.servingMin).toBe(0);
-    expect(rowsOf(r)['chicken.roast']).toEqual([-100, -35, 0, false, 15]);
+    expect(rowsOf(r)['chicken.roast']).toEqual([-100, -35, 0, false, 10]);
     expect(rowsOf(r)['chicken.rest']).toEqual([-25, -5, 0, true, 0]);
-    expect(warningsOf(r)).toEqual([['chicken.roast', 15, 5]]);
+    expect(warningsOf(r)).toEqual([['chicken.roast', 10, 5]]);
   });
 
-  it('E2 started early: roast [-102,-27); only chicken.roast moves, -100 to -102; its wait 7 is warned', () => {
+  it('E2 started early: roast [-102,-27); only chicken.roast moves, -100 to -102; its wait is 2, within its hold, no warning', () => {
     const r = rebuilt(H1_SCHEDULE, E2_PROGRESS, E2_NOW);
-    expect(rowsOf(r)['chicken.roast']).toEqual([-102, -27, 0, false, 7]);
+    expect(rowsOf(r)['chicken.roast']).toEqual([-102, -27, 0, false, 2]);
     expect(movesOf(r)).toEqual([['chicken.roast', -100, -102]]);
     expect(r.schedule.servingMin).toBe(0);
-    expect(warningsOf(r)).toEqual([['chicken.roast', 7, 5]]);
+    expect(warningsOf(r)).toEqual([]);
   });
 
   it('E3 overrun without taps: roast ends now [-100,-20); rest [-20,0), carve [0,5), serving 5, the hot steps re-aligned, no warnings', () => {

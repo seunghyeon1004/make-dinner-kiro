@@ -36,7 +36,7 @@ import type {
  *   chicken.carve     -5    0    -  -  1      0     0
  *   chicken.prep    -110 -100    -  -  1      0     -
  *   chicken.rest     -25   -5    -  -  -      0     0
- *   chicken.roast   -100  -25    -  1  -      0     5
+ *   chicken.roast   -100  -25    -  1  -      0     0
  *   gravy.roux       -20  -18    1  -  1      0     0
  *   gravy.simmer     -18   -8    1  -  -      0     0
  *   gravy.strain      -8   -6    -  -  1      0     6
@@ -46,7 +46,7 @@ import type {
  *
  * Expected schedule, H2: with ONE_BURNER_KITCHEN (1 burner, 1 oven, 1 cook). span 110,
  * chain 110, no warnings. Differs from H1 only in:
- *   chicken.roast   -100  -25    -  1  -      0     3
+ *   chicken.roast   -100  -25    -  1  -      0     0
  *   gravy.roux       -22  -20    1  -  1      0     0
  *   gravy.simmer     -20  -10    1  -  -      0     2
  *   greens.boil      -10   -6    1  -  -      0     0
@@ -652,7 +652,7 @@ export const H1_SCHEDULE: Schedule = {
     row('chicken.carve', -5, 0, [null, null, 1], 0, 0),
     row('chicken.prep', -110, -100, [null, null, 1], 0, null),
     row('chicken.rest', -25, -5, [null, null, null], 0, 0),
-    row('chicken.roast', -100, -25, [null, 1, null], 0, 5),
+    row('chicken.roast', -100, -25, [null, 1, null], 0, 0),
     row('gravy.roux', -20, -18, [1, null, 1], 0, 0),
     row('gravy.simmer', -18, -8, [1, null, null], 0, 0),
     row('gravy.strain', -8, -6, [null, null, 1], 0, 6),
@@ -723,7 +723,7 @@ const H1_EXCEPT = (...skip: string[]): string[] => H1_IDS.filter((id) => !skip.i
 /**
  * RB-a. The roast needs 15 more minutes, now -60. Expected: roast stays `[-100,-10)`; carve
  * `[10,15)`, rest `[-10,10)`, roux `[-4,-2)`, simmer `[-2,8)`, strain `[8,10)`, boil `[3,7)`,
- * toss `[7,8)`; servingMin 15, spanMin 125; warnings roast (wait 6 > 5) and toss (7 > 5);
+ * toss `[7,8)`; servingMin 15, spanMin 125; warning toss (7 > 5) (the roast ends at -10, when rest starts: wait 0);
  * moved carve, rest, roux, simmer, strain, boil, toss; shift 15.
  */
 export const RB_A_PROGRESS: Progress = {
@@ -735,8 +735,8 @@ export const RB_A_NOW = -60;
 
 /**
  * RB-b. The cook is 8 minutes behind on gravy.roux, now -12. Expected: roux `[-12,-10)`, simmer
- * `[-10,0)`, strain `[0,2)`, everything else as H1; servingMin 2, spanMin 112; warnings roast
- * (13 > 5) and toss (7 > 5); moved roux, simmer, strain; shift 2.
+ * `[-10,0)`, strain `[0,2)`, everything else as H1; servingMin 2, spanMin 112; warning toss
+ * (7 > 5), the roast waits 0 for rest, its first user; moved roux, simmer, strain; shift 2.
  */
 export const RB_B_PROGRESS: Progress = {
   ...doneAsH1(['chicken.prep', 'greens.shred']),
@@ -765,7 +765,7 @@ export const RB_C_PROGRESS: Progress = {
 };
 export const RB_C_NOW = -60;
 
-/** E1. Finished early, now -35. Expected: nothing moves, servingMin 0; roast wait 15 > 5 warned. */
+/** E1. Finished early, now -35. Expected: nothing moves, servingMin 0; roast wait 10 > 5 warned (rest starts at -25). */
 export const E1_PROGRESS: Progress = {
   ...doneAsH1(['chicken.prep', 'greens.shred']),
   'chicken.roast': done(-100, -35),
@@ -774,7 +774,7 @@ export const E1_NOW = -35;
 
 /**
  * E2. Started early, now -100. Expected: roast `[-102,-27)`; moved only chicken.roast
- * `-100 -> -102`; roast wait 7 warned; servingMin 0.
+ * `-100 -> -102`; roast wait 2, no warning (rest starts at -25); servingMin 0.
  */
 export const E2_PROGRESS: Progress = {
   'chicken.prep': done(-110, -102),

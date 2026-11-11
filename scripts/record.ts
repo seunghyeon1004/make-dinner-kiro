@@ -89,7 +89,8 @@ export async function runRecord(deps: RecordDeps): Promise<number> {
     const recording = buildRecording(id, sample.text, read.value, deps.now());
     writeFileSync(join(deps.paths.recordingsDir, `${id}.json`), serialiseRecording(recording));
     const warnings = checked.issues.filter((issue) => issue.severity === 'warning').length;
-    write(`${id}: recorded, ${checked.plan.steps.length} steps, ${warnings} warnings.`);
+    const warningsText = `${warnings} ${warnings === 1 ? 'warning' : 'warnings'}`;
+    write(`${id}: recorded, ${checked.plan.steps.length} steps, ${warningsText}.`);
     recorded += 1;
   }
 

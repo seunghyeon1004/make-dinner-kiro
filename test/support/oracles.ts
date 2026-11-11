@@ -470,7 +470,8 @@ export function oracleValid(plan: Plan, kitchen: Kitchen, starts: Starts): boole
 
 /**
  * Notation of scheduler-guarantees.md: null where the result keeps; for a terminal step
- * `0 - end`; otherwise the latest start of its users minus its end.
+ * `0 - end`; otherwise the earliest start of its users minus its end (the result stops waiting
+ * when its first user starts).
  */
 export function oracleWaits(plan: Plan, starts: Starts): Record<string, number | null> {
   const out: Record<string, number | null> = {};
@@ -484,9 +485,9 @@ export function oracleWaits(plan: Plan, starts: Starts): Record<string, number |
       out[s.id] = 0 - endOf(starts, s);
       continue;
     }
-    let latest = -Infinity;
-    for (const u of users) latest = Math.max(latest, startOf(starts, u));
-    out[s.id] = latest - endOf(starts, s);
+    let first = Infinity;
+    for (const u of users) first = Math.min(first, startOf(starts, u));
+    out[s.id] = first - endOf(starts, s);
   }
   return out;
 }
@@ -861,7 +862,7 @@ export function oracleForwardRepair(
 
 /**
  * RQ8.3: null where the result keeps; a terminal step `servingMin - end`; otherwise
- * `max(0, latest successor start - end)`.
+ * `max(0, earliest successor start - end)`.
  */
 export function oracleRebuildWaits(
   plan: Plan,
@@ -880,9 +881,9 @@ export function oracleRebuildWaits(
       out[s.id] = servingMin - end;
       continue;
     }
-    let latest = -Infinity;
-    for (const u of users) latest = Math.max(latest, intervalOf(iv, u.id).startMin);
-    out[s.id] = Math.max(0, latest - end);
+    let first = Infinity;
+    for (const u of users) first = Math.min(first, intervalOf(iv, u.id).startMin);
+    out[s.id] = Math.max(0, first - end);
   }
   return out;
 }

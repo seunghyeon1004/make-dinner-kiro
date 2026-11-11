@@ -142,8 +142,8 @@ A task is ticked only after its command passed in the same session. Commands run
 - [x] T7.3 Example tests: `readout` on the final H1 to H6 starts gives the slack, wait and
   warning values (`greens.shred` 75 in H1 and 73 in H2, `potatoes.roast` warning with the exact
   message, `b.chop` warning, the non-terminal message wording on a hand-made case, `1 minute`
-  singular); `chicken.roast` wait 5 from `gravy.roux` while its deadline came from
-  `chicken.rest`.
+  singular); `chicken.roast` wait 0, measured to `chicken.rest`, its first user (it was 5,
+  measured to `gravy.roux`, before the definition change of 2026-11-11).
   Files: `test/core/passes.test.ts`, `src/core/passes/readout.ts` (stub).
   Covers: R7.1–R7.4, R2.7.
   Command: `npx vitest run --project examples test/core/passes.test.ts`

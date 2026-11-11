@@ -238,8 +238,9 @@ export function holdExceededMessage(stepId: string, terminal: boolean, waitMin: 
   rest were checked at `1..d`. Delaying `s` cannot break G2 for its prerequisites or anything
   about other steps, so these are the only conditions. Holds and lanes are ignored (G8).
 - `critical = slackMin === 0`.
-- **Wait**: `null` if keeps; terminal: `-end(s)`; else `max(start(u) for u in succ(s)) - end(s)`.
-  Never negative because G2 and G3 hold.
+- **Wait**: `null` if keeps; terminal: `-end(s)`; else `min(start(u) for u in succ(s)) - end(s)`:
+  the result stops waiting when its first user starts (steering, changed by hand 2026-11-11; it
+  equals `deadline(s) - end(s)`). Never negative because G2 and G3 hold.
 - **Warnings**: one `hold_exceeded` per step with `waitMin > holdMin`, then `sortIssues`.
 
 ## `schedule` (`src/core/schedule.ts`)
@@ -267,8 +268,11 @@ export function holdExceededMessage(stepId: string, terminal: boolean, waitMin: 
   the cost section for the search bound.
 - **Prerequisite in another dish.** Dishes are labels; only `after` edges matter (`gravy.roux`
   after `chicken.roast` in `SUNDAY_ROAST`).
-- **Several successors.** Deadline: the earliest successor start (needed for G2). Wait: the
-  latest (the result is not used up until its last user starts). `chicken.roast` below.
+- **Several successors.** Deadline and wait both use the earliest successor start: G2 needs it
+  for the deadline, and the result stops waiting when its first user starts (the first real
+  recording showed the "latest user" rule warning about a roast that was not waiting: it fed
+  `chicken.rest` the minute it came out and the gravy two minutes later). So a hot step's wait is
+  exactly the gap right-justify closes, `deadline(s) - end(s)`. `chicken.roast` below.
 - **A keeps step after a hot step.** Prep-forward puts it at or after the hot step's end, often
   right at it. Then right-justify cannot move the hot step later than the keeps step's new
   start, so it can lose room it might have taken. It never makes the hot step's wait longer
@@ -366,7 +370,7 @@ successor or by the cook).
 | chicken.carve | -5 | 0 | - | - | 1 | 0 | yes | 0 | |
 | chicken.prep | -110 | -100 | - | - | 1 | 0 | yes | null | |
 | chicken.rest | -25 | -5 | - | - | - | 0 | yes | 0 | |
-| chicken.roast | -100 | -25 | - | 1 | - | 0 | yes | 5 | |
+| chicken.roast | -100 | -25 | - | 1 | - | 0 | yes | 0 | |
 | gravy.roux | -20 | -18 | 1 | - | 1 | 0 | yes | 0 | |
 | gravy.simmer | -18 | -8 | 1 | - | - | 0 | yes | 0 | |
 | gravy.strain | -8 | -6 | - | - | 1 | 0 | yes | 6 | |
@@ -374,10 +378,10 @@ successor or by the cook).
 | greens.shred | -100 | -95 | - | - | 1 | 75 | no | null | -15 |
 | greens.toss | -6 | -5 | - | - | 1 | 0 | yes | 5 | |
 
-`spanMin 110`, `chainMin 110`, warnings `[]`. `chicken.roast` has two successors: its deadline
-comes from `chicken.rest` (−25), its wait from `gravy.roux` (−20 − (−25) = 5, not over its hold
-of 5). `greens.boil` takes burner 2 because `gravy.simmer` holds burner 1 at −10;
-`gravy.simmer` keeps the burner of `gravy.roux`. Slack of `greens.shred`: delays 1..75 keep its
+`spanMin 110`, `chainMin 110`, warnings `[]`. `chicken.roast` has two successors, `chicken.rest`
+(−25) and `gravy.roux` (−20); its deadline and its wait both come from the first, `min(−25, −20) −
+(−25) = 0` (measured to the latest user, as before 2026-11-11, it read 5). `greens.boil` takes burner 2
+because `gravy.simmer` holds burner 1 at −10; `gravy.simmer` keeps the burner of `gravy.roux`. Slack of `greens.shred`: delays 1..75 keep its
 window clear of `gravy.roux` at −20; 76 collides.
 
 ### H2. `SUNDAY_ROAST` × `ONE_BURNER_KITCHEN` (1 burner, 1 oven, 1 cook)
@@ -392,7 +396,7 @@ Pass 3 moves nothing (simmer still cannot end later than −10 with boil on the 
 | chicken.carve | -5 | 0 | - | - | 1 | 0 | yes | 0 | |
 | chicken.prep | -110 | -100 | - | - | 1 | 0 | yes | null | |
 | chicken.rest | -25 | -5 | - | - | - | 0 | yes | 0 | |
-| chicken.roast | -100 | -25 | - | 1 | - | 0 | yes | 3 | |
+| chicken.roast | -100 | -25 | - | 1 | - | 0 | yes | 0 | |
 | gravy.roux | -22 | -20 | 1 | - | 1 | 0 | yes | 0 | |
 | gravy.simmer | -20 | -10 | 1 | - | - | 0 | yes | 2 | |
 | gravy.strain | -8 | -6 | - | - | 1 | 0 | yes | 6 | |

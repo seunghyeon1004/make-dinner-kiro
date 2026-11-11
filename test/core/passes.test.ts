@@ -321,13 +321,13 @@ const ROAST_WARNING_MESSAGE =
   'Step potatoes.roast will be ready 40 minutes before serving and can wait only 10 minutes. More ovens, burners or cooks may help.';
 
 describe('R7 readout (design H1 to H6)', () => {
-  it('R7.1 R7.4 R2.7 H1: slack, wait, chicken.roast wait 5 measured to gravy.roux', () => {
+  it('R7.1 R7.4 R2.7 H1: slack, wait, chicken.roast wait 0 measured to chicken.rest, its first user', () => {
     const { reading, warnings } = readingOf(SUNDAY_ROAST, HOME_KITCHEN, H1_FINAL);
     expect(reading).toEqual({
       'chicken.carve': { slack: 0, wait: 0 },
       'chicken.prep': { slack: 0, wait: null },
       'chicken.rest': { slack: 0, wait: 0 },
-      'chicken.roast': { slack: 0, wait: 5 },
+      'chicken.roast': { slack: 0, wait: 0 },
       'gravy.roux': { slack: 0, wait: 0 },
       'gravy.simmer': { slack: 0, wait: 0 },
       'gravy.strain': { slack: 0, wait: 6 },
@@ -341,7 +341,7 @@ describe('R7 readout (design H1 to H6)', () => {
     const { reading, warnings } = readingOf(SUNDAY_ROAST, ONE_BURNER_KITCHEN, H2_FINAL);
     expect(reading['greens.shred']).toEqual({ slack: 73, wait: null });
     expect(reading['gravy.simmer']).toEqual({ slack: 0, wait: 2 });
-    expect(reading['chicken.roast']).toEqual({ slack: 0, wait: 3 });
+    expect(reading['chicken.roast']).toEqual({ slack: 0, wait: 0 });
     expect(warnings).toEqual([]);
   });
   it('R7.3 H3: one hold_exceeded for potatoes.roast with the exact message', () => {

@@ -115,7 +115,8 @@ on the same axis as the original, so that clock times never shift under the cook
   successor's start and ending at or before `S'`; `critical = slackMin === 0`.
 - RQ8.2 THE SYSTEM SHALL set `slackMin = 0` and `critical = false` for pinned steps (decided here).
 - RQ8.3 THE SYSTEM SHALL compute `waitMin` from the final intervals: keeps `null`; terminal
-  `S' - end`; otherwise `max(0, latest successor start - end)`.
+  `S' - end`; otherwise `max(0, earliest successor start - end)` (the first user;
+  `scheduler-guarantees.md`, Notation, changed by hand 2026-11-11 from the latest).
 - RQ8.4 THE SYSTEM SHALL report one `hold_exceeded` warning per step, pinned or pending, with
   `waitMin > holdMin`, worded by `holdExceededMessage`, in `sortIssues` order, and no other.
 

@@ -5919,3 +5919,56 @@ git diff --stat src/core/passes/forward-repair.ts; diff /tmp/mut/rebuild.ts src/
           Tests  9 failed | 6 passed (15)
     restored
     exit 0
+
+--- the rest of this session's transcript was lost: a clean-up command replaced this file while the session was still writing to it. What follows is the session's final report as captured from the runner's standard output (tool lines filtered out). ---
+    exit 0
+
+T5, T6 and T7 are done, and the rebuild spec is complete: every sub-task in `.kiro/specs/rebuild/tasks.md` is ticked, each after its own command passed in this session. I did not commit.
+
+**Empty pinned interval.** The algorithm and the lane oracle disagreed with what you described. Both treated a zero-length interval strictly inside another step's interval as overlapping it. I made both agree that it occupies no minute.
+- In `assignRebuildLanes` (`src/core/passes/lanes.ts`), an empty interval, on either side, is skipped when working out which lanes are busy.
+- In `oracleLaneViolations` (`test/support/oracles.ts`), a `lane_clash` now needs both steps to be non-empty.
+- I added a test for each, saw both fail on their assertions, then fixed them.
+- The clash check is shared with the scheduler's G6 check. Scheduled steps are never empty, so nothing changes there.
+
+**Files changed**
+- New: `test/core/rebuild.pbt.ts`.
+- Rewritten: `src/core/rebuild.ts` (it was a stub).
+- Edited: `src/core/passes/lanes.ts`, `src/core/index.ts`, `test/core/rebuild.test.ts`, `test/core/index.test.ts`, `test/meta/oracles.test.ts`, `test/support/oracles.ts`, `test/meta/guarantee-claims.ts` (now `rebuild: ['R']`), `.kiro/specs/rebuild/tasks.md` (ticks).
+
+**Hand-worked tables.** RB-a, RB-b, RB-b2, RB-c and E1 to E8 all matched the design on the first run, so I found no table error.
+
+**Checks run**
+
+| Command | Result |
+| --- | --- |
+| `npm test` | 957 passed, 0 failed, 0 skipped (20 files) |
+| `npm run test:props` | 66 passed, 0 failed, 0 skipped (7 files) |
+| `npm run typecheck` | exit 0 |
+| `npm run lint` | exit 0, no output |
+| `npx prettier --check .` | "All matched files use Prettier code style!", exit 0 (after formatting `test/meta/oracles.test.ts`) |
+
+- **Task commands:** I also ran each task's own command: the six `-t` filtered property runs, `test/core/rebuild.test.ts` and `test/core/index.test.ts` with `test/meta/guarantees.test.ts`. All passed.
+- **"Skipped" in filtered runs:** The "skipped" counts you will see in those filtered property runs come from `-t` filtering, not from `.skip`.
+- **Timing:** The properties ran at the default 200 runs each, and I lowered no run count. The full props run took about 47 s.
+- **Mutation checks:** Because I wrote the properties after the implementation, they passed on first run, so I checked they can fail. Breaking the implementation, then restoring it, made properties fail each time:
+
+| Mutation | Properties that failed |
+| --- | --- |
+| Forward repair ignoring the previous start | R3, R4, R5 and P-RB1 to P-RB3 |
+| Serving minute ignoring `S_prev` | R5, P-RB1 to P-RB3 and P-RB9 |
+| Forward repair ignoring `now` | R1, R2, R5 and P-RB1, P-RB3 to P-RB7 |
+| Diff hiding pinned moves | R6 and P-RB3 |
+
+**Decisions I made**
+- `src/core/index.ts` exports `rebuild`, `RebuildError`, the seven new schemas and their types. It does not export `REBUILD_LIMITS` or `AXIS_MIN`, because N2 says "schemas and types". Say if the web code needs those.
+- `critical` is `slackMin === 0` for pending steps only. Pinned steps are never critical, per RQ8.2.
+- The `rebuild` checks use the schema's own result, so `RebuiltScheduleSchema` applies the `servingMin` default of 0.
+
+**Not verified or open**
+- **Re-align gap:** Removing the re-align pass is caught by the example tests (2 failed in `test/core/rebuild.test.ts`) but by no property. Every R property still holds without it, the same kind of gap G9 closed for right-justify. A property such as "no pending hot step can be delayed and still fit" would close it. It is not in the design's property list, so I left it. Do you want it added?
+- **E2E and contrast:** I did not run `npm run test:e2e` or `npm run check:contrast`. Nothing in this spec touches them.
+- **Outside commit:** A commit (`241424c`) appeared during the session that includes my in-progress files. I did not make it. Git status now shows only the last edits as uncommitted.
+
+--- run success (end_turn); credits reported by this session: 22.63 ---
+

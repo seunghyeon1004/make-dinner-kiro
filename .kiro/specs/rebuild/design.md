@@ -171,8 +171,9 @@ export function rebuildReadout(plan: Plan, cap: Capacity, intervals: ReadonlyMap
 
 - Slack (pending): `timelineFrom(..., now)` without `s`, `limit = deadline(s) - end(s)`, then the
   scheduler's per-minute loop; pinned 0. `critical` (set in `rebuild.ts`): pending `slackMin === 0`.
-- Wait: keeps `null`; terminal `S' - end(s)`; else `max(0, max(start(u) for u in succ(s)) - end(s))`
-  over all successors (the clamp matters only when every successor started out of order).
+- Wait: keeps `null`; terminal `S' - end(s)`; else `max(0, min(start(u) for u in succ(s)) - end(s))`
+  over all successors, pinned or pending: the first user (the clamp matters only when that
+  successor started before `s` ended, i.e. out of order).
 - Warnings: one `hold_exceeded` per step with `waitMin > holdMin`, `holdExceededMessage(id,
   succ(s) empty, waitMin, holdMin)`, `sortIssues`.
 
@@ -233,7 +234,7 @@ boil, roux: carve and rest stay; strain to `[8,10)` (cook busy with carve from 1
 | chicken.carve | p | 10 | 15 | 0 | yes | 0 | |
 | chicken.prep | d | -110 | -100 | 0 | no | null | |
 | chicken.rest | p | -10 | 10 | 0 | yes | 0 | |
-| chicken.roast | r | -100 | -10 | 0 | no | 6 | |
+| chicken.roast | r | -100 | -10 | 0 | no | 0 | |
 | gravy.roux | p | -4 | -2 | 0 | yes | 0 | -10 |
 | gravy.simmer | p | -2 | 8 | 0 | yes | 0 | -8 |
 | gravy.strain | p | 8 | 10 | 0 | yes | 5 | 2 |
@@ -241,9 +242,7 @@ boil, roux: carve and rest stay; strain to `[8,10)` (cook busy with carve from 1
 | greens.shred | d | -100 | -95 | 0 | no | null | |
 | greens.toss | p | 7 | 8 | 0 | yes | 7 | -6 |
 
-`servingMin 15`, `spanMin 125`. Warnings in `sortIssues` order: `chicken.roast` wait 6 hold 5,
-`Step chicken.roast will be ready 6 minutes before the step that uses it and can wait only 5 minutes. More ovens, burners or cooks may help.`;
-`greens.toss` wait 7 hold 5, `Step greens.toss will be ready 7 minutes before serving and can wait only 5 minutes. More ovens, burners or cooks may help.`
+`servingMin 15`, `spanMin 125`. One warning: `greens.toss` wait 7 hold 5, `Step greens.toss will be ready 7 minutes before serving and can wait only 5 minutes. More ovens, burners or cooks may help.`
 Diff: moved `chicken.carve -5→10`, `chicken.rest -25→-10`, `gravy.roux -20→-4`,
 `gravy.simmer -18→-2`, `gravy.strain -8→8`, `greens.boil -10→3`, `greens.toss -6→7`; unchanged
 `chicken.prep`, `chicken.roast`, `greens.shred`; `servingShiftMin 15`. No keeps step is pending at
@@ -262,7 +261,7 @@ successor or by the cook.
 | chicken.carve | p | -5 | 0 | 0 | yes | 2 |
 | chicken.prep | d | -110 | -100 | 0 | no | null |
 | chicken.rest | r | -25 | -5 | 0 | no | 0 |
-| chicken.roast | d | -100 | -25 | 0 | no | 13 |
+| chicken.roast | d | -100 | -25 | 0 | no | 0 |
 | gravy.roux | p | -12 | -10 | 0 | yes | 0 |
 | gravy.simmer | p | -10 | 0 | 0 | yes | 0 |
 | gravy.strain | p | 0 | 2 | 0 | yes | 0 |
@@ -270,8 +269,9 @@ successor or by the cook.
 | greens.shred | d | -100 | -95 | 0 | no | null |
 | greens.toss | p | -6 | -5 | 0 | yes | 7 |
 
-`servingMin 2`, `spanMin 112`. Warnings: `chicken.roast` wait 13 hold 5 (the tin juices wait for
-the late roux), `greens.toss` wait 7 hold 5. Moved `gravy.roux -20→-12`, `gravy.simmer -18→-10`,
+`servingMin 2`, `spanMin 112`. One warning: `greens.toss` wait 7 hold 5. `chicken.roast` waits 0:
+`chicken.rest` starts at −25 as it ends, whatever the late roux does (measured to the roux, the
+latest user, it read 13 and warned; before 2026-11-11). Moved `gravy.roux -20→-12`, `gravy.simmer -18→-10`,
 `gravy.strain -8→0`; 7 unchanged; shift 2. At −10 `gravy.simmer` (id before `greens.boil`) is
 assigned first and keeps burner 1; boil keeps burner 2.
 
@@ -291,8 +291,8 @@ unchanged, shift 0; re-align does not run.
 
 | id | progress, now | expected |
 | -- | ------------- | -------- |
-| E1 finished early | prep, shred as H1; roast done `[-100,-35)`; now −35 | nothing moves (R3), `S'` 0; roast wait 15 > 5 warned |
-| E2 started early | prep done `[-110,-102)`; roast running `{ -102, 0 }`; now −100 | roast `[-102,-27)`; moved only `chicken.roast -100→-102`; roast wait 7 warned; `S'` 0 |
+| E1 finished early | prep, shred as H1; roast done `[-100,-35)`; now −35 | nothing moves (R3), `S'` 0; roast wait 10 > 5 warned (rest starts at −25) |
+| E2 started early | prep done `[-110,-102)`; roast running `{ -102, 0 }`; now −100 | roast `[-102,-27)`; moved only `chicken.roast -100→-102`; roast wait 2 (rest starts at −25), within its hold, no warning; `S'` 0 |
 | E3 overrun, no taps | prep, shred as H1; roast running `{ -100, 0 }`; now −20 | roast `[-100,-20)` (ends now); rest `[-20,0)`, carve `[0,5)`, `S'` 5; re-align: toss −1, strain −3, boil −5, simmer −13, roux −15; no warnings |
 | E4 done long | prep as H1; shred done `[-100,-88)`; roast running `{ -100, 0 }`; now −88 | nothing moves, `S'` 0, no warnings |
 | E5 all done late | all as H1 but carve done `[-5,3)`; now 3 | nothing planned; `S'` 3, shift 3; all slack 0 not critical; strain wait 9; toss wait 8 warned |

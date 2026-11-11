@@ -852,3 +852,88 @@ npx tsx /tmp/plan-ui-measure/check.ts
     ovens0 missing_appliance
     exit 0
 [tool:edit] Replace in File .kiro/specs/plan-ui/design.md
+[tool:edit] Write File .kiro/specs/plan-ui/tasks.md
+[tool:execute] $ cd .kiro/specs/plan-ui && python3 - <<'EOF'
+p='design.md'; s=open(p).read()
+a="""export const SHARE_PAYLOAD_MAX = 65_536;     // accepted on load
+export const SHARE_INFLATED_MAX = 262_144;   // bytes, guards against a deflate bomb"""
+b="""export const SHARE_PAYLOAD_MAX = 65_536, SHARE_INFLATED_MAX = 262_144; // accepted on load; inflated bytes (deflate bomb)"""
+assert a in s; s=s.replace(a,b)
+a="""export function shareUrl(base: string, encoded: string): string; // base = origin + pathname; + '#/share/' + encoded"""
+b=a+"""
+export function shareBody(plan: Plan, kitchen: Kitchen, serve: ServeTime): unknown[]; // the version 1 body, exported for tests"""
+assert a in s; s=s.replace(a,b)
+open(p,'w').write(s)
+p='tasks.md'; s=open(p).read()
+for a,b in [("""again" lists the samples; a second sample asks `Replace your current dinner, <title>?`; no
+  request after the samples load except none (checked with `page.on('request')`).""","""again" lists the samples; a second sample asks `Replace your current dinner, <title>?`; after
+  the samples load, choosing one and opening Plan makes no request (`page.on('request')`)."""),
+("""  same text opens it; a 1 MB + 1 byte file shows the too-large copy.""","""  same text opens it; a 1 MB + 1 byte file shows the too-large copy; the text survives a reload."""),
+("""  `LiveNotice`, `ErrorBoundary`, `components.css`. E2E first:""","""  `LiveNotice`, `ErrorBoundary` (no automated check: a render throw cannot be forced without a
+  test-only hook, decided here), `components.css`. E2E first:""")]:
+    assert a in s, a[:50]; s=s.replace(a,b)
+open(p,'w').write(s)
+EOF
+grep -n "print.spec\|shareBody" design.md | cut -c1-90; grep -c "" design.md tasks.md; grep -c "^- \[ \] T" tasks.md; bash ../../../scripts/hooks/tasks-lint.sh .kiro/specs/plan-ui/tasks.md; cat ../../../.prettierignore
+    317:export function shareBody(plan: Plan, kitchen: Kitchen, serve: ServeTime): unknown[]; 
+    design.md:599
+    tasks.md:352
+    40
+    [tasks-lint] ok: 1 file(s)
+    .kiro/
+    docs/kiro-evidence/
+    recordings/
+    public/assets/
+    dist/
+    package-lock.json
+    samples/
+    exit 0
+
+I've written the `plan-ui` spec in `.kiro/specs/plan-ui/`: `requirements.md` (259 lines, R1 to R11 plus non-functional, "Needs from other specs" and out of scope), `design.md` (599 lines) and `tasks.md` (40 sub-tasks in the order you asked). No code changed in the repo.
+
+**Checks I ran**
+- `bash scripts/hooks/tasks-lint.sh .kiro/specs/plan-ui/tasks.md`: ok, 1 file.
+- I ran the real `schedule` from `src/core` in a scratch script outside the repo to confirm the expected times the e2e tasks use:
+  - Sunday roast as written: start −110 (17:40 for a 19:30 serving).
+  - With one burner: the roux runs −22 to −20 (19:08–19:10).
+  - With the roast at 85 minutes: span 120, start 17:30.
+  - With no oven: `missing_appliance`.
+- I measured share-link sizes with Node's raw deflate on generated plans. `recordings/` does not exist yet, so no real sample was measured; task T7.1 measures each recorded sample.
+- No test, lint or e2e runs: there is no code to run them on yet.
+
+**Decisions (marked "(decided here)" in the spec)**
+- **Default serving time:** the sample's suggested time if that still leaves the span plus 15 minutes; otherwise the next `:00` or `:30` that does. A typed time resolves to its first occurrence at or after 4 hours before now.
+- **Time mapping:** in `state/clock.ts`. It works from the chosen serving instant plus whole real minutes and never rebases. The serving time shown comes from `servingMin`, so rebuilt schedules already fit. Formatting uses `Intl` `timeStyle: 'short'`. The design works out examples by hand for serving after midnight and for the 2026-10-25 change from summer time.
+- **Share link:** `#/share/1.<payload>`. The payload is a compact JSON array of the canonical plan (dishes and prerequisites stored as indices), compressed with `deflate-raw` and base64url-encoded. Measured sizes:
+
+  | generated plan | link payload |
+  | --- | --- |
+  | 40 steps | about 1,400 characters |
+  | 40 steps with details | about 2,800 characters |
+  | 80 steps | about 5,200 characters |
+
+  Above 8,000 characters (the URI length RFC 9110 recommends supporting) the app offers the Dinnerfile instead of a link. Decoding never throws.
+- **Store:** one pure `reduce`. Cooking mode replaces the placeholders in a new `cook-slot.ts` and fills `SCREENS.cook`, and touches nothing else. Edits are ignored while a `cook` slice is set.
+- **Timeline:** 6 px per minute, quarter-hour ticks in clock time, labels on bars at least 56 px wide. Steps with no appliance that run by themselves are packed into the fewest "Hands-free" rows. The timeline is plain `div`s with no focusable element inside.
+- **Steps editor:**
+  - It also has a **Dish** field. Without it, an `unknown_dish` error could not be fixed.
+  - Ids never change.
+  - New dish ids come from the dish name (`creme-brulee`); new step ids are `<dish>.step-n`.
+  - Prerequisite options that would make a loop are disabled.
+- **Defaults and boundaries:** the default kitchen is 4 burners, 1 oven, 1 cook. Web-side response schemas live in `state/api.ts`. No new dependency.
+- **Smoke test:** the existing check moves its heading assertion. Each screen now has its own `<h1>`, and "Make Dinner" becomes the header link.
+
+**Open questions**
+1. **"Critical" wording:** `product.md` line 87 and `ui.md` lines 63 and 67 define "Critical" as slack 0. Your review decision narrows it, so both steering files need a hand edit. A result that keeps and has slack 0 without sitting next to another step (like the `SOLO_KEEPS` fixture) would also read "Back to back". Is that acceptable?
+2. **Rebuild design conflict:** its "The axis and `servingMin`" section says the share link stores a `RebuiltSchedule`. This share link carries only the plan, kitchen and serving time, so that line needs a hand edit.
+3. **48 px targets:** a step shorter than 8 minutes gives a timeline bar under 48 px, which conflicts with `ui.md`'s rule that every target is at least 48×48. I left the bars tappable and rely on the plan list as the compliant alternative. Should short bars not be tappable instead?
+4. **Oven hatch:** it uses `repeating-linear-gradient` with hard stops. `ui.md` says "no gradients"; I read that as shaded gradients. Is that right?
+5. **E2E is blocked until you run `npm run record`:** without recordings the server refuses to start, so no e2e command can run.
+6. **No-key message:** `model_unavailable` covers both "no key" and "model down", so the UI shows one sentence for both. Should the recipe-reader spec add a reason field?
+7. **Smaller points:**
+   - The error boundary has no automated check, because a render throw can't be forced without a test-only hook.
+   - 200% zoom is tested as a 195 px wide viewport.
+   - The theme may flash before `main.js` runs, since there is no inline script.
+   - The spec adds files `structure.md` does not list: `copy.ts`, `components.css`, eight `state/` modules and two pure helpers under `components/`.
+
+--- run success (end_turn); credits reported by this session: 70.25 ---

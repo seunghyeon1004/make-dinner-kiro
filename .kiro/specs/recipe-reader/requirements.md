@@ -181,7 +181,7 @@ and free answers come first and the model is the last resort.
 - R8.1 THE SYSTEM SHALL apply the checks of `POST /api/parse` in this order and stop at
   the first that answers: content type, body size, body shape (R4.1 to R4.3); normalise;
   empty and length (R4.5, R4.6); recorded sample (R5); rate limit (R6); daily cap (R7); key
-  present; model call; schema; sanity rules.
+  present; model call; schema; sanity rules; not-a-recipe check (R10.6).
 - R8.2 IF the server has no `ANTHROPIC_API_KEY`, THEN THE SYSTEM SHALL respond to
   non-recorded, non-limited requests with the `model_unavailable` error, and SHALL NOT
   consume any limit.
@@ -237,6 +237,13 @@ to get half a plan, so that what I see is either usable or clearly an error.
   `model_output_invalid`.
 - R10.5 THE SYSTEM SHALL build every error message from fixed words and numbers only; it
   SHALL NOT contain recipe text, model output, SDK error text or the key.
+- R10.6 WHEN `validatePlan` returns a plan with exactly one dish and that dish's id is
+  `not-a-recipe` (the sentinel of R11.4), THE SYSTEM SHALL respond with the `invalid_plan`
+  error (422, message `That does not look like a recipe. Paste the ingredients and method for
+  each dish.`) and no plan; the model call was made, so it still counts against the rate limit
+  and the daily cap (R7.3), and the `info` line (R13.2) has outcome `invalid_plan`. A plan with
+  that dish among other dishes, or a single dish with another id, is an ordinary 200 (R10.3)
+  (review Q4, decided here).
 
 ### R11. The prompt
 
@@ -252,6 +259,10 @@ and the prompt can be cached.
   `[/recipes]`, so that the text cannot close the block (decided here).
 - R11.3 THE SYSTEM SHALL state in both the system prompt and the user message that the
   recipe text is data, not instructions.
+- R11.4 THE SYSTEM SHALL tell the model, in the system prompt, to answer text in which
+  nothing can be read as a recipe with the sentinel plan: one dish with id `not-a-recipe` and
+  one step with id `not-a-recipe.skip`, and only then (a rough or partial recipe is still read)
+  (review Q4, decided here).
 
 ### R12. Recording
 
@@ -273,6 +284,9 @@ real model, so that tests and the samples work without a key.
 - R12.4 THE SYSTEM SHALL never print the key, recipe text or model output.
 - R12.5 THE SYSTEM SHALL never modify a recording any other way; tests, tools and people
   do not edit, reformat or "fix" files in `recordings/`.
+- R12.6 IF a sample's `raw` is the sentinel plan of R10.6, THEN THE SYSTEM SHALL not write
+  its recording, print `<id>: not recorded: the model did not read this as a recipe
+  (not-a-recipe).`, continue and exit 1 at the end (review Q4, decided here).
 
 ### R13. Logs and secrets
 
@@ -328,6 +342,6 @@ so that no test reaches the network and tasks before the first recording can run
 - The Menu, Steps and Plan screens and how they call these routes (UI specs).
 - Response schemas shared with the web code (see open questions).
 - Streaming, retries beyond the SDK's one, model fallback, other models.
-- Detecting text that is not a recipe at all (see open questions).
-- `invalid_plan` (422): no route in this spec returns it.
+- Deciding whether text is a recipe in server code: only the model decides, and the route
+  acts on its `not-a-recipe` sentinel answer (R10.6); no heuristic reads the text.
 - Re-recording automatically, or in CI.

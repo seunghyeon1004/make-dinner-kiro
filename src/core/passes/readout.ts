@@ -24,7 +24,7 @@ export function holdExceededMessage(
 
 /**
  * Pass 5. Slack by the G8 definition (delay one step alone, lanes and holds ignored), waits
- * measured to the latest successor, and one `hold_exceeded` per step that waits too long.
+ * measured to the first successor to start, and one `hold_exceeded` per step that waits too long.
  * `plan` must be canonical and valid and `starts` must satisfy G1 to G3.
  */
 export function readout(plan: Plan, cap: Capacity, starts: ReadonlyMap<string, number>): Readout {
@@ -57,7 +57,7 @@ export function readout(plan: Plan, cap: Capacity, starts: ReadonlyMap<string, n
     tl.add(rs, startOf(step.id), end);
     slackMin.set(step.id, slack);
 
-    const wait = step.holdMin === null ? null : (users.length === 0 ? 0 : Math.max(...users)) - end;
+    const wait = step.holdMin === null ? null : (users.length === 0 ? 0 : Math.min(...users)) - end;
     waitMin.set(step.id, wait);
     if (wait !== null && step.holdMin !== null && wait > step.holdMin) {
       warnings.push({
@@ -84,8 +84,8 @@ export function readout(plan: Plan, cap: Capacity, starts: ReadonlyMap<string, n
  * largest `k` such that delaying it alone by every `d` in `1..k` keeps its resources free from
  * `nowMin` on, ends it by `servingMin` and keeps it before every pending successor's start;
  * a pinned step has slack 0. Waits come from the final intervals: a result that keeps has
- * none, a terminal step waits until `servingMin`, any other until its latest successor starts
- * (never less than 0, as a successor may have started first). One `hold_exceeded` warning per
+ * none, a terminal step waits until `servingMin`, any other until its first successor starts
+ * (never less than 0, as that successor may have started before the step ended). One `hold_exceeded` warning per
  * step that waits longer than its hold, pinned or not. `plan` must be canonical and valid.
  */
 export function rebuildReadout(
@@ -136,7 +136,7 @@ export function rebuildReadout(
       wait =
         users.length === 0
           ? servingMin - here.endMin
-          : Math.max(0, Math.max(...users.map((u) => intervalOf(u).startMin)) - here.endMin);
+          : Math.max(0, Math.min(...users.map((u) => intervalOf(u).startMin)) - here.endMin);
     }
     waitMin.set(step.id, wait);
     if (wait !== null && step.holdMin !== null && wait > step.holdMin) {

@@ -73,7 +73,7 @@ describe('R12.1 runRecord writes recordings', () => {
     const { code, lines } = await record(client, ['tiny-roast']);
     expect(code).toBe(0);
     expect(lines).toEqual([
-      'tiny-roast: recorded, 5 steps, 1 warnings.',
+      'tiny-roast: recorded, 5 steps, 1 warning.',
       'Recorded 1 of 1 samples.',
     ]);
     expect(client.calls).toEqual([ROAST_TEXT]);
@@ -99,7 +99,7 @@ describe('R12.1 runRecord writes recordings', () => {
     expect(code).toBe(0);
     expect(client.calls).toEqual([ROAST_TEXT, SALAD_TEXT]);
     expect(lines).toEqual([
-      'tiny-roast: recorded, 5 steps, 1 warnings.',
+      'tiny-roast: recorded, 5 steps, 1 warning.',
       'tiny-salad: recorded, 3 steps, 0 warnings.',
       'Recorded 2 of 2 samples.',
     ]);
@@ -115,6 +115,26 @@ describe('R12.1 runRecord writes recordings', () => {
     expect(lines).toEqual([
       'tiny-salad: recorded, 3 steps, 0 warnings.',
       'Recorded 1 of 1 samples.',
+    ]);
+  });
+
+  it('R12.1 the summary line says "1 warning", "2 warnings" and "0 warnings"', async () => {
+    // tiny-roast has one warning (the rest step mentions "roast" with no appliance). Taking the
+    // burner off peas.boil adds a second: it mentions "boil" with no appliance.
+    const twoWarnings = {
+      ...(ROAST_RAW as { steps: { id: string }[] }),
+      steps: (ROAST_RAW as { steps: { id: string }[] }).steps.map((step) =>
+        step.id === 'peas.boil' ? { ...step, appliance: 'none' } : step,
+      ),
+    };
+    const client = fakeModelClient([ok(ROAST_RAW), ok(twoWarnings), ok(SALAD_RAW)]);
+    const one = await record(client, ['tiny-roast']);
+    const two = await record(client, ['tiny-roast']);
+    const none = await record(client, ['tiny-salad']);
+    expect([one.lines[0], two.lines[0], none.lines[0]]).toEqual([
+      'tiny-roast: recorded, 5 steps, 1 warning.',
+      'tiny-roast: recorded, 5 steps, 2 warnings.',
+      'tiny-salad: recorded, 3 steps, 0 warnings.',
     ]);
   });
 

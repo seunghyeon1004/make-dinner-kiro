@@ -327,17 +327,16 @@ finished `Everything is done. Dinner is served.` Nothing else is announced.
   17:50 -> 18:02`, `greens.shred 17:50 -> 18:02`, `chicken.rest 19:05 -> 19:17`, `gravy.roux 19:10
   -> 19:23`, `gravy.simmer 19:12 -> 19:25`, `greens.boil 19:20 -> 19:30`, `greens.toss 19:24 ->
   19:34`, `gravy.strain 19:22 -> 19:35`, `chicken.carve 19:25 -> 19:37`; `serve 19:30 -> 19:42`.
-  New warnings `chicken.roast` (6 > 5), `greens.toss` (7 > 5). Announcement `Plan rebuilt: 10 steps
-  moved. Serving is now 19:42. 2 new warnings.`
+  New warning `greens.toss` (7 > 5). Announcement `Plan rebuilt: 10 steps
+  moved. Serving is now 19:42. 1 new warning.`
 - **CM-c the roast needs 15 more minutes.** From CM-a's start without "Start now" (axis 19:30):
   start prep 17:40, done 17:50, start roast 17:50, start shred 17:50, done shred 17:55: no log entry
   (all on plan). `extra chicken.roast 15` at 18:30 (`n = -60`) gives RB-a. Log: `18:30 rebuild:
   chicken.roast needs 15 more min`; `chicken.rest 19:05 -> 19:20`, `gravy.roux 19:10 -> 19:26`,
   `gravy.simmer 19:12 -> 19:28`, `greens.boil 19:20 -> 19:33`, `greens.toss 19:24 -> 19:37`,
   `gravy.strain 19:22 -> 19:38`, `chicken.carve 19:25 -> 19:40`; `3 steps up to date`; `serve 19:30
-  -> 19:45`. New warnings: `Roast chicken: “Roast the chicken” will be ready 6 min before “Make a
-  roux in the roasting tin” starts and can wait only 5 min. More ovens, burners or cooks may help.`
-  and `Spring greens: “Toss the greens with butter” will be ready 7 min before serving and can wait
+  -> 19:45`. New warning (one, since the wait is now measured to the first user; corrected by hand):
+  `Spring greens: “Toss the greens with butter” will be ready 7 min before serving and can wait
   only 5 min. More ovens, burners or cooks may help.` Running card: roast ready at 19:20, `50:00`.
   Lane 1: `Nothing to do now`, `Next: Make a roux in the roasting tin at 19:26, in 56 min.` Dock:
   no primary; `Undo: +15 min on Roast the chicken` until 18:30:10.

@@ -21,7 +21,7 @@ them: `tech.md` (route order, error codes and statuses, environment, the API key
 | `src/server/routes/parse.ts` | `createParseRoute(deps)` |
 | `src/server/parse/recordings.ts` | index and recording schemas, `buildSampleTexts`, `buildSampleLibrary`, `readLibrarySource`, `loadSampleLibrary`, `formatStartupFailure`, `sha256Hex`, `buildRecording`, `serialiseRecording` |
 | `src/server/parse/limits.ts` | `Clock`, `systemClock`, size constants, `countChars`, `createRateLimiter`, `createDailyCap`, `clientKey` |
-| `src/server/parse/prompt.ts` | `SYSTEM_PROMPT`, `buildUserMessage` |
+| `src/server/parse/prompt.ts` | `SYSTEM_PROMPT`, `NOT_A_RECIPE_DISH_ID`, `isNotARecipe`, `buildUserMessage` |
 | `src/server/parse/anthropic-client.ts` | `ModelClient`, `ModelError`, `MODEL_ID`, `PLAN_OUTPUT_FORMAT`, `createAnthropicModelClient` |
 | `scripts/record.ts` | `runRecord(deps)` and the CLI behind `npm run record` |
 | `.env.example` | adds `PARSE_TIMEOUT_MS=60000` |
@@ -56,6 +56,7 @@ turn of the event loop and concurrent requests cannot both take the last slot (R
 | 10 | `rateLimiter.record(key, now)`; `dailyCap.record(now)` | | one slot each |
 | 11 | `await modelClient.readRecipes(normalised)` (R9) | 503 / 502 per R10.4 | |
 | 12 | `validatePlan(raw)`; `plan === null` (R10.2) | 502 `model_output_invalid` | |
+| 12a | `isNotARecipe(plan)`: exactly one dish, with id `not-a-recipe` (R10.6) | 422 `invalid_plan`, no plan | nothing more (step 10 already took the slots) |
 | 13 | 200 `{ plan, issues, source: "model" }` (R10.3) | | |
 
 The 12,000-character limit is applied to the normalised text (step 5), as the task asks,
@@ -64,7 +65,9 @@ while `tech.md` lists it under "validate" before "normalise"; see the open quest
 `max` counts them in the recipe-graph schemas (decided here).
 
 A plan with sanity errors is still a 200: the cook fixes it in the Steps screen, and
-scheduling refuses it there (R10.3). `invalid_plan` (422) is not used by this spec.
+scheduling refuses it there (R10.3). `invalid_plan` (422) is used for one case only: the model
+answered with the `not-a-recipe` sentinel plan of the prompt (step 12a, R10.6; review, Q4). A
+plan that merely contains a dish with that id among others is an ordinary 200.
 
 ## `samples/index.json`
 
@@ -277,6 +280,7 @@ Fixed words and numbers only (R10.5). `<n>` uses `toLocaleString('en-US')`; `<m>
 | `model_unavailable` | 503 | `unavailable` from the client | `The recipe reader is not available right now. Try again in a few minutes. The sample dinners and Dinnerfile import still work.` |
 | `model_refused` | 502 | `refused` | `The recipe reader declined to read this text. Check that it is a recipe, or try a sample dinner.` |
 | `model_output_invalid` | 502 | `output_invalid`, or `validatePlan` gives `plan: null` | `The recipe reader returned steps this app cannot use. Try again, or paste fewer dishes at a time.` |
+| `invalid_plan` | 422 | the model returned the `not-a-recipe` sentinel plan (step 12a) | `That does not look like a recipe. Paste the ingredients and method for each dish.` |
 | `internal` | 500 | anything thrown | the existing generic message from `errors.ts` |
 
 ### Logs
@@ -284,7 +288,7 @@ Fixed words and numbers only (R10.5). `<n>` uses `toLocaleString('en-US')`; `<m>
 | level | message | fields |
 | ----- | ------- | ------ |
 | debug | `parse text` | `{ text }` (normalised; only level that carries recipe text) |
-| info | `parse` | `{ outcome, chars, ms }`: outcome `recording`, `model` or the error code; `chars` null before normalisation; `ms` from `deps.clock` |
+| info | `parse` | `{ outcome, chars, ms }`: outcome `recording`, `model` or the error code (`invalid_plan` for the sentinel); `chars` null before normalisation; `ms` from `deps.clock` |
 | warn | `model output failed the schema` | `{ issues: [{ code, field?, stepId?, dishId? }] }` |
 
 No line carries the client address (R13.2) or model output (R13.1).
@@ -378,6 +382,9 @@ share one key: limits get stricter, never looser (see open questions).
 
 ```ts
 export const SYSTEM_PROMPT: string;          // the text below, verbatim
+export const NOT_A_RECIPE_DISH_ID: 'not-a-recipe';   // the sentinel of "Text that is not a recipe"
+/** True for exactly one dish, with that id (R10.6); false for any other plan. */
+export function isNotARecipe(plan: Plan): boolean;
 export function buildUserMessage(normalisedText: string): string;
 ```
 
@@ -725,11 +732,13 @@ export async function runRecord(deps: RecordDeps): Promise<number>;
 3. For each selected sample, one after another: `await client.readRecipes(normalisedText)`;
    on `err`, print `<id>: not recorded: <api code> (<kind>, <reason or category>)`; on `ok(raw)`
    run `validatePlan(raw)` and `checkKitchen(plan, entry.kitchen)`; a null plan prints
-   `<id>: not recorded: the plan fails the schema: <code> at <field>, ...`, errors print
+   `<id>: not recorded: the plan fails the schema: <code> at <field>, ...`; a plan that is the
+   sentinel (`isNotARecipe`) prints `<id>: not recorded: the model did not read this as a recipe
+   (not-a-recipe).`; errors print
    `<id>: not recorded: the plan has errors: <code> <stepId or dishId>, ...`; otherwise
    write `recordings/<id>.json` with `serialiseRecording(buildRecording(id,
    normalisedText, raw, now()))` (directory created if missing) and print
-   `<id>: recorded, <n> steps, <w> warnings.`
+   `<id>: recorded, <n> steps, <w> warnings.` (`1 warning` when <w> is 1)
 4. Print `Recorded <k> of <n> samples.` and return 0 if every selected sample was recorded,
    else 1.
 
@@ -1006,8 +1015,9 @@ All use `fcParams()` (200 runs, `FC_NUM_RUNS`); titles start with the id. Files:
 - Q4: text that is not a recipe. The prompt tells the model to return exactly one dish with id
   `not-a-recipe` and one step in that case; the route turns that into `invalid_plan` (422,
   "That does not look like a recipe. Paste the ingredients and method for each dish.") and
-  never returns the plan. Add it to the prompt block, R-ids, the error table and the tasks
-  when implementing (T-ids: fold into the route task).
+  never returns the plan. Folded into this spec: R10.6, R11.4 and R12.6, step 12a of the order
+  table, the `invalid_plan` row of the messages table, the `prompt.ts` exports and the record
+  step; the prompt block and tasks T4.1, T5.3, T5.4, T5.6 and T6.1 carried it already.
 - Q5: yes. The response schemas (`SamplesResponseSchema`, `ParseResponseSchema`,
   `ApiErrorSchema`) and `RECIPE_TEXT_MAX` live in `src/core/api.ts` so the web code and the
   server share them.

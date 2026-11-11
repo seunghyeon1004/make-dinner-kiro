@@ -142,9 +142,10 @@ and which hot results wait too long, so that I know where a slip hurts.
 - R7.3 WHEN a step's `waitMin > holdMin`, THE SYSTEM SHALL put exactly one `hold_exceeded`
   warning for it in `Schedule.warnings`, with its id, wait and hold; it SHALL put no other
   warning there; the list SHALL be in `sortIssues` order.
-- R7.4 WHEN a step has several successors, THE SYSTEM SHALL measure its wait to the latest
-  successor start (the result waits until its last use; `scheduler-guarantees.md`, Notation),
-  while its deadline comes from the earliest (R3.2).
+- R7.4 WHEN a step has several successors, THE SYSTEM SHALL measure its wait to the earliest
+  successor start (the result stops waiting when its first user starts; `scheduler-guarantees.md`,
+  Notation, changed by hand 2026-11-11 from the latest), the same successor its deadline comes
+  from (R3.2).
 
 ### R8. Guarantees
 

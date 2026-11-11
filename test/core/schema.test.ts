@@ -1543,7 +1543,7 @@ describe('RQ11.1 H1_SCHEDULE and H3_SCHEDULE', () => {
       ['chicken.carve', 0, true, 0],
       ['chicken.prep', 0, true, null],
       ['chicken.rest', 0, true, 0],
-      ['chicken.roast', 0, true, 5],
+      ['chicken.roast', 0, true, 0],
       ['gravy.roux', 0, true, 0],
       ['gravy.simmer', 0, true, 0],
       ['gravy.strain', 0, true, 6],

@@ -144,12 +144,12 @@ run stop with the startup message, by design (R2.3).
   `arbTagInjectedText`.
   Files: `test/server/parse/prompt.test.ts`, `test/server/parse/prompt.pbt.ts`,
   `test/support/arbitraries.ts`, `src/server/parse/prompt.ts` (stub).
-  Covers: R11.1–R11.3.
+  Covers: R11.1–R11.4.
   Command: `npx vitest run --project examples test/server/parse/prompt.test.ts && npx vitest run --project props test/server/parse/prompt.pbt.ts`
 - [x] T4.2 Implement `SYSTEM_PROMPT` (copied verbatim from the design, sentinel section
   included), `NOT_A_RECIPE_DISH_ID`, `isNotARecipe` and `buildUserMessage` until T4.1 passes.
   Files: `src/server/parse/prompt.ts`.
-  Covers: R11.1–R11.3.
+  Covers: R11.1–R11.4.
   Command: `npx vitest run --project examples test/server/parse/prompt.test.ts && npx vitest run --project props test/server/parse/prompt.pbt.ts`
 - [x] T4.3 Example tests for `createAnthropicModelClient` through `fakeAnthropicFetch`, as
   listed in the design outline: request body, every `stop_reason` case, text-block
@@ -191,7 +191,7 @@ run stop with the startup message, by design (R2.3).
   the exact message `That does not look like a recipe. Paste the ingredients and method for
   each dish.` and no plan; the same sentinel among other dishes is an ordinary 200.
   Files: `test/server/routes/parse.test.ts`.
-  Covers: R4.1–R4.6, R8.2, R10.2–R10.5.
+  Covers: R4.1–R4.6, R8.2, R10.2–R10.6.
   Command: `npx vitest run --project examples test/server/routes/parse.test.ts`
 - [x] T5.4 `POST /api/parse` tests for the order of checks and consumption: a fixture text
   served with the limiter exhausted, the cap reached and no key; rate-limited requests do
@@ -203,7 +203,7 @@ run stop with the startup message, by design (R2.3).
   rate-limit slot and one cap slot (the call was made), and logs `outcome: "invalid_plan"`.
   Every response body is parsed with `ParseResponseSchema` or `ApiErrorSchema` from core.
   Files: `test/server/routes/parse.test.ts`.
-  Covers: R5.1, R5.2, R6.4–R6.6, R7.2–R7.4, R8.1–R8.3, R10.1, R10.3, R13.1, R13.2.
+  Covers: R5.1, R5.2, R6.4–R6.6, R7.2–R7.4, R8.1–R8.3, R10.1, R10.3, R10.6, R13.1, R13.2.
   Command: `npx vitest run --project examples test/server/routes/parse.test.ts`
 - [x] T5.5 Property P-RR5 recorded match, with `arbPerturbedText`.
   Files: `test/server/routes/parse.pbt.ts`, `test/support/arbitraries.ts`.
@@ -213,7 +213,7 @@ run stop with the startup message, by design (R2.3).
   sentinel check (step 12a: `validatePlan` gives a plan and `isNotARecipe(plan)` answers
   422 `invalid_plan`, never returning the plan), until T5.3 to T5.5 pass.
   Files: `src/server/routes/parse.ts`.
-  Covers: R4–R8, R10, R13.1, R13.2.
+  Covers: R4–R8, R10 (R10.6 included), R13.1, R13.2.
   Command: `npx vitest run --project examples test/server && npx vitest run --project props test/server && npm run typecheck && npm run lint`
 
 ## T6. Recording
@@ -226,21 +226,21 @@ run stop with the startup message, by design (R2.3).
   sentinel plan is not recorded: `<id>: not recorded: the model did not read this as a
   recipe (not-a-recipe).`
   Files: `test/scripts/record.test.ts`, `scripts/record.ts` (stub).
-  Covers: R12.1–R12.4.
+  Covers: R12.1–R12.4, R12.6.
   Command: `npx vitest run --project examples test/scripts/record.test.ts`
 - [x] T6.2 Implement `runRecord` and the CLI (key check, real client, exit code) until T6.1
   passes.
   Files: `scripts/record.ts`.
-  Covers: R12.1–R12.5.
+  Covers: R12.1–R12.6.
   Command: `npx vitest run --project examples test/scripts/record.test.ts && npm run typecheck`
-- [ ] T6.3 User task, not for an agent session: with `ANTHROPIC_API_KEY` set, run
+- [x] T6.3 User task, not for an agent session: with `ANTHROPIC_API_KEY` set, run
   `npm run record` (five model calls), read the printed summary, review the five
   `recordings/*.json` plans in the app or by eye, and commit them. Re-run single samples
   with `npm run record -- <id>` if needed. The user ticks this task.
   Files: `recordings/*.json` (written by the script only).
   Covers: R12.1, `testing.md` "Recorded model output".
   Command: `npm run record`
-- [ ] T6.4 Tests on the real recordings, as listed in the design outline
+- [x] T6.4 Tests on the real recordings, as listed in the design outline
   (`test/server/recordings.test.ts`): shape, model id, hash, no sanity or kitchen errors,
   dish count against `index.json`, `loadSampleLibrary` on the real directories, and each
   recording replayed through `fakeModelClient` and `POST /api/parse`. If one fails, report
@@ -251,7 +251,7 @@ run stop with the startup message, by design (R2.3).
 
 ## T7. The whole suite
 
-- [ ] T7.1 Run the wider suite, the build and the e2e smoke test against the built app with
+- [x] T7.1 Run the wider suite, the build and the e2e smoke test against the built app with
   the real recordings, and fix what they find (never by weakening a check).
   Files: none expected.
   Covers: N1–N5.
