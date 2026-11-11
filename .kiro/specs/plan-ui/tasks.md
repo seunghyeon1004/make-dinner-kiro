@@ -22,7 +22,7 @@ design's copy tables give it, in the task that first shows it.
 
 ## T1. Time, store and shell
 
-- [ ] T1.1 Example tests for `clock.ts`: every row of the design's clock table under
+- [x] T1.1 Example tests for `clock.ts`: every row of the design's clock table under
   `TZ=Europe/London` (including the 2026-10-25 DST row and `en-US` with U+202F and U+00A0 replaced
   by spaces), `quarterFloor`/`quarterCeil` on and off a quarter hour, `minuteAt` on negative
   differences, quarter hours in `Asia/Kathmandu` (+5:45), `formatDay` for yesterday and a date two
@@ -30,11 +30,11 @@ design's copy tables give it, in the task that first shows it.
   Files: `test/web/state/clock.test.ts`, `src/web/state/clock.ts` (stubs).
   Covers: R1.4, R5.3, R5.5, R6.3, R6.4, R7.4.
   Command: `npx vitest run --project examples test/web/state/clock.test.ts`
-- [ ] T1.2 Implement `clock.ts` until T1.1 passes; add property P-UI5 with `fcParams()`.
+- [x] T1.2 Implement `clock.ts` until T1.1 passes; add property P-UI5 with `fcParams()`.
   Files: `src/web/state/clock.ts`, `test/web/state/clock.pbt.ts`.
   Covers: R1.4, R5.3, R5.5, N4.
   Command: `npx vitest run --project examples test/web/state/clock.test.ts && npx vitest run --project props test/web/state/clock.pbt.ts && npm run typecheck`
-- [ ] T1.3 Example tests for the store core: `initialState`; `navigate` with every row of the
+- [x] T1.3 Example tests for the store core: `initialState`; `navigate` with every row of the
   reachability table (state built by hand with `SUNDAY_ROAST`, with a plan carrying an
   `unknown_dependency`, with `cookRegistered` true and false); `theme/set`; `notice/*`;
   `start-over` keeps `theme` and `samples`; a no-op returns the same object; `createStore`
@@ -43,12 +43,12 @@ design's copy tables give it, in the task that first shows it.
   Files: `test/web/state/store.test.ts`, `src/web/state/store.ts`, `src/web/state/cook-slot.ts` (stubs).
   Covers: R9.2, R9.3, R9.7, R9.9.
   Command: `npx vitest run --project examples test/web/state/store.test.ts`
-- [ ] T1.4 Implement the store core, `reachable`, `selectCheck` and `cook-slot.ts` until T1.3
+- [x] T1.4 Implement the store core, `reachable`, `selectCheck` and `cook-slot.ts` until T1.3
   passes.
   Files: `src/web/state/store.ts`, `src/web/state/cook-slot.ts`.
   Covers: R9.2, R9.3, R9.7, R9.9, N4.
   Command: `npx vitest run --project examples test/web/state/store.test.ts && npm run typecheck && npm run lint`
-- [ ] T1.5 Example tests, then implementation, for `route.ts` (every hash form of the design,
+- [x] T1.5 Example tests, then implementation, for `route.ts` (every hash form of the design,
   including a share hash at the length limit and one character over) and `persist.ts` (missing
   key, `getItem` throwing, bad JSON, schema failure, a plan failing `validatePlan`, each with its
   notice; `toPersisted` then `loadState` gives the persisted fields back; a stored `cook` route
@@ -57,7 +57,7 @@ design's copy tables give it, in the task that first shows it.
   `src/web/state/route.ts`, `src/web/state/persist.ts`.
   Covers: R8.5, R9.3, R9.5, R9.6.
   Command: `npx vitest run --project examples test/web/state/route.test.ts test/web/state/persist.test.ts && npm run typecheck`
-- [ ] T1.6 Shell, part 1: `hooks.ts`, `effects.ts` (persistence, hash sync, theme), `main.tsx`,
+- [x] T1.6 Shell, part 1: `hooks.ts`, `effects.ts` (persistence, hash sync, theme), `main.tsx`,
   `app.tsx` with `SCREENS` (Menu, Steps and Plan show only their `<h1>` for now), `FlowNav`,
   `LiveNotice`, `ErrorBoundary` (no automated check: a render throw cannot be forced without a
   test-only hook, decided here), `components.css`. E2E first: `#/plan` with no dinner lands on
@@ -69,7 +69,7 @@ design's copy tables give it, in the task that first shows it.
   `src/web/styles/components.css`, `e2e/shell.spec.ts`, `e2e/smoke.spec.ts`, `e2e/support.ts`.
   Covers: R9.2, R9.3, R9.4, R9.5, R10.2.
   Command: `npx playwright test e2e/smoke.spec.ts e2e/shell.spec.ts && npm run typecheck && npm run lint`
-- [ ] T1.7 Shell, part 2: `Header`, `ThemeSwitch`, `StartOver`, `ConfirmInline`. E2E first:
+- [x] T1.7 Shell, part 2: `Header`, `ThemeSwitch`, `StartOver`, `ConfirmInline`. E2E first:
   theme Dark under a light system sets `data-theme="dark"` and `--color-bg` `rgb(26, 24, 22)`,
   survives a reload, System removes the attribute; "Start over" needs the second tap, Cancel
   returns focus; header targets at least 48×48 px.
@@ -80,14 +80,14 @@ design's copy tables give it, in the task that first shows it.
 
 ## T2. Menu with samples
 
-- [ ] T2.1 Example tests, then implementation, for `SamplesResponseSchema`, `SampleItemSchema`
+- [x] T2.1 Example tests, then implementation, for `SamplesResponseSchema`, `SampleItemSchema`
   and `fetchSamples` with a fake `fetch`: a body built from `test/support/fixtures.ts` passes,
   an extra field is dropped, a missing `plan` fails, bad JSON and a 500 give `unexpected`, a
   throw gives `network`.
   Files: `test/web/state/api.test.ts`, `src/web/state/api.ts`.
   Covers: R1.1, R1.2.
   Command: `npx vitest run --project examples test/web/state/api.test.ts && npm run typecheck`
-- [ ] T2.2 Example tests, then implementation, for `samples/*`, `dinner/load`, `dinner/replace`
+- [x] T2.2 Example tests, then implementation, for `samples/*`, `dinner/load`, `dinner/replace`
   and `dinner/keep`: a sample load of `SUNDAY_ROAST` × `HOME_KITCHEN` (span 110) with `'13:30'`
   at Wed 10:00 and at Wed 12:00 gives the clock table's serving instants and route `plan`; a load
   while a dinner exists sets `pendingLoad` and changes nothing else; replace applies it and clears
@@ -95,7 +95,7 @@ design's copy tables give it, in the task that first shows it.
   Files: `test/web/state/store.test.ts`, `src/web/state/store.ts`.
   Covers: R1.3, R1.4, R1.5, R8.5, R8.6.
   Command: `npx vitest run --project examples test/web/state/store.test.ts && npm run typecheck`
-- [ ] T2.3 Menu screen with `SampleList`, the samples fetch in `effects.ts` and the replace
+- [x] T2.3 Menu screen with `SampleList`, the samples fetch in `effects.ts` and the replace
   prompt. E2E first: five titles in the order of `GET /api/samples`, each with blurb and
   `Dishes: …`; "Plan this dinner" on the first opens Plan in one tap with the `<h1>` equal to the
   response's plan title; the request aborted by `page.route` shows the failure copy and "Try

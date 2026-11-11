@@ -1,0 +1,36 @@
+import type { VNode } from 'preact';
+import { useEffect, useRef } from 'preact/hooks';
+
+interface Props {
+  text: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+/**
+ * The second, separate tap that a destructive or replacing action needs (ui.md). Focus moves
+ * to the question when it appears; the caller returns focus to its own button on cancel.
+ */
+export function ConfirmInline(props: Props): VNode {
+  const question = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    question.current?.focus();
+  }, []);
+  return (
+    <div class="confirm-inline" role="group" aria-labelledby="confirm-inline-text">
+      <p id="confirm-inline-text" ref={question} tabIndex={-1}>
+        {props.text}
+      </p>
+      <div class="actions">
+        <button type="button" class="button button--primary" onClick={props.onConfirm}>
+          {props.confirmLabel}
+        </button>
+        <button type="button" class="button" onClick={props.onCancel}>
+          {props.cancelLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
