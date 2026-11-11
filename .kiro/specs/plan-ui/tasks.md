@@ -177,7 +177,7 @@ design's copy tables give it, in the task that first shows it.
 
 ## T5. Steps editor
 
-- [ ] T5.1 Example tests for `plan-edit.ts`: the `slugify` examples, `uniqueDishId` and
+- [x] T5.1 Example tests for `plan-edit.ts`: the `slugify` examples, `uniqueDishId` and
   `nextStepId` with collisions and the 40-character cut, `stepOrder` on `SUNDAY_ROAST` and on a
   plan with a cycle, `waitingOn('chicken.prep')`, `removeStep('chicken.roast')` on `SUNDAY_ROAST`
   (`chicken.rest` and `gravy.roux` lose it, the notice names both), a duplicate id kept in
@@ -185,17 +185,17 @@ design's copy tables give it, in the task that first shows it.
   Files: `test/web/state/plan-edit.test.ts`, `src/web/state/plan-edit.ts` (stubs).
   Covers: R4.1, R4.5–R4.8.
   Command: `npx vitest run --project examples test/web/state/plan-edit.test.ts`
-- [ ] T5.2 Implement `plan-edit.ts` until T5.1 passes; add property P-UI6 over `arbPlan()`.
+- [x] T5.2 Implement `plan-edit.ts` until T5.1 passes; add property P-UI6 over `arbPlan()`.
   Files: `src/web/state/plan-edit.ts`, `src/web/copy.ts`, `test/web/state/plan-edit.pbt.ts`.
   Covers: R4.1, R4.4–R4.8.
   Command: `npx vitest run --project examples test/web/state/plan-edit.test.ts && npx vitest run --project props test/web/state/plan-edit.pbt.ts && npm run typecheck`
-- [ ] T5.3 Example tests, then implementation, for `dish/*` and `step/*` in the reducer (notice
+- [x] T5.3 Example tests, then implementation, for `dish/*` and `step/*` in the reducer (notice
   set from the edit result, an `err` changes nothing) and the cooking guard (a state whose `cook`
   is set through `unknown` makes every edit, kitchen and serving action a no-op).
   Files: `test/web/state/store.test.ts`, `src/web/state/store.ts`.
   Covers: R4.6, R4.7, R4.12.
   Command: `npx vitest run --project examples test/web/state/store.test.ts && npm run typecheck`
-- [ ] T5.4 Steps screen: `DishSection`, `StepCard` summaries, `IssueList` beside steps, at the top
+- [x] T5.4 Steps screen: `DishSection`, `StepCard` summaries, `IssueList` beside steps, at the top
   of dishes and as the summary, "Make the plan". E2E first: seeded `SUNDAY_ROAST` shows three
   dish sections with steps in dependency order and `No issues.`; seeded with `gravy.roux` waiting
   for `chicken.rost` shows `1 error and 0 warnings.`, the issue beside `gravy.roux` with `!`
@@ -205,7 +205,7 @@ design's copy tables give it, in the task that first shows it.
   `src/web/copy.ts`, `src/web/styles/components.css`, `e2e/steps.spec.ts`.
   Covers: R4.1, R4.2, R4.9, R4.10, R4.11.
   Command: `npx playwright test e2e/steps.spec.ts && npm run typecheck && npm run lint`
-- [ ] T5.5 `StepEditor` and `PrerequisiteChecklist`. E2E first: minutes of `Roast the chicken`
+- [x] T5.5 `StepEditor` and `PrerequisiteChecklist`. E2E first: minutes of `Roast the chicken`
   75 → 85, then "Make the plan" → `Start at 17:30` and `Takes 2 h`; minutes `0` shows `Enter whole
   minutes from 1 to 480.` and the plan is unchanged; unchecking "Keeps" shows `Can wait up to
   (minutes)` with 10; in the `gravy.roux` editor `Roast the chicken` is checked and `Strain the
@@ -215,7 +215,7 @@ design's copy tables give it, in the task that first shows it.
   `src/web/styles/components.css`, `e2e/steps.spec.ts`.
   Covers: R4.2–R4.5, R4.10.
   Command: `npx playwright test e2e/steps.spec.ts && npm run typecheck && npm run lint`
-- [ ] T5.6 Add and remove: "Add a step", "Add a dish" (name first), rename, remove with
+- [x] T5.6 Add and remove: "Add a step", "Add a dish" (name first), rename, remove with
   `ConfirmInline`. E2E first: removing `Roast the chicken` asks with the two dependent titles,
   "Keep step" changes nothing, "Remove step" announces the notice in the live region; adding a
   dish `Crème brûlée` creates section `Crème brûlée` with a `New step` whose id is

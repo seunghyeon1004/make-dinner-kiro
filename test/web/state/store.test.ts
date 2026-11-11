@@ -476,3 +476,100 @@ describe('kitchen, serving and plan/enter (T3.3)', () => {
     expect(selectSchedule(b)).toBe(before);
   });
 });
+
+const served = (): AppState => ({
+  ...stateWith(SUNDAY_ROAST, { route: 'steps' }),
+  dinner: {
+    ...dinnerOf(SUNDAY_ROAST),
+    serving: { time: '19:30', atMs: Date.parse('2026-11-11T19:30:00Z') },
+  },
+});
+
+describe('dish/* and step/* (R4.6, R4.7)', () => {
+  const roastIndex = SUNDAY_ROAST.steps.findIndex((s) => s.id === 'chicken.roast');
+
+  it('R4.6 step/update replaces the plan and keeps kitchen and serving', () => {
+    const state = served();
+    const next = reduce(state, { type: 'step/update', index: roastIndex, patch: { minutes: 85 } });
+    expect(next.dinner?.plan.steps[roastIndex]?.minutes).toBe(85);
+    expect(next.dinner?.kitchen).toBe(state.dinner?.kitchen);
+    expect(next.dinner?.serving).toBe(state.dinner?.serving);
+    expect(next.notice).toBeNull();
+  });
+  it('R4.4 a step/update that fails StepSchema changes nothing', () => {
+    const state = served();
+    expect(reduce(state, { type: 'step/update', index: roastIndex, patch: { minutes: 0 } })).toBe(
+      state,
+    );
+  });
+  it('R4.7 step/remove sets the notice from the edit result', () => {
+    const next = reduce(served(), { type: 'step/remove', index: roastIndex });
+    expect(next.dinner?.plan.steps).toHaveLength(9);
+    expect(next.notice).toBe(
+      'Removed \u201cRoast the chicken\u201d. Rest the chicken under foil, Make a roux in the roasting tin no longer wait for it.',
+    );
+  });
+  it('R4.8 an edit that is refused changes nothing', () => {
+    const one: Plan = {
+      title: 'One',
+      dishes: [{ id: 'a', name: 'A' }],
+      steps: [
+        {
+          id: 'a.x',
+          dish: 'a',
+          title: 'Only step',
+          minutes: 5,
+          appliance: 'none',
+          handsOn: true,
+          after: [],
+          holdMin: null,
+        },
+      ],
+    };
+    const state = stateWith(one);
+    expect(reduce(state, { type: 'step/remove', index: 0 })).toBe(state);
+    expect(reduce(state, { type: 'dish/remove', index: 0 })).toBe(state);
+  });
+  it('R4.6 dish/add, dish/rename and step/add change the plan', () => {
+    const added = reduce(served(), { type: 'dish/add', name: 'Crème brûlée' });
+    expect(added.dinner?.plan.dishes.at(-1)?.id).toBe('creme-brulee');
+    const renamed = reduce(added, { type: 'dish/rename', index: 1, name: 'Pan gravy' });
+    expect(renamed.dinner?.plan.dishes[1]).toEqual({ id: 'gravy', name: 'Pan gravy' });
+    const stepped = reduce(renamed, { type: 'step/add', dishIndex: 1 });
+    expect(stepped.dinner?.plan.steps.at(-1)?.id).toBe('gravy.step-1');
+  });
+  it('R4.6 dish/remove removes the dish and its steps', () => {
+    const next = reduce(served(), { type: 'dish/remove', index: 2 });
+    expect(next.dinner?.plan.dishes.map((d) => d.id)).toEqual(['chicken', 'gravy']);
+    expect(next.notice).toBe('Removed the dish Spring greens.');
+  });
+  it('R4.9 an edit that changes nothing returns the same state', () => {
+    const state = served();
+    expect(reduce(state, { type: 'step/update', index: roastIndex, patch: { minutes: 75 } })).toBe(
+      state,
+    );
+  });
+  it('R4.6 edits with no dinner change nothing', () => {
+    const state = initialState();
+    expect(reduce(state, { type: 'dish/add', name: 'Pudding' })).toBe(state);
+  });
+});
+
+describe('the cooking guard (R4.12)', () => {
+  // `cook` is `never` until cooking-mode lands; a cooking state is built through `unknown`.
+  const cooking = { ...served(), cook: { started: true } } as unknown as AppState;
+  const actions: Action[] = [
+    { type: 'step/update', index: 0, patch: { minutes: 9 } },
+    { type: 'step/add', dishIndex: 0 },
+    { type: 'step/remove', index: 0 },
+    { type: 'dish/add', name: 'Pudding' },
+    { type: 'dish/rename', index: 0, name: 'Bird' },
+    { type: 'dish/remove', index: 0 },
+    { type: 'kitchen/set', kitchen: { burners: 1, ovens: 1, cooks: 1 } },
+    { type: 'serving/set-time', time: '21:00', nowMs: 0 },
+    { type: 'serving/set-instant', atMs: 1 },
+  ];
+  it.each(actions.map((a) => [a.type, a] as const))('%s is a no-op while cooking', (_, action) => {
+    expect(reduce(cooking, action)).toBe(cooking);
+  });
+});

@@ -167,3 +167,142 @@ export function serveAtButton(time: string): string {
 export function serveLabel(time: string): string {
   return `Serve ${time}`;
 }
+
+/** The sentence after a removal when other steps waited for it (R4.7). */
+function noLongerWait(titles: readonly string[]): string {
+  return titles.length === 0 ? '' : ` ${titles.join(', ')} no longer wait for it.`;
+}
+
+/** The notice after a step is removed; `dependentTitles` are the steps that waited for it. */
+export function removedStep(title: string, dependentTitles: readonly string[]): string {
+  return `Removed \u201c${title}\u201d.${noLongerWait(dependentTitles)}`;
+}
+
+/** The notice after a dish and its steps are removed. */
+export function removedDish(name: string, dependentTitles: readonly string[]): string {
+  return `Removed the dish ${name}.${noLongerWait(dependentTitles)}`;
+}
+
+/** Limits and field errors of the Steps screen (R4.4, R4.8). */
+export const EDIT_ERRORS = {
+  too_many_dishes: 'A plan can have at most 12 dishes.',
+  too_many_steps: 'A plan can have at most 80 steps.',
+  last_step: 'A plan needs at least one step.',
+  last_dish: 'A plan needs at least one dish.',
+  invalid_name: 'Give the dish a name.',
+  invalid_step: 'This step cannot be saved as it is.',
+} as const;
+
+// Steps screen (T5)
+export const STEPS_COPY = {
+  issuesHeading: 'Issues',
+  noIssues: 'No issues.',
+  fixErrorsToMake: 'Fix the errors to make the plan.',
+  makePlan: 'Make the plan',
+  error: 'Error',
+  warning: 'Warning',
+  noAppliance: 'No appliance',
+  burner: 'Burner',
+  oven: 'Oven',
+  handsOn: 'Hands-on',
+  handsFree: 'Hands-free',
+  keeps: 'Keeps',
+  waitsForNothing: 'Waits for nothing',
+  cookingStarted: 'Cooking has started, so the plan cannot be changed here.',
+} as const;
+
+function count(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/** The intro under the Steps heading: "Sunday roast. Fix any errors, then make the plan." */
+export function stepsIntro(title: string): string {
+  return `${title}. Fix any errors, then make the plan.`;
+}
+
+/** "1 error and 0 warnings." */
+export function issueSummary(errors: number, warnings: number): string {
+  return `${count(errors, 'error', 'errors')} and ${count(warnings, 'warning', 'warnings')}.`;
+}
+
+/** The reason "Make the plan" is disabled: "Fix 1 error to make the plan." */
+export function makeBlocked(errors: number): string {
+  return `Fix ${count(errors, 'error', 'errors')} to make the plan.`;
+}
+
+export function applianceLabel(appliance: 'burner' | 'oven' | 'none'): string {
+  if (appliance === 'burner') return STEPS_COPY.burner;
+  if (appliance === 'oven') return STEPS_COPY.oven;
+  return STEPS_COPY.noAppliance;
+}
+
+export function handsLabel(handsOn: boolean): string {
+  return handsOn ? STEPS_COPY.handsOn : STEPS_COPY.handsFree;
+}
+
+/** "Keeps" or "Can wait 5 min". */
+export function holdLabel(holdMin: number | null): string {
+  return holdMin === null ? STEPS_COPY.keeps : `Can wait ${formatDuration(holdMin)}`;
+}
+
+/** "Waits for: Season and truss the chicken" or "Waits for nothing". */
+export function waitsFor(titles: readonly string[]): string {
+  return titles.length === 0 ? STEPS_COPY.waitsForNothing : `Waits for: ${titles.join(', ')}`;
+}
+
+// Step editor (T5.5)
+export const EDITOR_COPY = {
+  edit: 'Edit',
+  doneEditing: 'Done editing',
+  title: 'Title',
+  minutes: 'Minutes',
+  appliance: 'Appliance',
+  handsOn: 'Hands-on (needs a cook the whole time)',
+  dish: 'Dish',
+  keeps: 'Keeps (can wait as long as needed)',
+  canWaitUpTo: 'Can wait up to (minutes)',
+  waitsFor: 'Waits for',
+  alreadyWaits: '(already waits for this step)',
+  notAStep: '(not a step in this plan)',
+  thisStep: '(this step)',
+  titleError: 'Give the step a title.',
+  minutesError: 'Enter whole minutes from 1 to 480.',
+  holdError: 'Enter whole minutes from 0 to 480.',
+} as const;
+
+// Add, rename and remove (T5.6)
+export const MANAGE_COPY = {
+  removeStep: 'Remove step',
+  keepStep: 'Keep step',
+  removeDish: 'Remove dish',
+  keepDish: 'Keep dish',
+  renameDish: 'Rename dish',
+  dishName: 'Dish name',
+  saveName: 'Save name',
+  addStep: 'Add a step',
+  addDish: 'Add a dish',
+  addDishConfirm: 'Add dish',
+  nameError: 'Give the dish a name.',
+} as const;
+
+function dependentsSentence(titles: readonly string[]): string {
+  if (titles.length === 0) return '';
+  const list = titles.join(', ');
+  return titles.length === 1
+    ? ` 1 step waits for it: ${list}. It will no longer wait for it.`
+    : ` ${titles.length} steps wait for it: ${list}. They will no longer wait for it.`;
+}
+
+/** The question before a step is removed; `dependentTitles` are the steps that wait for it. */
+export function removeStepAsk(title: string, dependentTitles: readonly string[]): string {
+  return `Remove \u201c${title}\u201d?${dependentsSentence(dependentTitles)}`;
+}
+
+/** The question before a dish and its steps are removed. */
+export function removeDishAsk(
+  name: string,
+  stepCount: number,
+  dependentTitles: readonly string[],
+): string {
+  return `Remove the dish ${name} and its ${count(stepCount, 'step', 'steps')}?${dependentsSentence(dependentTitles)}`;
+}

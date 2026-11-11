@@ -20,6 +20,8 @@ import { reduceCook } from './cook-slot.js';
 import { defaultServing, resolveServing, toServeTime } from './clock.js';
 import type { Serving } from './clock.js';
 import { COPY } from '../copy.js';
+import { addDish, addStep, removeDish, removeStep, renameDish, updateStep } from './plan-edit.js';
+import type { StepPatch } from './plan-edit.js';
 
 export type { Serving } from './clock.js';
 
@@ -110,7 +112,13 @@ export type PlanUiAction =
   | { type: 'kitchen/set'; kitchen: Kitchen }
   | { type: 'serving/set-time'; time: ServeTime; nowMs: number }
   | { type: 'serving/set-instant'; atMs: number }
-  | { type: 'plan/enter'; nowMs: number };
+  | { type: 'plan/enter'; nowMs: number }
+  | { type: 'dish/add'; name: string }
+  | { type: 'dish/rename'; index: number; name: string }
+  | { type: 'dish/remove'; index: number }
+  | { type: 'step/add'; dishIndex: number }
+  | { type: 'step/update'; index: number; patch: StepPatch }
+  | { type: 'step/remove'; index: number };
 
 export type Action = PlanUiAction | CookAction;
 
@@ -158,10 +166,39 @@ function applyLoad(state: AppState, load: DinnerLoad, nowMs: number): AppState {
   };
 }
 
+const GUARDED: ReadonlySet<string> = new Set([
+  'dish/add',
+  'dish/rename',
+  'dish/remove',
+  'step/add',
+  'step/update',
+  'step/remove',
+  'kitchen/set',
+  'serving/set-time',
+  'serving/set-instant',
+]);
+
+/** Applies a plan edit; a refused edit or one that changes nothing leaves the state as it is. */
+function applyEdit(
+  state: AppState,
+  edit: (plan: Plan) => Result<{ plan: Plan; notice: string | null }, unknown>,
+): AppState {
+  if (state.dinner === null) return state;
+  const result = edit(state.dinner.plan);
+  if (!result.ok || result.value.plan === state.dinner.plan) return state;
+  return {
+    ...state,
+    dinner: { ...state.dinner, plan: result.value.plan },
+    notice: result.value.notice,
+  };
+}
+
 const ROUTE_ORDER: readonly Route[] = ['menu', 'steps', 'plan', 'cook'];
 
 /** Plan-ui reducers; every other action goes to `reduceCook` (R9.9). */
 export function reduce(state: AppState, action: Action): AppState {
+  // Once cooking has started the plan, kitchen and serving time are read-only (R4.12).
+  if (state.cook !== null && GUARDED.has(action.type)) return state;
   switch (action.type) {
     case 'navigate': {
       const reach = reachable(state, action.cookRegistered);
@@ -219,6 +256,18 @@ export function reduce(state: AppState, action: Action): AppState {
         { type: 'navigate', route: 'plan', cookRegistered: false },
       );
     }
+    case 'dish/add':
+      return applyEdit(state, (plan) => addDish(plan, action.name));
+    case 'dish/rename':
+      return applyEdit(state, (plan) => renameDish(plan, action.index, action.name));
+    case 'dish/remove':
+      return applyEdit(state, (plan) => removeDish(plan, action.index));
+    case 'step/add':
+      return applyEdit(state, (plan) => addStep(plan, action.dishIndex));
+    case 'step/update':
+      return applyEdit(state, (plan) => updateStep(plan, action.index, action.patch));
+    case 'step/remove':
+      return applyEdit(state, (plan) => removeStep(plan, action.index));
     default:
       return reduceCook(state, action);
   }

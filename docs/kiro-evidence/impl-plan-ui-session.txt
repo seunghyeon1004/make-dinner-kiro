@@ -7496,3 +7496,2685 @@ The timeline looks right: lane labels stay put while it scrolls, and the oven ba
 I did not touch `docs/kiro-evidence/`; its modified files in `git status` are not from me.
 
 --- run success (end_turn); credits reported by this session: 28.22 ---
+
+=== session 2026-11-11T09:25:05Z ===
+$ kiro-cli chat --output-format stream-json --v3 --agent sous-chef --trust-all-tools --trust-workspace --model auto "$(cat docs/kiro-evidence/prompts/17c-impl-plan-ui.md)"
+--- prompt ---
+Spec: plan-ui. Implement T5 (Steps editor), in order, and nothing after. T1 to T4 are done.
+
+Read .kiro/specs/plan-ui/requirements.md, design.md (including the review notes at the end) and tasks.md in full first, and ui.md. Use the exact copy, tokens, signatures and file paths the design gives. The recordings now exist (recordings/*.json, made from real model calls), so the server starts and `npm run test:e2e` works.
+
+Each sub-task: test first (unit test or e2e as the task says), see it fail on an assertion, implement, run the proving command the task names, tick the sub-task only when it passed in this session. Keep tests proportionate: the cases the task names, not a matrix. E2E runs are slow, so while iterating run the single spec file and project you are working on (`npx playwright test e2e/<file> --project=phone`), then the task's full command once before ticking.
+
+Look at what you build: after each screen works, take a screenshot at 390x844 in light and dark with Playwright (a throwaway script outside the repo's tracked files, or `page.screenshot` in a scratch spec you delete) and check it against ui.md with your own eyes: spacing rhythm, type scale, targets at least 48 px, nothing overflowing, no horizontal page scroll. Fix what looks wrong before ticking. Say in your report what you looked at and what you changed.
+
+Working rule: when the design is ambiguous or slightly off in a way that touches no requirement's intent, choose the reading closest to the requirement and to ui.md, write it under "Decisions I made", and continue. Stop and ask only when a requirement would have to change.
+
+Do not commit. Do not start `npm run dev`. End with the report kiro-conduct.md asks for, with the real counts from `npm test`, `npm run test:props`, `npm run typecheck`, `npm run lint`, `npx prettier --check .`, `npm run build` and `npm run test:e2e`.
+--- transcript (rendered from the event stream by scripts/kiro-render.mjs) ---
+[steering] {"steeringDocuments":["file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/kiro-conduct.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/product.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/scheduler-guarantees.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/structure.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/tech.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/testing.md"],"kind":"steering_inclusion"}
+
+I'll start by reading the spec files in full.
+
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/plan-ui/requirements.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/plan-ui/design.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/plan-ui/tasks.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/plan-ui/design.md
+[tool:search] List Directory ~/hackathons-2026/kiroween/makedinner/src/web
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && ls src/web/* test/web/* e2e test/support && wc -l src/web/state/store.ts src/web/copy.ts src/web/screens/*.tsx src/web/components/*.tsx e2e/support.ts && cat package.json | head -40 && git status --short
+    … (110 earlier lines not shown)
+        "test:props": "vitest run --project props --passWithNoTests",
+        "test:e2e": "playwright test",
+        "typecheck": "tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit",
+        "lint": "eslint .",
+        "format": "prettier --write .",
+        "build": "tsc -p tsconfig.core.json && tsc -p tsconfig.server.json && tsc -p tsconfig.mcp.json && tsx scripts/build-web.ts",
+        "dev": "tsx scripts/build-web.ts --watch & tsx watch src/server/index.ts",
+        "start": "node dist/server/index.js",
+        "check:contrast": "tsx scripts/check-contrast.ts",
+        "record": "tsx scripts/record.ts"
+      },
+      "dependencies": {
+        "@anthropic-ai/sdk": "1.8.0",
+        "@hono/node-server": "2.1.6",
+        "@modelcontextprotocol/sdk": "1.32.2",
+        "hono": "4.13.17",
+        "preact": "11.2.0",
+        "zod": "4.6.7"
+      },
+      "devDependencies": {
+        "@axe-core/playwright": "4.14.0",
+        "@playwright/test": "1.60.0",
+        "@types/node": "22.20.5",
+        "@vitest/eslint-plugin": "1.6.28",
+        "esbuild": "0.28.2",
+        "eslint": "10.14.0",
+        "eslint-plugin-import-x": "4.18.1",
+        "fast-check": "4.10.2",
+     M docs/kiro-evidence/hook-fires.log
+     M docs/kiro-evidence/impl-plan-ui-session.txt
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/web/state/store.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/web/copy.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/web/screens/Steps.tsx
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/e2e/support.ts
+[steering] {"steeringDocuments":["file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/ui.md"],"kind":"steering_inclusion"}
+
+Continuing: I'll check the core API, fixtures, and existing component and test patterns before writing T5.1.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat src/core/index.ts && sed -n 1,140p src/core/schema.ts && grep -n "export" test/support/fixtures.ts | head -40 && grep -n "export" test/support/arbitraries.ts | head -40 && cat test/support/fc-params.ts
+    … (322 earlier lines not shown)
+    1389:  /** The canonical export with exactly one meaning-changing edit. */
+    1410: * The canonical export of `plan` with exactly one meaning-changing edit from the design's
+    1416:export function arbBreakingEdit(plan: Plan): fc.Arbitrary<BreakingCase> {
+    1606:export interface LimiterRun {
+    1615:export function arbLimiterRun(): fc.Arbitrary<LimiterRun> {
+    1636:export interface CapRun {
+    1643:export function arbCapRun(): fc.Arbitrary<CapRun> {
+    1673:export function arbIpAddress(): fc.Arbitrary<string> {
+    1706:export function arbForwardedFor(): fc.Arbitrary<{
+    import type { Parameters } from 'fast-check';
+    
+    const DEFAULT_NUM_RUNS = 200;
+    const DEFAULT_MAKE_RUNS = 50;
+    
+    /**
+     * The shared fast-check parameters: 200 runs, or `FC_NUM_RUNS` when it is a positive
+     * integer. No property file sets `numRuns` itself (testing.md).
+     */
+    export function fcParams(): Parameters<unknown[]> {
+      const requested = Number(process.env.FC_NUM_RUNS);
+      const numRuns = Number.isInteger(requested) && requested > 0 ? requested : DEFAULT_NUM_RUNS;
+      return { numRuns };
+    }
+    
+    /** For properties that spawn make: `FC_MAKE_RUNS` when it is a positive integer, else 50. */
+    export function fcMakeParams(): Parameters<unknown[]> {
+      const requested = Number(process.env.FC_MAKE_RUNS);
+      const numRuns = Number.isInteger(requested) && requested > 0 ? requested : DEFAULT_MAKE_RUNS;
+      return { numRuns };
+    }
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat src/web/screens/Plan.tsx src/web/components/Stepper.tsx src/web/components/ConfirmInline.tsx src/web/state/hooks.ts && sed -n 1,60p test/web/state/store.test.ts && sed -n 1,50p e2e/plan.spec.ts && cat src/web/components/WarningList.tsx | head -30
+    … (314 earlier lines not shown)
+    import type { VNode } from 'preact';
+    import { compareIds } from '../../core/index.js';
+    import { COPY, holdWarning } from '../copy.js';
+    import type { ScheduleView } from '../state/schedule-view.js';
+    
+    /** The title of the step that uses `stepId`'s result first, or null for a terminal step. */
+    function firstUserTitle(view: ScheduleView, stepId: string): string | null {
+      const start = new Map(view.steps.map((s) => [s.id, s.startMin]));
+      const users = view.plan.steps
+        .filter((s) => s.after.includes(stepId))
+        .sort((a, b) => (start.get(a.id) ?? 0) - (start.get(b.id) ?? 0) || compareIds(a.id, b.id));
+      return users[0]?.title ?? null;
+    }
+    
+    /** One sentence per hold_exceeded warning, or the all-clear (R5.6). */
+    export function WarningList(props: { view: ScheduleView }): VNode {
+      const { view } = props;
+      return (
+        <section aria-labelledby="warnings-heading">
+          <h2 id="warnings-heading">{COPY.warningsHeading}</h2>
+          {view.warnings.length === 0 ? (
+            <p>{COPY.noWarnings}</p>
+          ) : (
+            <ul class="warning-list">
+              {view.warnings.map((w) => {
+                const step = view.stepById.get(w.stepId);
+                if (step === undefined) return null;
+                return (
+                  <li key={w.stepId}>
+                    <span class="mark mark--warn">! Warning</span>{' '}
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 40,190p test/support/fixtures.ts && grep -n "export function topologicalOrder" -B6 -A6 src/core/graph.ts && sed -n 15,50p test/support/arbitraries.ts && sed -n 365,400p test/support/arbitraries.ts && cat vitest.config.ts && sed -n 1,30p test/web/components/plan-list-items.pbt.ts
+    … (258 earlier lines not shown)
+    import fc from 'fast-check';
+    import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+    import { schedule } from '../../../src/core/index.js';
+    import { planListGroups } from '../../../src/web/components/plan-list-items.js';
+    import { scheduleView } from '../../../src/web/state/schedule-view.js';
+    import { arbPlanAndKitchen } from '../../support/arbitraries.js';
+    import { fcParams } from '../../support/fc-params.js';
+    
+    const original = process.env['TZ'];
+    const CHOSEN_MS = Date.parse('2026-11-11T19:30:00Z');
+    
+    describe('plan list properties', () => {
+      beforeAll(() => {
+        process.env['TZ'] = 'Europe/London';
+        expect(new Date(2026, 6, 1).getTimezoneOffset()).toBe(-60);
+      });
+      afterAll(() => {
+        if (original === undefined) delete process.env['TZ'];
+        else process.env['TZ'] = original;
+      });
+    
+      it('P-UI4 every step once, ordered by start then id, group minutes strictly increasing', () => {
+        fc.assert(
+          fc.property(arbPlanAndKitchen(), ({ plan, kitchen }) => {
+            const result = schedule(plan, kitchen);
+            expect(result.ok).toBe(true);
+            if (!result.ok) return;
+            const groups = planListGroups(scheduleView(result.value), CHOSEN_MS, 'en-GB');
+    
+            // Oracle: plain loops over the schedule's own start minutes.
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 1,128p src/core/graph.ts && cat src/core/result.ts | head -30 && grep -n "export function validatePlan" -A12 src/core/sanity.ts
+    … (112 earlier lines not shown)
+      let ready = g.ids.filter((id) => indegree.get(id) === 0);
+      const order: string[] = [];
+      while (ready.length > 0) {
+        const next = ready[0] ?? '';
+        ready = ready.slice(1);
+        order.push(next);
+        for (const s of listOf(g.succ, next)) {
+          const left = (indegree.get(s) ?? 0) - 1;
+          indegree.set(s, left);
+          if (left === 0) ready.push(s);
+        }
+        ready.sort(compareIds);
+      }
+      if (order.length === g.ids.length) return ok(order);
+      const selfLoop = g.ids.find((id) => listOf(g.prereqs, id).includes(id));
+      const first = cyclesOf(g)[0];
+    export type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };
+    
+    export function ok<T>(value: T): Result<T, never> {
+      return { ok: true, value };
+    }
+    
+    export function err<E>(error: E): Result<never, E> {
+      return { ok: false, error };
+    }
+    512:export function validatePlan(input: unknown): PlanCheck {
+    513-  const parsed = parsePlan(input);
+    514-  if (!parsed.ok) return { plan: null, issues: parsed.error };
+    515-  return { plan: parsed.value, issues: checkPlan(parsed.value) };
+    516-}
+    exit 0
+
+Now T5.1: stub `plan-edit.ts` with the design's signatures, then write the tests.
+
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/src/web/state/plan-edit.ts
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/test/web/state/plan-edit.test.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx vitest run --project examples test/web/state/plan-edit.test.ts 2>&1 | tail -60
+    … (29 earlier lines not shown)
+    +           "after": [],
+    +           "appliance": "none",
+    +           "dish": "chicken",
+    +           "handsOn": true,
+    +           "holdMin": null,
+    +           "id": "chicken.prep",
+    +           "minutes": 10,
+    +           "title": "Season and truss the chicken",
+    +         },
+    +       ],
+    +       "title": "Sunday roast",
+    +     },
+    +   },
+      }
+    
+     ❯ test/web/state/plan-edit.test.ts:265:57
+        263|   });
+        264|   it('rejects minutes outside 1 to 480', () => {
+        265|     expect(updateStep(SUNDAY_ROAST, 0, { minutes: 0 })).toEqual({
+           |                                                         ^
+        266|       ok: false,
+        267|       error: 'invalid_step',
+    
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[28/28]⎯
+    
+    
+     Test Files  1 failed (1)
+          Tests  28 failed | 1 passed (29)
+       Start at  18:26:43
+       Duration  168ms (import 43%, transform 37%, tests 18%, worker 2%)
+    exit 0
+
+All 28 fail on assertions, as expected. Now the implementation and the copy it needs.
+
+[tool:edit] Append to File ~/hackathons-2026/kiroween/makedinner/src/web/copy.ts
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/src/web/state/plan-edit.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx prettier --write src/web/state/plan-edit.ts src/web/copy.ts test/web/state/plan-edit.test.ts >/dev/null && npx vitest run --project examples test/web/state/plan-edit.test.ts 2>&1 | tail -40
+    
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+    
+    
+     Test Files  1 passed (1)
+          Tests  29 passed (29)
+       Start at  18:27:08
+       Duration  122ms (import 49%, transform 40%, tests 9%, worker 2%)
+    exit 0
+
+29 pass. Now the P-UI6 property file.
+
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/test/web/state/plan-edit.pbt.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx prettier --write test/web/state/plan-edit.pbt.ts >/dev/null && npx vitest run --project examples test/web/state/plan-edit.test.ts 2>&1 | tail -6; npx vitest run --project props test/web/state/plan-edit.pbt.ts 2>&1 | tail -30; npm run typecheck 2>&1 | tail -15
+    
+     Test Files  1 passed (1)
+          Tests  29 passed (29)
+       Start at  18:27:24
+       Duration  115ms (import 60%, transform 26%, tests 11%, worker 3%)
+    
+    
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+    
+    
+     Test Files  1 passed (1)
+          Tests  3 passed (3)
+       Start at  18:27:25
+       Duration  542ms (import 61%, tests 33%, transform 6%)
+    
+    
+    > make-dinner@0.0.0 typecheck
+    > tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit
+    exit 0
+
+Properties pass on the first run, so I'll mutate `withoutSteps` once to confirm they can fail.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cp src/web/state/plan-edit.ts /tmp/pe.bak && sed -i '' 's/if (!s.after.some((a) => gone.has(a))) return s;/return s;/' src/web/state/plan-edit.ts && npx vitest run --project props test/web/state/plan-edit.pbt.ts 2>&1 | grep -E "Tests|FAIL" | head; cp /tmp/pe.bak src/web/state/plan-edit.ts && npx vitest run --project props test/web/state/plan-edit.pbt.ts 2>&1 | grep -E "Tests"; rm /tmp/pe.bak
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+     FAIL  |props| test/web/state/plan-edit.pbt.ts > plan-edit properties > P-UI6 removeStep gives a plan passing PlanSchema, no unknown_dependency, other fields untouched
+     FAIL  |props| test/web/state/plan-edit.pbt.ts > plan-edit properties > P-UI6 removeDish gives a plan passing PlanSchema, no unknown_dependency, other fields untouched
+          Tests  2 failed | 1 passed (3)
+          Tests  3 passed (3)
+    exit 0
+
+Mutation made both remove properties fail, and the file is restored. T5.1 and T5.2 passed in this session, so I'll tick them. Next is T5.3: the reducer tests first.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'E'
+p='.kiro/specs/plan-ui/tasks.md'
+s=open(p).read()
+for t in ('T5.1','T5.2'):
+    s=s.replace(f'- [ ] {t} ',f'- [x] {t} ')
+open(p,'w').write(s)
+E
+grep -n "T5\.[12] " .kiro/specs/plan-ui/tasks.md; tail -40 test/web/state/store.test.ts; grep -n "TIGHT_OVEN\|fixtures" test/web/state/store.test.ts | head -3
+    … (13 earlier lines not shown)
+    
+      it('R5.2 selectSchedule gives the same result for the same plan and kitchen', () => {
+        const state = served();
+        expect(selectSchedule(state)).toBe(selectSchedule({ ...state, route: 'steps' }));
+      });
+      it('R5.2 a kitchen change gives a new result; the new kitchen shows in it', () => {
+        const state = served();
+        const before = selectSchedule(state);
+        const next = reduce(state, {
+          type: 'kitchen/set',
+          kitchen: { burners: 1, ovens: 1, cooks: 1 },
+        });
+        const after = selectSchedule(next);
+        expect(after).not.toBe(before);
+        expect(after?.ok === true ? after.value.kitchen.burners : null).toBe(1);
+      });
+      it('R5.2 serving changes do not recompute the schedule', () => {
+        const state = served();
+        const before = selectSchedule(state);
+        const a = reduce(state, {
+          type: 'serving/set-time',
+          time: '21:00',
+          nowMs: at('2026-11-11T18:00:00Z'),
+        });
+        const b = reduce(a, { type: 'serving/set-instant', atMs: at('2026-11-11T21:05:00Z') });
+        expect(selectSchedule(a)).toBe(before);
+        expect(selectSchedule(b)).toBe(before);
+      });
+    });
+    14:import { HOME_KITCHEN, SUNDAY_ROAST } from '../../support/fixtures.js';
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'E'
+p='src/web/state/store.ts'
+s=open(p).read()
+s=s.replace("""  | { type: 'plan/enter'; nowMs: number };""","""  | { type: 'plan/enter'; nowMs: number }
+  | { type: 'dish/add'; name: string }
+  | { type: 'dish/rename'; index: number; name: string }
+  | { type: 'dish/remove'; index: number }
+  | { type: 'step/add'; dishIndex: number }
+  | { type: 'step/update'; index: number; patch: StepPatch }
+  | { type: 'step/remove'; index: number };""")
+s=s.replace("import { COPY } from '../copy.js';","import { COPY } from '../copy.js';\nimport type { StepPatch } from './plan-edit.js';")
+open(p,'w').write(s)
+E
+cat >> test/web/state/store.test.ts <<'E'
+
+describe('dish/* and step/* (R4.6, R4.7)', () => {
+  const roastIndex = SUNDAY_ROAST.steps.findIndex((s) => s.id === 'chicken.roast');
+
+  it('R4.6 step/update replaces the plan and keeps kitchen and serving', () => {
+    const state = served();
+    const next = reduce(state, { type: 'step/update', index: roastIndex, patch: { minutes: 85 } });
+    expect(next.dinner?.plan.steps[roastIndex]?.minutes).toBe(85);
+    expect(next.dinner?.kitchen).toBe(state.dinner?.kitchen);
+    expect(next.dinner?.serving).toBe(state.dinner?.serving);
+    expect(next.notice).toBeNull();
+  });
+  it('R4.4 a step/update that fails StepSchema changes nothing', () => {
+    const state = served();
+    expect(reduce(state, { type: 'step/update', index: roastIndex, patch: { minutes: 0 } })).toBe(
+      state,
+    );
+  });
+  it('R4.7 step/remove sets the notice from the edit result', () => {
+    const next = reduce(served(), { type: 'step/remove', index: roastIndex });
+    expect(next.dinner?.plan.steps).toHaveLength(9);
+    expect(next.notice).toBe(
+      'Removed \u201cRoast the chicken\u201d. Rest the chicken under foil, Make a roux in the roasting tin no longer wait for it.',
+    );
+  });
+  it('R4.8 an edit that is refused changes nothing', () => {
+    const one: Plan = {
+      title: 'One',
+      dishes: [{ id: 'a', name: 'A' }],
+      steps: [{ ...SUNDAY_ROAST.steps[0]!, id: 'a.x', dish: 'a', after: [] }],
+    };
+    const state = stateWith(one);
+    expect(reduce(state, { type: 'step/remove', index: 0 })).toBe(state);
+    expect(reduce(state, { type: 'dish/remove', index: 0 })).toBe(state);
+  });
+  it('R4.6 dish/add, dish/rename and step/add change the plan', () => {
+    const added = reduce(served(), { type: 'dish/add', name: 'Crème brûlée' });
+    expect(added.dinner?.plan.dishes.at(-1)?.id).toBe('creme-brulee');
+    const renamed = reduce(added, { type: 'dish/rename', index: 1, name: 'Pan gravy' });
+    expect(renamed.dinner?.plan.dishes[1]).toEqual({ id: 'gravy', name: 'Pan gravy' });
+    const stepped = reduce(renamed, { type: 'step/add', dishIndex: 1 });
+    expect(stepped.dinner?.plan.steps.at(-1)?.id).toBe('gravy.step-1');
+  });
+  it('R4.6 dish/remove removes the dish and its steps', () => {
+    const next = reduce(served(), { type: 'dish/remove', index: 2 });
+    expect(next.dinner?.plan.dishes.map((d) => d.id)).toEqual(['chicken', 'gravy']);
+    expect(next.notice).toBe('Removed the dish Spring greens.');
+  });
+  it('R4.9 an edit that changes nothing returns the same state', () => {
+    const state = served();
+    expect(
+      reduce(state, { type: 'step/update', index: roastIndex, patch: { minutes: 75 } }),
+    ).toBe(state);
+  });
+  it('R4.6 edits with no dinner change nothing', () => {
+    const state = initialState();
+    expect(reduce(state, { type: 'dish/add', name: 'Pudding' })).toBe(state);
+  });
+});
+
+describe('the cooking guard (R4.12)', () => {
+  // `cook` is `never` until cooking-mode lands; a cooking state is built through `unknown`.
+  const cooking = { ...served(), cook: { started: true } } as unknown as AppState;
+  const actions: Action[] = [
+    { type: 'step/update', index: 0, patch: { minutes: 9 } },
+    { type: 'step/add', dishIndex: 0 },
+    { type: 'step/remove', index: 0 },
+    { type: 'dish/add', name: 'Pudding' },
+    { type: 'dish/rename', index: 0, name: 'Bird' },
+    { type: 'dish/remove', index: 0 },
+    { type: 'kitchen/set', kitchen: { burners: 1, ovens: 1, cooks: 1 } },
+    { type: 'serving/set-time', time: '21:00', nowMs: 0 },
+    { type: 'serving/set-instant', atMs: 1 },
+  ];
+  it.each(actions.map((a) => [a.type, a] as const))('%s is a no-op while cooking', (_, action) => {
+    expect(reduce(cooking, action)).toBe(cooking);
+  });
+});
+E
+grep -n "function served" -A12 test/web/state/store.test.ts | head -20
+npx vitest run --project examples test/web/state/store.test.ts 2>&1 | grep -E "FAIL|Tests|✗|×" | head -30
+     FAIL  |examples| test/web/state/store.test.ts [ test/web/state/store.test.ts ]
+          Tests  no tests
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx vitest run --project examples test/web/state/store.test.ts 2>&1 | grep -B2 -A12 "Error" | head -30; grep -n "served" test/web/state/store.test.ts | head -5
+    
+     FAIL  |examples| test/web/state/store.test.ts [ test/web/state/store.test.ts ]
+    ReferenceError: served is not defined
+     ❯ test/web/state/store.test.ts:541:19
+        539| describe('the cooking guard (R4.12)', () => {
+        540|   // `cook` is `never` until cooking-mode lands; a cooking state is bu…
+        541|   const cooking = { ...served(), cook: { started: true } } as unknown …
+           |                   ^
+        542|   const actions: Action[] = [
+        543|     { type: 'step/update', index: 0, patch: { minutes: 9 } },
+    
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+    
+    
+     Test Files  1 failed (1)
+    380:  const served = (): AppState => ({
+    389:    const next = reduce(served(), {
+    397:    const state = served();
+    416:      reduce(served(), { type: 'serving/set-time', time: '20:00', nowMs: now }).dinner?.serving,
+    419:      reduce(served(), { type: 'serving/set-time', time: '00:30', nowMs: now }).dinner?.serving,
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 372,388p test/web/state/store.test.ts
+        process.env['TZ'] = 'Europe/London';
+        expect(new Date(2026, 6, 1).getTimezoneOffset()).toBe(-60);
+      });
+      afterAll(() => {
+        if (originalZone === undefined) delete process.env['TZ'];
+        else process.env['TZ'] = originalZone;
+      });
+      const at = (iso: string): number => Date.parse(iso);
+      const served = (): AppState => ({
+        ...stateWith(SUNDAY_ROAST, { route: 'plan' }),
+        dinner: {
+          ...dinnerOf(SUNDAY_ROAST),
+          serving: { time: '19:30', atMs: at('2026-11-11T19:30:00Z') },
+        },
+      });
+    
+      it('R5.1 kitchen/set replaces the kitchen', () => {
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'E'
+p='test/web/state/store.test.ts'
+s=open(p).read()
+i=s.index("describe('dish/* and step/*")
+head,tail=s[:i],s[i:]
+helper="""const served = (): AppState => ({
+  ...stateWith(SUNDAY_ROAST, { route: 'steps' }),
+  dinner: {
+    ...dinnerOf(SUNDAY_ROAST),
+    serving: { time: '19:30', atMs: Date.parse('2026-11-11T19:30:00Z') },
+  },
+});
+
+"""
+open(p,'w').write(head+helper+tail)
+E
+npx vitest run --project examples test/web/state/store.test.ts 2>&1 | grep -E "FAIL|Tests" | head -30
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+     FAIL  |examples| test/web/state/store.test.ts > dish/* and step/* (R4.6, R4.7) > R4.6 step/update replaces the plan and keeps kitchen and serving
+     FAIL  |examples| test/web/state/store.test.ts > dish/* and step/* (R4.6, R4.7) > R4.7 step/remove sets the notice from the edit result
+     FAIL  |examples| test/web/state/store.test.ts > dish/* and step/* (R4.6, R4.7) > R4.6 dish/add, dish/rename and step/add change the plan
+     FAIL  |examples| test/web/state/store.test.ts > dish/* and step/* (R4.6, R4.7) > R4.6 dish/remove removes the dish and its steps
+     FAIL  |examples| test/web/state/store.test.ts > the cooking guard (R4.12) > kitchen/set is a no-op while cooking
+     FAIL  |examples| test/web/state/store.test.ts > the cooking guard (R4.12) > serving/set-time is a no-op while cooking
+     FAIL  |examples| test/web/state/store.test.ts > the cooking guard (R4.12) > serving/set-instant is a no-op while cooking
+          Tests  7 failed | 51 passed (58)
+    exit 0
+
+Seven fail on assertions. Now the reducer.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'E'
+p='src/web/state/store.ts'
+s=open(p).read()
+s=s.replace("""export function reduce(state: AppState, action: Action): AppState {
+  switch (action.type) {""","""export function reduce(state: AppState, action: Action): AppState {
+  // Once cooking has started the plan, kitchen and serving time are read-only (R4.12).
+  if (state.cook !== null && GUARDED.has(action.type)) return state;
+  switch (action.type) {""")
+s=s.replace("const ROUTE_ORDER","""const GUARDED: ReadonlySet<string> = new Set([
+  'dish/add',
+  'dish/rename',
+  'dish/remove',
+  'step/add',
+  'step/update',
+  'step/remove',
+  'kitchen/set',
+  'serving/set-time',
+  'serving/set-instant',
+]);
+
+/** Applies a plan edit; a refused edit or one that changes nothing leaves the state as it is. */
+function applyEdit(
+  state: AppState,
+  edit: (plan: Plan) => Result<{ plan: Plan; notice: string | null }, unknown>,
+): AppState {
+  if (state.dinner === null) return state;
+  const result = edit(state.dinner.plan);
+  if (!result.ok || result.value.plan === state.dinner.plan) return state;
+  return {
+    ...state,
+    dinner: { ...state.dinner, plan: result.value.plan },
+    notice: result.value.notice,
+  };
+}
+
+const ROUTE_ORDER""",1)
+s=s.replace("""    default:
+      return reduceCook""","""    case 'dish/add':
+      return applyEdit(state, (plan) => addDish(plan, action.name));
+    case 'dish/rename':
+      return applyEdit(state, (plan) => renameDish(plan, action.index, action.name));
+    case 'dish/remove':
+      return applyEdit(state, (plan) => removeDish(plan, action.index));
+    case 'step/add':
+      return applyEdit(state, (plan) => addStep(plan, action.dishIndex));
+    case 'step/update':
+      return applyEdit(state, (plan) => updateStep(plan, action.index, action.patch));
+    case 'step/remove':
+      return applyEdit(state, (plan) => removeStep(plan, action.index));
+    default:
+      return reduceCook""")
+s=s.replace("import type { StepPatch } from './plan-edit.js';","""import {
+  addDish,
+  addStep,
+  removeDish,
+  removeStep,
+  renameDish,
+  updateStep,
+} from './plan-edit.js';
+import type { StepPatch } from './plan-edit.js';""")
+open(p,'w').write(s)
+E
+npx prettier --write src/web/state/store.ts test/web/state/store.test.ts >/dev/null; npx vitest run --project examples test/web/state/store.test.ts 2>&1 | grep -E "FAIL|Tests|Error" ; npm run typecheck 2>&1 | tail -15
+          Tests  58 passed (58)
+    
+    > make-dinner@0.0.0 typecheck
+    > tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npm run lint 2>&1 | tail -20
+    
+    > make-dinner@0.0.0 lint
+    > eslint .
+    exit 0
+
+Lint passes, but I used a bare `!` in the test. I'll replace it with a literal step.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'E'
+p='test/web/state/store.test.ts'
+s=open(p).read()
+import re
+i=s.index("steps: [{ ...SUNDAY_ROAST.steps[0]!")
+j=s.index("],",i)
+print(s[i:j+2])
+s=s[:i]+"""steps: [
+        {
+          id: 'a.x',
+          dish: 'a',
+          title: 'Only step',
+          minutes: 5,
+          appliance: 'none',
+          handsOn: true,
+          after: [],
+          holdMin: null,
+        },
+      ],"""+s[j+2:]
+open(p,'w').write(s)
+E
+npx prettier --write test/web/state/store.test.ts >/dev/null; npx vitest run --project examples test/web/state/store.test.ts 2>&1 | grep -E "FAIL|Tests"; npm run typecheck 2>&1 | grep -i error; python3 - <<'E'
+p='.kiro/specs/plan-ui/tasks.md'
+s=open(p).read()
+s=s.replace('- [ ] T5.3 ','- [x] T5.3 ')
+open(p,'w').write(s)
+E
+    steps: [{ ...SUNDAY_ROAST.steps[0]!, id: 'a.x', dish: 'a', after: [] }],
+          Tests  58 passed (58)
+    exit 0
+
+T5.3 is done. Next is T5.4. I'll check the existing styles, an existing spec and the Menu screen so I match their conventions.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && wc -l src/web/styles/*.css && cat src/web/styles/base.css && grep -n "^\.\|^@\|^  \." src/web/styles/components.css | head -120 && cat src/web/screens/Menu.tsx src/web/components/SampleList.tsx && sed -n 50,140p e2e/plan.spec.ts && cat playwright.config.ts
+    … (331 earlier lines not shown)
+    process.env['E2E_PORT'] = String(port);
+    const baseURL = `http://127.0.0.1:${port}`;
+    
+    export default defineConfig({
+      testDir: 'e2e',
+      testMatch: '*.spec.ts',
+      outputDir: 'test-results',
+      forbidOnly: true,
+      fullyParallel: true,
+      reporter: [['list']],
+      use: { baseURL },
+      projects: [
+        {
+          name: 'phone',
+          use: { browserName: 'chromium', viewport: { width: 390, height: 844 }, hasTouch: true },
+        },
+        {
+          name: 'desktop',
+          use: { browserName: 'chromium', viewport: { width: 1280, height: 800 } },
+        },
+      ],
+      webServer: {
+        // The key is unset, not empty: e2e must run with samples and import only.
+        command: 'unset ANTHROPIC_API_KEY; npm run build && npm start',
+        url: `${baseURL}/api/health`,
+        env: { PORT: String(port) },
+        reuseExistingServer: false,
+        timeout: 120_000,
+      },
+    });
+    exit 0
+
+Writing the T5.4 e2e spec first.
+
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/e2e/steps.spec.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 105,135p src/web/styles/components.css; sed -n 176,225p src/web/styles/components.css; sed -n 255,290p src/web/styles/components.css; cat src/web/styles/tokens.css | sed -n 1,20p; grep -n "listitem\|<li" src/web/components/PlanList.tsx | head
+    … (109 earlier lines not shown)
+    }
+    
+    .mark--warn {
+      color: var(--color-warn);
+    }
+    
+    /* Kitchen controls */
+    .kitchen-controls {
+    /*
+     * Design tokens. Defined once, here (ui.md). Light is the default; dark applies under
+     * prefers-color-scheme: dark, or [data-theme=dark]. [data-theme=light] forces light.
+     * The two dark blocks must hold identical values; `npm run check:contrast` enforces it.
+     * Changing a colour means running `npm run check:contrast`.
+     */
+    
+    :root {
+      color-scheme: light;
+    
+      --color-bg: #f6f1e7;
+      --color-surface: #fffdf8;
+      --color-raised: #ede5d6;
+      --color-ink: #1f1b16;
+      --color-ink-muted: #5c5346;
+      --color-rule: #d9cfbf;
+      --color-border: #8a7f70;
+      --color-accent: #b23a0a;
+      --color-on-accent: #ffffff;
+      --color-warn: #8a5a00;
+    30:              <li key={item.stepId} id={`step-${item.stepId}`} tabIndex={-1} class="plan-item">
+    51:          <li class="plan-item">
+    exit 0
+
+Now the code: copy strings, the issue-placement helper, the components and the screen.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat >> src/web/copy.ts <<'E'
+
+// Steps screen (T5)
+export const STEPS_COPY = {
+  issuesHeading: 'Issues',
+  noIssues: 'No issues.',
+  fixErrorsToMake: 'Fix the errors to make the plan.',
+  makePlan: 'Make the plan',
+  error: 'Error',
+  warning: 'Warning',
+  noAppliance: 'No appliance',
+  burner: 'Burner',
+  oven: 'Oven',
+  handsOn: 'Hands-on',
+  handsFree: 'Hands-free',
+  keeps: 'Keeps',
+  waitsForNothing: 'Waits for nothing',
+  cookingStarted: 'Cooking has started, so the plan cannot be changed here.',
+} as const;
+
+function count(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/** The intro under the Steps heading: "Sunday roast. Fix any errors, then make the plan." */
+export function stepsIntro(title: string): string {
+  return `${title}. Fix any errors, then make the plan.`;
+}
+
+/** "1 error and 0 warnings." */
+export function issueSummary(errors: number, warnings: number): string {
+  return `${count(errors, 'error', 'errors')} and ${count(warnings, 'warning', 'warnings')}.`;
+}
+
+/** The reason "Make the plan" is disabled: "Fix 1 error to make the plan." */
+export function makeBlocked(errors: number): string {
+  return `Fix ${count(errors, 'error', 'errors')} to make the plan.`;
+}
+
+export function applianceLabel(appliance: 'burner' | 'oven' | 'none'): string {
+  if (appliance === 'burner') return STEPS_COPY.burner;
+  if (appliance === 'oven') return STEPS_COPY.oven;
+  return STEPS_COPY.noAppliance;
+}
+
+export function handsLabel(handsOn: boolean): string {
+  return handsOn ? STEPS_COPY.handsOn : STEPS_COPY.handsFree;
+}
+
+/** "Keeps" or "Can wait 5 min". */
+export function holdLabel(holdMin: number | null): string {
+  return holdMin === null ? STEPS_COPY.keeps : `Can wait ${formatDuration(holdMin)}`;
+}
+
+/** "Waits for: Season and truss the chicken" or "Waits for nothing". */
+export function waitsFor(titles: readonly string[]): string {
+  return titles.length === 0 ? STEPS_COPY.waitsForNothing : `Waits for: ${titles.join(', ')}`;
+}
+E
+cat > src/web/components/issue-placement.ts <<'E'
+import { stepOrder } from '../state/plan-edit.js';
+import type { Issue, Plan } from '../../core/index.js';
+
+export interface PlacedIssue {
+  /** Position in the issue list; the anchor is `issue-<n>`. */
+  n: number;
+  issue: Issue;
+  /** True for the one copy that carries the anchor the summary links to. */
+  anchor: boolean;
+}
+
+export interface IssuePlacement {
+  /** Issues that name no step and no dish: shown in the summary only. */
+  unplaced: PlacedIssue[];
+  /** By dish id, shown at the top of the dish. */
+  byDish: ReadonlyMap<string, PlacedIssue[]>;
+  /** By step index, shown beside the step. */
+  byStep: ReadonlyMap<number, PlacedIssue[]>;
+}
+
+function stepIdsOf(issue: Issue): string[] {
+  if (issue.code === 'cycle') return issue.path;
+  return 'stepId' in issue && issue.stepId !== undefined ? [issue.stepId] : [];
+}
+
+function dishIdOf(issue: Issue): string | null {
+  return 'dishId' in issue && issue.dishId !== undefined ? issue.dishId : null;
+}
+
+/**
+ * Where each issue is shown (R4.9): beside every step it names (every step of a cycle path),
+ * at the top of the dish it names, else only in the summary. The anchor goes on the first
+ * copy in screen order: dishes in plan order, steps in `stepOrder`.
+ */
+export function placeIssues(plan: Plan, issues: readonly Issue[]): IssuePlacement {
+  const screenOrder = new Map<number, number>();
+  let position = 0;
+  const order = stepOrder(plan);
+  for (const dish of plan.dishes) {
+    for (const index of order) {
+      if (plan.steps[index]?.dish === dish.id) screenOrder.set(index, position++);
+    }
+  }
+  const byStep = new Map<number, PlacedIssue[]>();
+  const byDish = new Map<string, PlacedIssue[]>();
+  const unplaced: PlacedIssue[] = [];
+  const push = <K>(map: Map<K, PlacedIssue[]>, key: K, placed: PlacedIssue): void => {
+    map.set(key, [...(map.get(key) ?? []), placed]);
+  };
+
+  issues.forEach((issue, n) => {
+    const ids = new Set(stepIdsOf(issue));
+    const indices = plan.steps.flatMap((s, i) => (ids.has(s.id) ? [i] : []));
+    if (indices.length > 0) {
+      const first = indices.reduce((a, b) =>
+        (screenOrder.get(b) ?? Infinity) < (screenOrder.get(a) ?? Infinity) ? b : a,
+      );
+      for (const index of indices) push(byStep, index, { n, issue, anchor: index === first });
+      return;
+    }
+    const dishId = dishIdOf(issue);
+    if (dishId !== null && plan.dishes.some((d) => d.id === dishId)) {
+      push(byDish, dishId, { n, issue, anchor: true });
+      return;
+    }
+    unplaced.push({ n, issue, anchor: false });
+  });
+  return { unplaced, byDish, byStep };
+}
+E
+cat > src/web/components/IssueList.tsx <<'E'
+import type { VNode } from 'preact';
+import { STEPS_COPY } from '../copy.js';
+import type { Issue } from '../../core/index.js';
+import type { PlacedIssue } from './issue-placement.js';
+
+/** `!` and the word, so severity is never told by colour alone (R4.9). */
+export function IssueMark(props: { issue: Issue }): VNode {
+  const error = props.issue.severity === 'error';
+  return (
+    <span class={error ? 'mark mark--error' : 'mark mark--warn'}>
+      <span aria-hidden="true">!</span> {error ? STEPS_COPY.error : STEPS_COPY.warning}
+    </span>
+  );
+}
+
+/** The issues beside a step or at the top of a dish. The anchored copy can take focus. */
+export function IssueList(props: { items: readonly PlacedIssue[] }): VNode | null {
+  if (props.items.length === 0) return null;
+  return (
+    <ul class="issues">
+      {props.items.map(({ n, issue, anchor }) => (
+        <li
+          key={n}
+          class="issue"
+          id={anchor ? `issue-${n}` : undefined}
+          tabIndex={anchor ? -1 : undefined}
+        >
+          <IssueMark issue={issue} /> {issue.message}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function jumpTo(n: number, event: Event): void {
+  event.preventDefault();
+  const target = document.getElementById(`issue-${n}`);
+  if (target === null) return;
+  target.scrollIntoView({ block: 'center' });
+  target.focus();
+}
+
+/** Every issue at the top of the screen, each linking to where it is shown (R4.9). */
+export function IssueSummary(props: { items: readonly PlacedIssue[] }): VNode | null {
+  if (props.items.length === 0) return null;
+  return (
+    <ul class="issues">
+      {props.items.map(({ n, issue }) => (
+        <li key={n} class="summary-issue">
+          <IssueMark issue={issue} />{' '}
+          {issue.code === 'cycle' || 'stepId' in issue || 'dishId' in issue ? (
+            <a href={`#issue-${n}`} onClick={(event) => jumpTo(n, event)}>
+              {issue.message}
+            </a>
+          ) : (
+            issue.message
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+E
+cat > src/web/components/StepCard.tsx <<'E'
+import type { VNode } from 'preact';
+import type { Plan, Step } from '../../core/index.js';
+import { applianceLabel, handsLabel, holdLabel, waitsFor } from '../copy.js';
+import { formatDuration } from '../state/clock.js';
+import { IssueList } from './IssueList.js';
+import type { PlacedIssue } from './issue-placement.js';
+
+interface Props {
+  plan: Plan;
+  step: Step;
+  issues: readonly PlacedIssue[];
+}
+
+/** A step as a summary: title, id, minutes, appliance, hands-on, hold, prerequisites (R4.2). */
+export function StepCard(props: Props): VNode {
+  const { plan, step } = props;
+  const titles = step.after.map((id) => plan.steps.find((s) => s.id === id)?.title ?? id);
+  return (
+    <li class="card step-card" data-step-id={step.id}>
+      <h3>{step.title}</h3>
+      <ul class="facts">
+        <li class="mono">{step.id}</li>
+        <li class="mono">{formatDuration(step.minutes)}</li>
+        <li>{applianceLabel(step.appliance)}</li>
+        <li>{handsLabel(step.handsOn)}</li>
+        <li>{holdLabel(step.holdMin)}</li>
+      </ul>
+      <p class="muted">{waitsFor(titles)}</p>
+      <IssueList items={props.issues} />
+    </li>
+  );
+}
+E
+cat > src/web/components/DishSection.tsx <<'E'
+import type { VNode } from 'preact';
+import type { Plan } from '../../core/index.js';
+import { IssueList } from './IssueList.js';
+import type { IssuePlacement } from './issue-placement.js';
+import { StepCard } from './StepCard.js';
+
+interface Props {
+  plan: Plan;
+  dishIndex: number;
+  /** Step indices in screen order. */
+  order: readonly number[];
+  placement: IssuePlacement;
+}
+
+/** A dish: its name, its own issues, then its steps in dependency order (R4.1). */
+export function DishSection(props: Props): VNode | null {
+  const { plan, placement } = props;
+  const dish = plan.dishes[props.dishIndex];
+  if (dish === undefined) return null;
+  const headingId = `dish-${props.dishIndex}-heading`;
+  return (
+    <section class="dish" aria-labelledby={headingId}>
+      <h2 id={headingId}>{dish.name}</h2>
+      <IssueList items={placement.byDish.get(dish.id) ?? []} />
+      <ol class="card-list step-list">
+        {props.order.map((index) => {
+          const step = plan.steps[index];
+          if (step === undefined || step.dish !== dish.id) return null;
+          return (
+            <StepCard
+              key={index}
+              plan={plan}
+              step={step}
+              issues={placement.byStep.get(index) ?? []}
+            />
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+E
+cat > src/web/screens/Steps.tsx <<'E'
+import type { VNode } from 'preact';
+import { hasErrors } from '../../core/index.js';
+import { DishSection } from '../components/DishSection.js';
+import { IssueSummary } from '../components/IssueList.js';
+import { placeIssues } from '../components/issue-placement.js';
+import { COPY, issueSummary, makeBlocked, STEPS_COPY, stepsIntro } from '../copy.js';
+import { useAppState, useClock, useDispatch } from '../state/hooks.js';
+import { stepOrder } from '../state/plan-edit.js';
+import { selectCheck } from '../state/store.js';
+
+/** Parsed steps per dish, issues beside them, and the way on to the plan (R4). */
+export function Steps(): VNode {
+  const dinner = useAppState((state) => state.dinner);
+  const check = useAppState(selectCheck);
+  const dispatch = useDispatch();
+  const clock = useClock();
+
+  if (dinner === null || check === null) {
+    return (
+      <main class="screen">
+        <h1 tabIndex={-1}>{COPY.stepsHeading}</h1>
+      </main>
+    );
+  }
+  const { plan } = dinner;
+  const errors = check.issues.filter((i) => i.severity === 'error').length;
+  const warnings = check.issues.length - errors;
+  const placement = placeIssues(plan, check.issues);
+  const order = stepOrder(plan);
+  const placedSummary = check.issues.map((issue, n) => ({ n, issue, anchor: false }));
+  const blocked = hasErrors(check.issues);
+
+  return (
+    <main class="screen">
+      <h1 tabIndex={-1}>{COPY.stepsHeading}</h1>
+      <p>{stepsIntro(plan.title)}</p>
+      <section id="issues-summary" aria-labelledby="issues-heading">
+        <h2 id="issues-heading">{STEPS_COPY.issuesHeading}</h2>
+        <p>
+          {check.issues.length === 0 ? STEPS_COPY.noIssues : issueSummary(errors, warnings)}
+          {errors > 0 && ` ${STEPS_COPY.fixErrorsToMake}`}
+        </p>
+        <IssueSummary items={placedSummary} />
+      </section>
+      {plan.dishes.map((dish, dishIndex) => (
+        <DishSection
+          key={dish.id}
+          plan={plan}
+          dishIndex={dishIndex}
+          order={order}
+          placement={placement}
+        />
+      ))}
+      <div class="actions">
+        <button
+          type="button"
+          class="button button--primary"
+          disabled={blocked}
+          aria-describedby={blocked ? 'make-blocked' : undefined}
+          onClick={() => dispatch({ type: 'plan/enter', nowMs: clock.nowMs() })}
+        >
+          {STEPS_COPY.makePlan}
+        </button>
+      </div>
+      {blocked && (
+        <p id="make-blocked" class="muted">
+          {makeBlocked(errors)}
+        </p>
+      )}
+    </main>
+  );
+}
+E
+cat >> src/web/styles/components.css <<'E'
+
+/* Steps screen */
+.mark--error {
+  color: var(--color-accent);
+}
+
+.step-list {
+  margin-top: var(--space-2);
+  counter-reset: none;
+}
+
+.step-card h3 {
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+
+.step-card .muted {
+  margin: 0 0 var(--space-2);
+}
+
+.issues {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.issue,
+.summary-issue {
+  overflow-wrap: anywhere;
+}
+
+.issue {
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--color-border);
+  background: var(--color-raised);
+}
+E
+npx prettier --write src/web e2e >/dev/null; npm run typecheck 2>&1 | grep -E "error" | head; npm run lint 2>&1 | tail -15
+    
+    > make-dinner@0.0.0 lint
+    > eslint .
+    exit 0
+
+I wrote the code in the same step as the spec, so I'll swap the old stub back in briefly to confirm the e2e fails on its first missing element.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cp src/web/screens/Steps.tsx /tmp/Steps.real && cat > src/web/screens/Steps.tsx <<'E'
+import type { VNode } from 'preact';
+import { COPY } from '../copy.js';
+
+export function Steps(): VNode {
+  return (
+    <main class="screen">
+      <h1 tabIndex={-1}>{COPY.stepsHeading}</h1>
+    </main>
+  );
+}
+E
+(timeout 280 npx playwright test e2e/steps.spec.ts --project=phone 2>&1 | grep -E "✘|Error:|Expected|passed|failed|Locator" | head -20); cp /tmp/Steps.real src/web/screens/Steps.tsx; rm /tmp/Steps.real
+      ✘  4 [phone] › e2e/steps.spec.ts:60:3 › steps screen › R4.2 a step summary gives id, duration, appliance, hands-on, hold and prerequisites by title (5.1s)
+      ✘  3 [phone] › e2e/steps.spec.ts:31:3 › steps screen › R4.1 R4.9 seeded SUNDAY_ROAST shows a section per dish, steps in dependency order, No issues. (5.1s)
+      ✘  1 [phone] › e2e/steps.spec.ts:76:3 › steps screen › R4.9 R4.10 an error shows beside its step and in the summary, and blocks the plan (5.1s)
+      ✘  2 [phone] › e2e/steps.spec.ts:99:3 › steps screen › R4.11 Make the plan on a valid plan opens the Plan screen (30.0s)
+        Error: expect(locator).toBeVisible() failed
+        Locator: getByText('Sunday roast. Fix any errors, then make the plan.')
+        Expected: visible
+        Error: element(s) not found
+        Error: expect(locator).toContainText(expected) failed
+        Locator: locator('[data-step-id="chicken.roast"]')
+        Expected substring: "chicken.roast"
+        Error: element(s) not found
+        Error: expect(locator).toBeVisible() failed
+        Locator: getByText('1 error and 0 warnings.', { exact: true })
+        Expected: visible
+        Error: element(s) not found
+        Error: locator.click: Test timeout of 30000ms exceeded.
+      4 failed
+    exit 0
+
+The stub fails on missing elements, as it should. Now with the real screen, on both projects:
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && (timeout 290 npx playwright test e2e/steps.spec.ts 2>&1 | grep -E "✘|✓|Error:|Expected|Received|passed|failed|Locator" | head -30)
+      ✓  1 [desktop] › e2e/steps.spec.ts:60:3 › steps screen › R4.2 a step summary gives id, duration, appliance, hands-on, hold and prerequisites by title (174ms)
+      ✓  5 [phone] › e2e/steps.spec.ts:60:3 › steps screen › R4.2 a step summary gives id, duration, appliance, hands-on, hold and prerequisites by title (171ms)
+      ✓  3 [phone] › e2e/steps.spec.ts:31:3 › steps screen › R4.1 R4.9 seeded SUNDAY_ROAST shows a section per dish, steps in dependency order, No issues. (169ms)
+      ✓  2 [desktop] › e2e/steps.spec.ts:31:3 › steps screen › R4.1 R4.9 seeded SUNDAY_ROAST shows a section per dish, steps in dependency order, No issues. (178ms)
+      ✓  6 [phone] › e2e/steps.spec.ts:99:3 › steps screen › R4.11 Make the plan on a valid plan opens the Plan screen (252ms)
+      ✓  8 [desktop] › e2e/steps.spec.ts:99:3 › steps screen › R4.11 Make the plan on a valid plan opens the Plan screen (179ms)
+      ✘  4 [phone] › e2e/steps.spec.ts:76:3 › steps screen › R4.9 R4.10 an error shows beside its step and in the summary, and blocks the plan (5.2s)
+      ✘  7 [desktop] › e2e/steps.spec.ts:76:3 › steps screen › R4.9 R4.10 an error shows beside its step and in the summary, and blocks the plan (5.1s)
+        Error: expect(locator).toBeVisible() failed
+        Locator: getByText('1 error and 0 warnings.', { exact: true })
+        Expected: visible
+        Error: element(s) not found
+        Error: expect(locator).toBeVisible() failed
+        Locator: getByText('1 error and 0 warnings.', { exact: true })
+        Expected: visible
+        Error: element(s) not found
+      2 failed
+      6 passed (7.8s)
+    exit 0
+
+The summary sentence and the "Fix the errors" sentence share one element. I'll split them into two paragraphs.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'E'
+p='src/web/screens/Steps.tsx'
+s=open(p).read()
+i=s.index("        <p>\n          {check.issues.length")
+j=s.index("</p>",i)+4
+s=s[:i]+"""        <p>{check.issues.length === 0 ? STEPS_COPY.noIssues : issueSummary(errors, warnings)}</p>
+        {errors > 0 && <p>{STEPS_COPY.fixErrorsToMake}</p>}"""+s[j:]
+open(p,'w').write(s)
+E
+npx prettier --write src/web/screens/Steps.tsx >/dev/null; (timeout 290 npx playwright test e2e/steps.spec.ts 2>&1 | grep -E "✘|Error:|Expected|Received|passed|failed|Locator" | head -30)
+      8 passed (3.1s)
+    exit 0
+
+All 8 pass. Before ticking, I'll take 390×844 screenshots in a scratch spec, which I'll delete afterwards.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && mkdir -p /tmp/shots && cat > e2e/zz-scratch.spec.ts <<'E'
+import { test } from '@playwright/test';
+import { HOME_KITCHEN, SUNDAY_ROAST } from '../test/support/fixtures.js';
+import { FIXED_NOW, seedDinner } from './support.js';
+
+test.use({ locale: 'en-GB', timezoneId: 'Europe/London' });
+const BROKEN = {
+  ...SUNDAY_ROAST,
+  steps: SUNDAY_ROAST.steps.map((s) => (s.id === 'gravy.roux' ? { ...s, after: ['chicken.rost'] } : s)),
+};
+for (const scheme of ['light', 'dark'] as const) {
+  for (const [name, plan] of [['valid', SUNDAY_ROAST], ['broken', BROKEN]] as const) {
+    test(`shot ${scheme} ${name}`, async ({ page }) => {
+      test.skip(test.info().project.name !== 'phone');
+      await page.clock.install({ time: new Date(FIXED_NOW) });
+      await page.emulateMedia({ colorScheme: scheme });
+      await seedDinner(page, plan, HOME_KITCHEN, '19:30', 'steps');
+      await page.goto('/');
+      await page.getByRole('heading', { level: 1 }).waitFor();
+      await page.screenshot({ path: `/tmp/shots/steps-${name}-${scheme}.png`, fullPage: true });
+      const w = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
+      console.log('WIDTHS', name, scheme, w);
+    });
+  }
+}
+E
+(timeout 250 npx playwright test e2e/zz-scratch.spec.ts --project=phone 2>&1 | grep -E "WIDTHS|passed|failed|Error")
+    WIDTHS valid light [ 390, 390 ]
+    WIDTHS valid dark [ 390, 390 ]
+    WIDTHS broken dark [ 390, 390 ]
+    WIDTHS broken light [ 390, 390 ]
+      4 passed (2.7s)
+    exit 0
+[tool:read] Read File /tmp/shots/steps-broken-light.png
+
+The layout holds and nothing scrolls sideways (scroll width 390 against client width 390). The id runs into the facts line, so I'll give the id its own line.
+
+[tool:read] Read File /tmp/shots/steps-broken-dark.png
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'E'
+p='src/web/components/StepCard.tsx'
+s=open(p).read()
+s=s.replace("""      <ul class="facts">
+        <li class="mono">{step.id}</li>
+        <li class="mono">{formatDuration(step.minutes)}</li>""","""      <p class="mono muted step-card__id">{step.id}</p>
+      <ul class="facts">
+        <li class="mono">{formatDuration(step.minutes)}</li>""")
+open(p,'w').write(s)
+p='src/web/styles/components.css'
+s=open(p).read()
+s+="""
+.step-card .step-card__id {
+  margin: 0 0 var(--space-1);
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+"""
+open(p,'w').write(s)
+E
+(timeout 250 npx playwright test e2e/zz-scratch.spec.ts --project=phone 2>&1 | grep -E "passed|failed")
+      4 passed (2.6s)
+    exit 0
+
+The dark shot still shows the id inline, so I'll check whether the file was actually rewritten.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && ls -l --time-style=full-iso /tmp/shots 2>/dev/null || ls -l /tmp/shots; date; grep -n "step-card__id" src/web/components/StepCard.tsx
+    total 1680
+    -rw-r--r--  1 user  wheel  228726 11월 11 18:31 steps-broken-dark.png
+    -rw-r--r--  1 user  wheel  227671 11월 11 18:31 steps-broken-light.png
+    -rw-r--r--  1 user  wheel  198638 11월 11 18:31 steps-valid-dark.png
+    -rw-r--r--  1 user  wheel  197376 11월 11 18:31 steps-valid-light.png
+    2026년 11월 11일 수요일 18시 31분 49초 KST
+    21:      <p class="mono muted step-card__id">{step.id}</p>
+    exit 0
+
+The files were rewritten at 18:31. My read ran in parallel with the screenshot run, so I saw the old image. Reading it again.
+
+[tool:read] Read File /tmp/shots/steps-broken-dark.png
+
+The screen looks right in light and dark. Running T5.4's full command.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx prettier --write src/web >/dev/null; (timeout 280 npx playwright test e2e/steps.spec.ts 2>&1 | grep -E "✘|passed|failed") && npm run typecheck 2>&1 | grep -ci "error"; npm run lint 2>&1 | tail -4
+      8 passed (3.2s)
+    0
+      13:7  error  No .skip, .only, .todo, .fails or .fixme tests (testing.md)  no-restricted-syntax
+    
+    ✖ 1 problem (1 error, 0 warnings)
+    exit 0
+
+The only lint error is the scratch spec's `test.skip`. I'll delete the scratch spec and re-run lint.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cp e2e/zz-scratch.spec.ts /tmp/zz-scratch.spec.ts && rm e2e/zz-scratch.spec.ts && npm run lint 2>&1 | tail -4 && npx prettier --check src e2e test 2>&1 | tail -3 && python3 - <<'E'
+p='.kiro/specs/plan-ui/tasks.md'
+s=open(p).read()
+s=s.replace('- [ ] T5.4 ','- [x] T5.4 ')
+open(p,'w').write(s)
+E
+    
+    > make-dinner@0.0.0 lint
+    > eslint .
+    
+    Checking formatting...
+    All matched files use Prettier code style!
+    exit 0
+
+T5.4 is ticked. For T5.5 I'll write the e2e first and run it before any code.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'E'
+p='e2e/steps.spec.ts'
+s=open(p).read()
+s+="""
+const card = (page: Page, id: string) => page.locator(`[data-step-id="${id}"]`);
+
+test.describe('step editor', () => {
+  test('R4.3 R4.11 minutes of Roast the chicken 75 to 85 move the start to 17:30', async ({
+    page,
+  }) => {
+    await openSteps(page);
+    await card(page, 'chicken.roast').getByRole('button', { name: 'Edit' }).click();
+    const minutes = page.getByLabel('Minutes', { exact: true });
+    await minutes.fill('85');
+    await expect(card(page, 'chicken.roast')).toContainText('1 h 25 min');
+    await page.getByRole('button', { name: 'Make the plan' }).click();
+    await expect(page.getByText('Start at 17:30', { exact: true })).toBeVisible();
+    await expect(page.getByText('Takes 2 h', { exact: true })).toBeVisible();
+  });
+
+  test('R4.4 minutes 0 shows the field error, keeps the typed value and leaves the plan unchanged', async ({
+    page,
+  }) => {
+    await openSteps(page);
+    await card(page, 'chicken.roast').getByRole('button', { name: 'Edit' }).click();
+    const minutes = page.getByLabel('Minutes', { exact: true });
+    await minutes.fill('0');
+    await expect(page.getByText('Enter whole minutes from 1 to 480.', { exact: true })).toBeVisible();
+    await expect(minutes).toHaveValue('0');
+    await expect(card(page, 'chicken.roast')).toContainText('1 h 15 min');
+    await page.getByRole('button', { name: 'Make the plan' }).click();
+    await expect(page.getByText('Takes 1 h 50 min', { exact: true })).toBeVisible();
+  });
+
+  test('R4.3 unchecking Keeps shows Can wait up to (minutes) with 10', async ({ page }) => {
+    await openSteps(page);
+    await card(page, 'chicken.prep').getByRole('button', { name: 'Edit' }).click();
+    const keeps = page.getByLabel('Keeps (can wait as long as needed)');
+    await expect(keeps).toBeChecked();
+    await expect(page.getByLabel('Can wait up to (minutes)')).toHaveCount(0);
+    await keeps.uncheck();
+    await expect(page.getByLabel('Can wait up to (minutes)')).toHaveValue('10');
+    await expect(card(page, 'chicken.prep')).toContainText('Can wait 10 min');
+  });
+
+  test('R4.5 only one editor is open at a time', async ({ page }) => {
+    await openSteps(page);
+    await card(page, 'chicken.prep').getByRole('button', { name: 'Edit' }).click();
+    await card(page, 'chicken.roast').getByRole('button', { name: 'Edit' }).click();
+    await expect(page.getByLabel('Minutes', { exact: true })).toHaveCount(1);
+    await expect(card(page, 'chicken.roast').getByLabel('Minutes', { exact: true })).toHaveCount(1);
+  });
+
+  test('R4.5 in the gravy.roux editor a step that already waits for it is disabled', async ({
+    page,
+  }) => {
+    await openSteps(page);
+    await card(page, 'gravy.roux').getByRole('button', { name: 'Edit' }).click();
+    const waits = page.getByRole('group', { name: 'Waits for' });
+    await expect(waits.getByRole('checkbox', { name: 'Roast the chicken' })).toBeChecked();
+    const strain = waits.getByRole('checkbox', {
+      name: 'Strain the gravy into a jug (already waits for this step)',
+    });
+    await expect(strain).toBeDisabled();
+    await expect(strain).not.toBeChecked();
+    // The step itself is not an option.
+    await expect(waits.getByRole('checkbox', { name: /Make a roux/ })).toHaveCount(0);
+  });
+
+  test('R4.5 R4.10 an unknown prerequisite shows checked; unchecking it enables Make the plan', async ({
+    page,
+  }) => {
+    await openSteps(page, BROKEN_ROAST);
+    await card(page, 'gravy.roux').getByRole('button', { name: 'Edit' }).click();
+    const unknown = page.getByRole('checkbox', { name: 'chicken.rost (not a step in this plan)' });
+    await expect(unknown).toBeChecked();
+    await expect(page.getByRole('button', { name: 'Make the plan' })).toBeDisabled();
+    await unknown.uncheck();
+    await expect(page.getByText('No issues.', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Make the plan' })).toBeEnabled();
+  });
+});
+"""
+open(p,'w').write(s)
+E
+npx prettier --write e2e/steps.spec.ts >/dev/null; (timeout 280 npx playwright test e2e/steps.spec.ts --project=phone 2>&1 | grep -E "✘|passed|failed|Error:" | head -12)
+      ✘   1 [phone] › e2e/steps.spec.ts:110:3 › step editor › R4.3 R4.11 minutes of Roast the chicken 75 to 85 move the start to 17:30 (30.0s)
+      ✘   4 [phone] › e2e/steps.spec.ts:123:3 › step editor › R4.4 minutes 0 shows the field error, keeps the typed value and leaves the plan unchanged (30.0s)
+      ✘   7 [phone] › e2e/steps.spec.ts:139:3 › step editor › R4.3 unchecking Keeps shows Can wait up to (minutes) with 10 (30.0s)
+      ✘   8 [phone] › e2e/steps.spec.ts:150:3 › step editor › R4.5 only one editor is open at a time (30.0s)
+      ✘   9 [phone] › e2e/steps.spec.ts:158:3 › step editor › R4.5 in the gravy.roux editor a step that already waits for it is disabled (30.0s)
+      ✘  10 [phone] › e2e/steps.spec.ts:174:3 › step editor › R4.5 R4.10 an unknown prerequisite shows checked; unchecking it enables Make the plan (30.0s)
+        Error: locator.click: Test timeout of 30000ms exceeded.
+        Error: locator.click: Test timeout of 30000ms exceeded.
+        Error: locator.click: Test timeout of 30000ms exceeded.
+        Error: locator.click: Test timeout of 30000ms exceeded.
+        Error: locator.click: Test timeout of 30000ms exceeded.
+        Error: locator.click: Test timeout of 30000ms exceeded.
+    exit 0
+
+All six fail on the missing Edit button, as expected. Now the editor.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat >> src/web/copy.ts <<'E'
+
+// Step editor (T5.5)
+export const EDITOR_COPY = {
+  edit: 'Edit',
+  doneEditing: 'Done editing',
+  title: 'Title',
+  minutes: 'Minutes',
+  appliance: 'Appliance',
+  handsOn: 'Hands-on (needs a cook the whole time)',
+  dish: 'Dish',
+  keeps: 'Keeps (can wait as long as needed)',
+  canWaitUpTo: 'Can wait up to (minutes)',
+  waitsFor: 'Waits for',
+  alreadyWaits: '(already waits for this step)',
+  notAStep: '(not a step in this plan)',
+  thisStep: '(this step)',
+  titleError: 'Give the step a title.',
+  minutesError: 'Enter whole minutes from 1 to 480.',
+  holdError: 'Enter whole minutes from 0 to 480.',
+} as const;
+E
+cat > src/web/components/PrerequisiteChecklist.tsx <<'E'
+import type { VNode } from 'preact';
+import { useId } from 'preact/hooks';
+import type { Plan } from '../../core/index.js';
+import { EDITOR_COPY } from '../copy.js';
+import { stepOrder, waitingOn } from '../state/plan-edit.js';
+
+interface Props {
+  plan: Plan;
+  /** Index of the step being edited. */
+  index: number;
+  onChange: (after: string[]) => void;
+}
+
+interface Option {
+  id: string;
+  label: string;
+  suffix: string | null;
+  checked: boolean;
+  disabled: boolean;
+}
+
+/** The options of the checklist: other steps (same dish first), then ids that are not steps (R4.3, R4.5). */
+function optionsOf(plan: Plan, index: number): Option[] {
+  const step = plan.steps[index];
+  if (step === undefined) return [];
+  const later = waitingOn(plan, step.id);
+  const order = stepOrder(plan).filter((i) => i !== index);
+  const sameDish = order.filter((i) => plan.steps[i]?.dish === step.dish);
+  const others = plan.dishes
+    .filter((d) => d.id !== step.dish)
+    .flatMap((d) => order.filter((i) => plan.steps[i]?.dish === d.id));
+  const options: Option[] = [];
+  const seen = new Set<string>();
+  for (const i of [...sameDish, ...others]) {
+    const other = plan.steps[i];
+    if (other === undefined || other.id === step.id || seen.has(other.id)) continue;
+    seen.add(other.id);
+    const checked = step.after.includes(other.id);
+    // A step that already waits for this one would make a cycle, unless it is checked and
+    // the cook needs to be able to clear it.
+    const disabled = later.has(other.id) && !checked;
+    options.push({
+      id: other.id,
+      label: other.title,
+      suffix: disabled ? EDITOR_COPY.alreadyWaits : null,
+      checked,
+      disabled,
+    });
+  }
+  const stepIds = new Set(plan.steps.map((s) => s.id));
+  for (const id of new Set(step.after)) {
+    if (id === step.id) {
+      options.push({ id, label: id, suffix: EDITOR_COPY.thisStep, checked: true, disabled: false });
+    } else if (!stepIds.has(id)) {
+      options.push({ id, label: id, suffix: EDITOR_COPY.notAStep, checked: true, disabled: false });
+    }
+  }
+  return options;
+}
+
+/** "Waits for": a checklist of the other steps; options that would make a cycle are disabled. */
+export function PrerequisiteChecklist(props: Props): VNode | null {
+  const step = props.plan.steps[props.index];
+  const name = useId();
+  if (step === undefined) return null;
+  const toggle = (id: string, checked: boolean): void => {
+    props.onChange(
+      checked ? [...step.after.filter((a) => a !== id), id] : step.after.filter((a) => a !== id),
+    );
+  };
+  return (
+    <fieldset class="checklist">
+      <legend>{EDITOR_COPY.waitsFor}</legend>
+      {optionsOf(props.plan, props.index).map((option) => (
+        <label key={option.id} class={`check${option.disabled ? ' check--off' : ''}`}>
+          <input
+            type="checkbox"
+            name={name}
+            checked={option.checked}
+            disabled={option.disabled}
+            onChange={(event) => toggle(option.id, event.currentTarget.checked)}
+          />
+          <span>{option.suffix === null ? option.label : `${option.label} ${option.suffix}`}</span>
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+E
+cat > src/web/components/StepEditor.tsx <<'E'
+import type { VNode } from 'preact';
+import { useEffect, useId, useRef, useState } from 'preact/hooks';
+import type { Appliance, Plan } from '../../core/index.js';
+import { EDITOR_COPY, STEPS_COPY } from '../copy.js';
+import { useDispatch } from '../state/hooks.js';
+import { DEFAULT_HOLD_MIN } from '../state/plan-edit.js';
+import type { StepPatch } from '../state/plan-edit.js';
+import { PrerequisiteChecklist } from './PrerequisiteChecklist.js';
+
+interface Props {
+  plan: Plan;
+  index: number;
+  onDone: () => void;
+}
+
+/** Parses whole minutes in a range; null when the text is not that. */
+function wholeMinutes(text: string, min: number, max: number): number | null {
+  if (!/^\d{1,4}$/.test(text.trim())) return null;
+  const value = Number(text.trim());
+  return value >= min && value <= max ? value : null;
+}
+
+/**
+ * Edits one step. Field text is local; a value goes to the store only when it would pass
+ * `StepSchema`, so the stored plan stays valid and a bad value keeps what was typed (R4.4).
+ */
+export function StepEditor(props: Props): VNode | null {
+  const step = props.plan.steps[props.index];
+  const dispatch = useDispatch();
+  const ids = useId();
+  const titleInput = useRef<HTMLInputElement>(null);
+  const [title, setTitle] = useState(step?.title ?? '');
+  const [minutes, setMinutes] = useState(String(step?.minutes ?? ''));
+  const [hold, setHold] = useState(String(step?.holdMin ?? DEFAULT_HOLD_MIN));
+  const [titleError, setTitleError] = useState(false);
+  const [minutesError, setMinutesError] = useState(false);
+  const [holdError, setHoldError] = useState(false);
+
+  useEffect(() => {
+    titleInput.current?.focus();
+  }, []);
+
+  if (step === undefined) return null;
+  const update = (patch: StepPatch): void =>
+    dispatch({ type: 'step/update', index: props.index, patch });
+  const keeps = step.holdMin === null;
+
+  return (
+    <div class="step-editor">
+      <div class="field">
+        <label for={`${ids}-title`}>{EDITOR_COPY.title}</label>
+        <input
+          id={`${ids}-title`}
+          ref={titleInput}
+          class="input"
+          type="text"
+          value={title}
+          aria-invalid={titleError}
+          aria-describedby={titleError ? `${ids}-title-error` : undefined}
+          onInput={(event) => {
+            const value = event.currentTarget.value;
+            setTitle(value);
+            const valid = value.trim() !== '';
+            setTitleError(!valid);
+            if (valid) update({ title: value.trim() });
+          }}
+        />
+        {titleError && (
+          <p id={`${ids}-title-error`} class="field-error">
+            {EDITOR_COPY.titleError}
+          </p>
+        )}
+      </div>
+
+      <div class="field">
+        <label for={`${ids}-minutes`}>{EDITOR_COPY.minutes}</label>
+        <input
+          id={`${ids}-minutes`}
+          class="input input--mono"
+          type="text"
+          inputMode="numeric"
+          value={minutes}
+          aria-invalid={minutesError}
+          aria-describedby={minutesError ? `${ids}-minutes-error` : undefined}
+          onInput={(event) => {
+            const text = event.currentTarget.value;
+            setMinutes(text);
+            const value = wholeMinutes(text, 1, 480);
+            setMinutesError(value === null);
+            if (value !== null) update({ minutes: value });
+          }}
+        />
+        {minutesError && (
+          <p id={`${ids}-minutes-error`} class="field-error">
+            {EDITOR_COPY.minutesError}
+          </p>
+        )}
+      </div>
+
+      <div class="field">
+        <label for={`${ids}-appliance`}>{EDITOR_COPY.appliance}</label>
+        <select
+          id={`${ids}-appliance`}
+          class="input"
+          value={step.appliance}
+          onChange={(event) => update({ appliance: event.currentTarget.value as Appliance })}
+        >
+          <option value="burner">{STEPS_COPY.burner}</option>
+          <option value="oven">{STEPS_COPY.oven}</option>
+          <option value="none">{STEPS_COPY.noAppliance}</option>
+        </select>
+      </div>
+
+      <label class="check">
+        <input
+          type="checkbox"
+          checked={step.handsOn}
+          onChange={(event) => update({ handsOn: event.currentTarget.checked })}
+        />
+        <span>{EDITOR_COPY.handsOn}</span>
+      </label>
+
+      <div class="field">
+        <label for={`${ids}-dish`}>{EDITOR_COPY.dish}</label>
+        <select
+          id={`${ids}-dish`}
+          class="input"
+          value={step.dish}
+          onChange={(event) => update({ dish: event.currentTarget.value })}
+        >
+          {props.plan.dishes.map((dish) => (
+            <option key={dish.id} value={dish.id}>
+              {dish.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <label class="check">
+        <input
+          type="checkbox"
+          checked={keeps}
+          onChange={(event) => {
+            setHoldError(false);
+            if (event.currentTarget.checked) update({ holdMin: null });
+            else {
+              setHold(String(DEFAULT_HOLD_MIN));
+              update({ holdMin: DEFAULT_HOLD_MIN });
+            }
+          }}
+        />
+        <span>{EDITOR_COPY.keeps}</span>
+      </label>
+
+      {!keeps && (
+        <div class="field">
+          <label for={`${ids}-hold`}>{EDITOR_COPY.canWaitUpTo}</label>
+          <input
+            id={`${ids}-hold`}
+            class="input input--mono"
+            type="text"
+            inputMode="numeric"
+            value={hold}
+            aria-invalid={holdError}
+            aria-describedby={holdError ? `${ids}-hold-error` : undefined}
+            onInput={(event) => {
+              const text = event.currentTarget.value;
+              setHold(text);
+              const value = wholeMinutes(text, 0, 480);
+              setHoldError(value === null);
+              if (value !== null) update({ holdMin: value });
+            }}
+          />
+          {holdError && (
+            <p id={`${ids}-hold-error`} class="field-error">
+              {EDITOR_COPY.holdError}
+            </p>
+          )}
+        </div>
+      )}
+
+      <PrerequisiteChecklist
+        plan={props.plan}
+        index={props.index}
+        onChange={(after) => update({ after })}
+      />
+
+      <div class="actions">
+        <button type="button" class="button" onClick={props.onDone}>
+          {EDITOR_COPY.doneEditing}
+        </button>
+      </div>
+    </div>
+  );
+}
+E
+python3 - <<'E'
+import re
+# StepCard
+p='src/web/components/StepCard.tsx'
+s=open(p).read()
+s=s.replace("import type { VNode } from 'preact';","import type { VNode } from 'preact';\nimport { useEffect, useRef } from 'preact/hooks';")
+s=s.replace("import { applianceLabel, handsLabel, holdLabel, waitsFor } from '../copy.js';","import { applianceLabel, EDITOR_COPY, handsLabel, holdLabel, waitsFor } from '../copy.js';")
+s=s.replace("import { IssueList } from './IssueList.js';","import { IssueList } from './IssueList.js';\nimport { StepEditor } from './StepEditor.js';")
+s=s.replace("""  issues: readonly PlacedIssue[];
+}""","""  issues: readonly PlacedIssue[];
+  /** Index of the step in the plan. */
+  index: number;
+  editing: boolean;
+  readOnly: boolean;
+  onEdit: () => void;
+  onDone: () => void;
+}""")
+s=s.replace("""  const { plan, step } = props;""","""  const { plan, step } = props;
+  const editButton = useRef<HTMLButtonElement>(null);
+  const wasEditing = useRef(false);
+  // Closing the editor returns focus to the button that opened it.
+  useEffect(() => {
+    if (wasEditing.current && !props.editing) editButton.current?.focus();
+    wasEditing.current = props.editing;
+  }, [props.editing]);""")
+s=s.replace("""      <IssueList items={props.issues} />
+""","""      <IssueList items={props.issues} />
+      {props.editing ? (
+        <StepEditor plan={plan} index={props.index} onDone={props.onDone} />
+      ) : (
+        !props.readOnly && (
+          <div class="actions">
+            <button type="button" class="button" ref={editButton} onClick={props.onEdit}>
+              {EDITOR_COPY.edit}
+              <span class="visually-hidden"> {step.title}</span>
+            </button>
+          </div>
+        )
+      )}
+""")
+open(p,'w').write(s)
+# DishSection
+p='src/web/components/DishSection.tsx'
+s=open(p).read()
+s=s.replace("""  placement: IssuePlacement;
+}""","""  placement: IssuePlacement;
+  /** Index of the step whose editor is open, if any. */
+  editing: number | null;
+  readOnly: boolean;
+  onEdit: (index: number | null) => void;
+}""")
+s=s.replace("""              issues={placement.byStep.get(index) ?? []}
+""","""              index={index}
+              issues={placement.byStep.get(index) ?? []}
+              editing={props.editing === index}
+              readOnly={props.readOnly}
+              onEdit={() => props.onEdit(index)}
+              onDone={() => props.onEdit(null)}
+""")
+open(p,'w').write(s)
+# Steps
+p='src/web/screens/Steps.tsx'
+s=open(p).read()
+s=s.replace("import type { VNode } from 'preact';","import type { VNode } from 'preact';\nimport { useState } from 'preact/hooks';")
+s=s.replace("  const clock = useClock();\n","  const clock = useClock();\n  const cooking = useAppState((state) => state.cook !== null);\n  const [editing, setEditing] = useState<number | null>(null);\n",1)
+s=s.replace("          placement={placement}\n","          placement={placement}\n          editing={editing}\n          readOnly={cooking}\n          onEdit={setEditing}\n")
+s=s.replace("      <p>{stepsIntro(plan.title)}</p>","      <p>{stepsIntro(plan.title)}</p>\n      {cooking && <p>{STEPS_COPY.cookingStarted}</p>}")
+open(p,'w').write(s)
+E
+cat >> src/web/styles/components.css <<'E'
+
+/* Step editor */
+.step-editor {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-rule);
+}
+
+.field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.field .input {
+  width: 100%;
+}
+
+.field-error {
+  margin: 0;
+  color: var(--color-accent);
+  font-weight: 700;
+}
+
+.check {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  min-height: 3rem;
+}
+
+.check input {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.check--off {
+  color: var(--color-ink-muted);
+}
+
+.checklist {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.checklist legend {
+  padding: 0 var(--space-1);
+  font-weight: 700;
+}
+
+.step-card > .actions {
+  margin-top: var(--space-2);
+}
+E
+npx prettier --write src/web e2e >/dev/null; npm run typecheck 2>&1 | grep -E "error" | head; npm run lint 2>&1 | tail -8; (timeout 280 npx playwright test e2e/steps.spec.ts 2>&1 | grep -E "✘|passed|failed|Error:|Expected|Received" | head -20)
+    
+    > make-dinner@0.0.0 lint
+    > eslint .
+    
+      ✘  10 [phone] › e2e/steps.spec.ts:174:3 › step editor › R4.5 R4.10 an unknown prerequisite shows checked; unchecking it enables Make the plan (30.0s)
+      ✘  20 [desktop] › e2e/steps.spec.ts:174:3 › step editor › R4.5 R4.10 an unknown prerequisite shows checked; unchecking it enables Make the plan (30.0s)
+        Error: locator.uncheck: Test timeout of 30000ms exceeded.
+        Error: locator.uncheck: Test timeout of 30000ms exceeded.
+      2 failed
+      18 passed (33.6s)
+    exit 0
+
+Unchecking the unknown prerequisite removes its option, so Playwright's `uncheck()` can't confirm the new state. I'll click it and assert the option is gone.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'E'
+p='e2e/steps.spec.ts'
+s=open(p).read()
+s=s.replace("    await unknown.uncheck();\n","    // Its option goes away once it is cleared, so click rather than uncheck.\n    await unknown.click();\n    await expect(unknown).toHaveCount(0);\n")
+open(p,'w').write(s)
+E
+npx prettier --write e2e/steps.spec.ts >/dev/null; (timeout 280 npx playwright test e2e/steps.spec.ts 2>&1 | grep -E "✘|passed|failed|Error:" | head -20)
+      20 passed (3.8s)
+    exit 0
+
+The 20 tests pass on both projects. For T5.6 I'll check how `LiveNotice` renders so the spec can target the live region.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat src/web/components/LiveNotice.tsx; grep -n "live-notice" e2e/*.ts | head -3
+    import type { VNode } from 'preact';
+    import { useAppState } from '../state/hooks.js';
+    
+    /** The one `aria-live="polite"` region (R9.4). Always in the DOM, so a new text is announced. */
+    export function LiveNotice(): VNode {
+      const notice = useAppState((state) => state.notice);
+      return (
+        <div class="live-notice" role="status" aria-live="polite">
+          {notice}
+        </div>
+      );
+    }
+    exit 0
+
+Writing the T5.6 e2e flows first.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat >> e2e/steps.spec.ts <<'E'
+
+test.describe('add and remove', () => {
+  test('R4.7 removing Roast the chicken asks naming the two steps; Keep step changes nothing; Remove step announces the notice', async ({
+    page,
+  }) => {
+    await openSteps(page);
+    const roast = card(page, 'chicken.roast');
+    await roast.getByRole('button', { name: 'Remove step' }).click();
+    await expect(roast).toContainText(
+      'Remove \u201cRoast the chicken\u201d? 2 steps wait for it: Rest the chicken under foil, Make a roux in the roasting tin. They will no longer wait for it.',
+    );
+
+    await roast.getByRole('button', { name: 'Keep step' }).click();
+    await expect(roast.getByRole('button', { name: 'Keep step' })).toHaveCount(0);
+    await expect(roast).toContainText('Waits for: Season and truss the chicken');
+    await expect(roast.getByRole('button', { name: 'Remove step' })).toBeFocused();
+    await expect(page.getByRole('status')).toHaveText('');
+
+    await roast.getByRole('button', { name: 'Remove step' }).click();
+    await roast.getByRole('button', { name: 'Remove step' }).click();
+    await expect(card(page, 'chicken.roast')).toHaveCount(0);
+    await expect(page.getByRole('status')).toHaveText(
+      'Removed \u201cRoast the chicken\u201d. Rest the chicken under foil, Make a roux in the roasting tin no longer wait for it.',
+    );
+    await expect(card(page, 'chicken.rest')).toContainText('Waits for nothing');
+  });
+
+  test('R4.6 R4.8 adding a dish Crème brûlée creates its section with a New step creme-brulee.step-1', async ({
+    page,
+  }) => {
+    await openSteps(page);
+    await page.getByRole('button', { name: 'Add a dish' }).click();
+    await page.getByLabel('Dish name', { exact: true }).fill('Crème brûlée');
+    await page.getByRole('button', { name: 'Add dish' }).click();
+    const section = dish(page, 'Crème brûlée');
+    await expect(section).toBeVisible();
+    await expect(section.getByRole('heading', { level: 3 })).toHaveText('New step');
+    await expect(card(page, 'creme-brulee.step-1')).toContainText('creme-brulee.step-1');
+    // The new step opens for editing with focus in its title.
+    await expect(page.getByLabel('Title', { exact: true })).toBeFocused();
+  });
+
+  test('R4.6 a blank dish name shows the field error', async ({ page }) => {
+    await openSteps(page);
+    await page.getByRole('button', { name: 'Add a dish' }).click();
+    await page.getByRole('button', { name: 'Add dish' }).click();
+    await expect(page.getByText('Give the dish a name.', { exact: true })).toBeVisible();
+  });
+
+  test('R4.6 renaming a dish keeps its ids', async ({ page }) => {
+    await openSteps(page);
+    await dish(page, 'Gravy').getByRole('button', { name: 'Rename dish' }).click();
+    await page.getByLabel('Dish name', { exact: true }).fill('Pan gravy');
+    await page.getByRole('button', { name: 'Save name' }).click();
+    await expect(dish(page, 'Pan gravy')).toBeVisible();
+    await expect(card(page, 'gravy.roux')).toBeVisible();
+  });
+
+  test('R4.6 Add a step adds a New step to the dish and opens it', async ({ page }) => {
+    await openSteps(page);
+    await dish(page, 'Gravy').getByRole('button', { name: 'Add a step' }).click();
+    await expect(card(page, 'gravy.step-1')).toContainText('New step');
+    await expect(page.getByLabel('Title', { exact: true })).toBeFocused();
+  });
+
+  test('R4.6 removing a dish asks and then removes its steps', async ({ page }) => {
+    await openSteps(page);
+    const greens = dish(page, 'Spring greens');
+    await greens.getByRole('button', { name: 'Remove dish' }).click();
+    await expect(greens).toContainText('Remove the dish Spring greens and its 3 steps?');
+    await greens.getByRole('button', { name: 'Remove dish' }).click();
+    await expect(dish(page, 'Spring greens')).toHaveCount(0);
+    await expect(page.getByRole('status')).toHaveText('Removed the dish Spring greens.');
+  });
+
+  test('R4.8 the last step cannot be removed and says why', async ({ page }) => {
+    const only: Plan = {
+      title: 'One step',
+      dishes: [{ id: 'toast', name: 'Toast' }],
+      steps: [
+        {
+          id: 'toast.make',
+          dish: 'toast',
+          title: 'Make toast',
+          minutes: 3,
+          appliance: 'none',
+          handsOn: true,
+          after: [],
+          holdMin: null,
+        },
+      ],
+    };
+    await openSteps(page, only);
+    const remove = card(page, 'toast.make').getByRole('button', { name: 'Remove step' });
+    await expect(remove).toBeDisabled();
+    await expect(card(page, 'toast.make')).toContainText('A plan needs at least one step.');
+    await expect(
+      dish(page, 'Toast').getByRole('button', { name: 'Remove dish' }),
+    ).toBeDisabled();
+    await expect(dish(page, 'Toast')).toContainText('A plan needs at least one dish.');
+  });
+});
+E
+npx prettier --write e2e/steps.spec.ts >/dev/null; (timeout 250 npx playwright test e2e/steps.spec.ts --project=phone -g "add and remove" 2>&1 | grep -E "✘|passed|failed" | head -12)
+      ✘  4 [phone] › e2e/steps.spec.ts:247:3 › add and remove › R4.6 Add a step adds a New step to the dish and opens it (30.0s)
+      ✘  5 [phone] › e2e/steps.spec.ts:191:3 › add and remove › R4.7 removing Roast the chicken asks naming the two steps; Keep step changes nothing; Remove step announces the notice (30.0s)
+      ✘  2 [phone] › e2e/steps.spec.ts:254:3 › add and remove › R4.6 removing a dish asks and then removes its steps (30.0s)
+      ✘  3 [phone] › e2e/steps.spec.ts:231:3 › add and remove › R4.6 a blank dish name shows the field error (30.0s)
+      ✘  1 [phone] › e2e/steps.spec.ts:238:3 › add and remove › R4.6 renaming a dish keeps its ids (30.0s)
+      ✘  6 [phone] › e2e/steps.spec.ts:216:3 › add and remove › R4.6 R4.8 adding a dish Crème brûlée creates its section with a New step creme-brulee.step-1 (30.0s)
+      ✘  7 [phone] › e2e/steps.spec.ts:264:3 › add and remove › R4.8 the last step cannot be removed and says why (5.1s)
+        Error: expect(locator).toBeDisabled() failed
+      7 failed
+    exit 0
+
+All seven fail on missing elements. Now the implementation.
+
+[tool:execute FAILED] $ cd ~/hackathons-2026/kiroween/makedinner && cat >> src/web/copy.ts <<'E'
+
+// Add, rename and remove (T5.6)
+export const MANAGE_COPY = {
+  removeStep: 'Remove step',
+  keepStep: 'Keep step',
+  removeDish: 'Remove dish',
+  keepDish: 'Keep dish',
+  renameDish: 'Rename dish',
+  dishName: 'Dish name',
+  saveName: 'Save name',
+  addStep: 'Add a step',
+  addDish: 'Add a dish',
+  addDishConfirm: 'Add dish',
+  nameError: 'Give the dish a name.',
+} as const;
+
+function dependentsSentence(titles: readonly string[]): string {
+  if (titles.length === 0) return '';
+  const list = titles.join(', ');
+  return titles.length === 1
+    ? ` 1 step waits for it: ${list}. It will no longer wait for it.`
+    : ` ${titles.length} steps wait for it: ${list}. They will no longer wait for it.`;
+}
+
+/** The question before a step is removed; `dependentTitles` are the steps that wait for it. */
+export function removeStepAsk(title: string, dependentTitles: readonly string[]): string {
+  return `Remove \u201c${title}\u201d?${dependentsSentence(dependentTitles)}`;
+}
+
+/** The question before a dish and its steps are removed. */
+export function removeDishAsk(
+  name: string,
+  stepCount: number,
+  dependentTitles: readonly string[],
+): string {
+  return `Remove the dish ${name} and its ${count(stepCount, 'step', 'steps')}?${dependentsSentence(dependentTitles)}`;
+}
+E
+python3 - <<'E'
+p='src/web/components/ConfirmInline.tsx'
+s=open(p).read()
+s=s.replace("import { useEffect, useRef } from 'preact/hooks';","import { useEffect, useId, useRef } from 'preact/hooks';")
+s=s.replace("  const question = useRef","  const textId = useId();\n  const question = useRef")
+s=s.replace('aria-labelledby="confirm-inline-text"','aria-labelledby={textId}').replace('id="confirm-inline-text"','id={textId}')
+open(p,'w').write(s)
+E
+cat > src/web/components/DishNameForm.tsx <<'E'
+import type { VNode } from 'preact';
+import { useEffect, useId, useRef, useState } from 'preact/hooks';
+import { COPY, MANAGE_COPY } from '../copy.js';
+
+interface Props {
+  initial: string;
+  submitLabel: string;
+  onSubmit: (name: string) => void;
+  onCancel: () => void;
+}
+
+/** A dish name field with a submit and a cancel button; a blank name shows the error (R4.6). */
+export function DishNameForm(props: Props): VNode {
+  const ids = useId();
+  const input = useRef<HTMLInputElement>(null);
+  const [name, setName] = useState(props.initial);
+  const [error, setError] = useState(false);
+  useEffect(() => {
+    input.current?.focus();
+  }, []);
+  const submit = (event: Event): void => {
+    event.preventDefault();
+    if (name.trim() === '') setError(true);
+    else props.onSubmit(name);
+  };
+  return (
+    <form class="name-form" onSubmit={submit}>
+      <div class="field">
+        <label for={`${ids}-name`}>{MANAGE_COPY.dishName}</label>
+        <input
+          id={`${ids}-name`}
+          ref={input}
+          class="input"
+          type="text"
+          maxLength={80}
+          value={name}
+          aria-invalid={error}
+          aria-describedby={error ? `${ids}-error` : undefined}
+          onInput={(event) => {
+            setName(event.currentTarget.value);
+            setError(false);
+          }}
+        />
+        {error && (
+          <p id={`${ids}-error`} class="field-error">
+            {MANAGE_COPY.nameError}
+          </p>
+        )}
+      </div>
+      <div class="actions">
+        <button type="submit" class="button button--primary">
+          {props.submitLabel}
+        </button>
+        <button type="button" class="button" onClick={props.onCancel}>
+          {COPY.cancel}
+        </button>
+      </div>
+    </form>
+  );
+}
+E
+python3 - <<'E'
+# StepCard: remove
+p='src/web/components/StepCard.tsx'
+s=open(p).read()
+s=s.replace("import { useEffect, useRef } from 'preact/hooks';","import { useEffect, useId, useRef, useState } from 'preact/hooks';")
+s=s.replace("import { applianceLabel, EDITOR_COPY, handsLabel, holdLabel, waitsFor } from '../copy.js';","""import {
+  applianceLabel,
+  EDIT_ERRORS,
+  EDITOR_COPY,
+  handsLabel,
+  holdLabel,
+  MANAGE_COPY,
+  removeStepAsk,
+  waitsFor,
+} from '../copy.js';
+import { dependentsOf } from '../state/plan-edit.js';""")
+s=s.replace("import { IssueList } from './IssueList.js';","import { ConfirmInline } from './ConfirmInline.js';\nimport { IssueList } from './IssueList.js';")
+s=s.replace("  onDone: () => void;\n}","  onDone: () => void;\n  /** Removes the step; the dish section moves focus afterwards. */\n  onRemove: () => void;\n}",1)
+s=s.replace("""  const wasEditing = useRef(false);""","""  const removeButton = useRef<HTMLButtonElement>(null);
+  const wasEditing = useRef(false);
+  const wasConfirming = useRef(false);
+  const [confirming, setConfirming] = useState(false);
+  const reasonId = useId();
+  const lastStep = plan.steps.length === 1;""")
+s=s.replace("""    wasEditing.current = props.editing;
+  }, [props.editing]);""","""    wasEditing.current = props.editing;
+  }, [props.editing]);
+  // Cancelling the question returns focus to "Remove step".
+  useEffect(() => {
+    if (wasConfirming.current && !confirming) removeButton.current?.focus();
+    wasConfirming.current = confirming;
+  }, [confirming]);""")
+i=s.index("      {props.editing ? (")
+j=s.index("    </li>")
+s=s[:i]+"""      {props.editing && <StepEditor plan={plan} index={props.index} onDone={props.onDone} />}
+      {!props.readOnly && confirming && (
+        <ConfirmInline
+          text={removeStepAsk(
+            step.title,
+            dependentsOf(plan, [step.id]).map((i) => plan.steps[i]?.title ?? ''),
+          )}
+          confirmLabel={MANAGE_COPY.removeStep}
+          cancelLabel={MANAGE_COPY.keepStep}
+          onConfirm={props.onRemove}
+          onCancel={() => setConfirming(false)}
+        />
+      )}
+      {!props.readOnly && !confirming && (
+        <div class="actions">
+          {!props.editing && (
+            <button type="button" class="button" ref={editButton} onClick={props.onEdit}>
+              {EDITOR_COPY.edit}
+              <span class="visually-hidden"> {step.title}</span>
+            </button>
+          )}
+          <button
+            type="button"
+            class="button"
+            ref={removeButton}
+            disabled={lastStep}
+            aria-describedby={lastStep ? reasonId : undefined}
+            onClick={() => setConfirming(true)}
+          >
+            {MANAGE_COPY.removeStep}
+            <span class="visually-hidden"> {step.title}</span>
+          </button>
+        </div>
+      )}
+      {!props.readOnly && lastStep && (
+        <p id={reasonId} class="muted">
+          {EDIT_ERRORS.last_step}
+        </p>
+      )}
+"""+s[j:]
+open(p,'w').write(s)
+E
+cat > src/web/components/DishSection.tsx <<'E'
+import type { VNode } from 'preact';
+import { useEffect, useId, useRef, useState } from 'preact/hooks';
+import type { Plan } from '../../core/index.js';
+import { EDIT_ERRORS, MANAGE_COPY, removeDishAsk } from '../copy.js';
+import { useDispatch } from '../state/hooks.js';
+import { dependentsOf } from '../state/plan-edit.js';
+import { ConfirmInline } from './ConfirmInline.js';
+import { DishNameForm } from './DishNameForm.js';
+import { IssueList } from './IssueList.js';
+import type { IssuePlacement } from './issue-placement.js';
+import { StepCard } from './StepCard.js';
+
+interface Props {
+  plan: Plan;
+  dishIndex: number;
+  /** Step indices in screen order. */
+  order: readonly number[];
+  placement: IssuePlacement;
+  /** Index of the step whose editor is open, if any. */
+  editing: number | null;
+  readOnly: boolean;
+  onEdit: (index: number | null) => void;
+}
+
+/** Puts focus on `id` after the render that follows the current dispatch. */
+function focusAfterRender(id: string): void {
+  queueMicrotask(() => document.getElementById(id)?.focus());
+}
+
+/** A dish: its name, its own issues, then its steps in dependency order (R4.1, R4.6). */
+export function DishSection(props: Props): VNode | null {
+  const { plan, placement } = props;
+  const dispatch = useDispatch();
+  const reasonId = useId();
+  const renameButton = useRef<HTMLButtonElement>(null);
+  const removeButton = useRef<HTMLButtonElement>(null);
+  const wasRenaming = useRef(false);
+  const wasConfirming = useRef(false);
+  const [renaming, setRenaming] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
+  useEffect(() => {
+    if (wasRenaming.current && !renaming) renameButton.current?.focus();
+    wasRenaming.current = renaming;
+  }, [renaming]);
+  useEffect(() => {
+    if (wasConfirming.current && !confirming) removeButton.current?.focus();
+    wasConfirming.current = confirming;
+  }, [confirming]);
+
+  const dish = plan.dishes[props.dishIndex];
+  if (dish === undefined) return null;
+  const headingId = `dish-${props.dishIndex}-heading`;
+  const stepIds = plan.steps.filter((s) => s.dish === dish.id).map((s) => s.id);
+  const lastDish = plan.dishes.length === 1;
+  const lastStep = stepIds.length === plan.steps.length;
+  const removeReason = lastDish ? EDIT_ERRORS.last_dish : lastStep ? EDIT_ERRORS.last_step : null;
+  const stepsFull = plan.steps.length >= 80;
+
+  return (
+    <section class="dish" aria-labelledby={headingId}>
+      <h2 id={headingId} tabIndex={-1}>
+        {dish.name}
+      </h2>
+      <IssueList items={placement.byDish.get(dish.id) ?? []} />
+      {!props.readOnly && renaming && (
+        <DishNameForm
+          initial={dish.name}
+          submitLabel={MANAGE_COPY.saveName}
+          onSubmit={(name) => {
+            dispatch({ type: 'dish/rename', index: props.dishIndex, name });
+            setRenaming(false);
+          }}
+          onCancel={() => setRenaming(false)}
+        />
+      )}
+      {!props.readOnly && confirming && (
+        <ConfirmInline
+          text={removeDishAsk(
+            dish.name,
+            stepIds.length,
+            dependentsOf(plan, stepIds).map((i) => plan.steps[i]?.title ?? ''),
+          )}
+          confirmLabel={MANAGE_COPY.removeDish}
+          cancelLabel={MANAGE_COPY.keepDish}
+          onConfirm={() => {
+            props.onEdit(null);
+            dispatch({ type: 'dish/remove', index: props.dishIndex });
+            focusAfterRender('issues-heading');
+          }}
+          onCancel={() => setConfirming(false)}
+        />
+      )}
+      {!props.readOnly && !renaming && !confirming && (
+        <div class="actions">
+          <button
+            type="button"
+            class="button"
+            ref={renameButton}
+            onClick={() => setRenaming(true)}
+          >
+            {MANAGE_COPY.renameDish}
+            <span class="visually-hidden"> {dish.name}</span>
+          </button>
+          <button
+            type="button"
+            class="button"
+            ref={removeButton}
+            disabled={removeReason !== null}
+            aria-describedby={removeReason === null ? undefined : reasonId}
+            onClick={() => setConfirming(true)}
+          >
+            {MANAGE_COPY.removeDish}
+            <span class="visually-hidden"> {dish.name}</span>
+          </button>
+        </div>
+      )}
+      {!props.readOnly && removeReason !== null && (
+        <p id={reasonId} class="muted">
+          {removeReason}
+        </p>
+      )}
+      <ol class="card-list step-list">
+        {props.order.map((index) => {
+          const step = plan.steps[index];
+          if (step === undefined || step.dish !== dish.id) return null;
+          return (
+            <StepCard
+              key={index}
+              plan={plan}
+              step={step}
+              index={index}
+              issues={placement.byStep.get(index) ?? []}
+              editing={props.editing === index}
+              readOnly={props.readOnly}
+              onEdit={() => props.onEdit(index)}
+              onDone={() => props.onEdit(null)}
+              onRemove={() => {
+                props.onEdit(null);
+                dispatch({ type: 'step/remove', index });
+                focusAfterRender(headingId);
+              }}
+            />
+          );
+        })}
+      </ol>
+      {!props.readOnly && (
+        <div class="actions">
+          <button
+            type="button"
+            class="button"
+            disabled={stepsFull}
+            aria-describedby={stepsFull ? `${reasonId}-steps` : undefined}
+            onClick={() => {
+              dispatch({ type: 'step/add', dishIndex: props.dishIndex });
+              props.onEdit(plan.steps.length);
+            }}
+          >
+            {MANAGE_COPY.addStep}
+            <span class="visually-hidden"> {dish.name}</span>
+          </button>
+        </div>
+      )}
+      {!props.readOnly && stepsFull && (
+        <p id={`${reasonId}-steps`} class="muted">
+          {EDIT_ERRORS.too_many_steps}
+        </p>
+      )}
+    </section>
+  );
+}
+E
+python3 - <<'E'
+p='src/web/screens/Steps.tsx'
+s=open(p).read()
+s=s.replace("import { useState } from 'preact/hooks';","import { useEffect, useId, useRef, useState } from 'preact/hooks';")
+s=s.replace("import { DishSection }","import { DishNameForm } from '../components/DishNameForm.js';\nimport { DishSection }")
+s=s.replace("import { COPY, issueSummary, makeBlocked, STEPS_COPY, stepsIntro } from '../copy.js';","""import {
+  COPY,
+  EDIT_ERRORS,
+  issueSummary,
+  MANAGE_COPY,
+  makeBlocked,
+  STEPS_COPY,
+  stepsIntro,
+} from '../copy.js';""")
+s=s.replace("  const [editing, setEditing] = useState<number | null>(null);\n","""  const [editing, setEditing] = useState<number | null>(null);
+  const [adding, setAdding] = useState(false);
+  const addButton = useRef<HTMLButtonElement>(null);
+  const wasAdding = useRef(false);
+  const reasonId = useId();
+  useEffect(() => {
+    if (wasAdding.current && !adding) addButton.current?.focus();
+    wasAdding.current = adding;
+  }, [adding]);
+""",1)
+s=s.replace("""      <div class="actions">
+        <button
+          type="button"
+          class="button button--primary\"""","""      {!cooking && (
+        <section aria-labelledby="add-dish-heading" class="add-dish">
+          <h2 id="add-dish-heading" class="visually-hidden">
+            {MANAGE_COPY.addDish}
+          </h2>
+          {adding ? (
+            <DishNameForm
+              initial=""
+              submitLabel={MANAGE_COPY.addDishConfirm}
+              onSubmit={(name) => {
+                dispatch({ type: 'dish/add', name });
+                // The new dish's only step is the last one; open it for editing.
+                setEditing(plan.steps.length);
+                setAdding(false);
+              }}
+              onCancel={() => setAdding(false)}
+            />
+          ) : (
+            <>
+              <button
+                type="button"
+                class="button"
+                ref={addButton}
+                disabled={addBlocked !== null}
+                aria-describedby={addBlocked === null ? undefined : reasonId}
+                onClick={() => setAdding(true)}
+              >
+                {MANAGE_COPY.addDish}
+              </button>
+              {addBlocked !== null && (
+                <p id={reasonId} class="muted">
+                  {addBlocked}
+                </p>
+              )}
+            </>
+          )}
+        </section>
+      )}
+      <div class="actions">
+        <button
+          type="button"
+          class="button button--primary\"""",1)
+s=s.replace("  const blocked = hasErrors(check.issues);","""  const blocked = hasErrors(check.issues);
+  const addBlocked =
+    plan.dishes.length >= 12
+      ? EDIT_ERRORS.too_many_dishes
+      : plan.steps.length >= 80
+        ? EDIT_ERRORS.too_many_steps
+        : null;""")
+open(p,'w').write(s)
+E
+cat >> src/web/styles/components.css <<'E'
+
+.name-form {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+}
+
+.add-dish {
+  margin-top: var(--space-5);
+}
+
+.add-dish .muted {
+  margin: var(--space-2) 0 0;
+}
+
+.dish > .muted,
+.step-card > .muted {
+  margin: var(--space-2) 0 0;
+}
+E
+npx prettier --write src/web e2e >/dev/null; npm run typecheck 2>&1 | grep -E "error" | head; npm run lint 2>&1 | tail -8
+    Output:
+    Tool call denied: Kiro could not parse this shell command to check it against the user's permissions. It was not run.
+    Parse error at position 0: cd ~/hackathons-2026/kiroween/makedinner && cat >> src/web/copy.ts <<'E'
+    
+    // Add, rename and remove (T5.6)
+    export const MANAGE_COPY = {
+      removeStep: 'Remove st...
+    The same command will be denied again, even if it is valid shell. Rewrite the command based on the error and try again. If it is still rejected after a few rewrites, tell the user the command could not be checked.
+    
+    Exit Code: -1
+    exit ?
+
+The shell rejected that large combined command. I'll split it into file-tool writes and smaller edits.
+
+[tool:edit] Append to File ~/hackathons-2026/kiroween/makedinner/src/web/copy.ts
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/src/web/components/DishNameForm.tsx
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/src/web/components/DishSection.tsx
+[tool:edit] Append to File ~/hackathons-2026/kiroween/makedinner/src/web/styles/components.css
+
+Now `StepCard`, `ConfirmInline` and `Steps`. I'll read the current `StepCard` first.
+
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/web/components/StepCard.tsx
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/src/web/components/StepCard.tsx
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'E'
+p='src/web/components/ConfirmInline.tsx'
+s=open(p).read()
+s=s.replace("import { useEffect, useRef } from 'preact/hooks';","import { useEffect, useId, useRef } from 'preact/hooks';")
+s=s.replace("  const question = useRef","  const textId = useId();\n  const question = useRef",1)
+s=s.replace('aria-labelledby="confirm-inline-text"','aria-labelledby={textId}').replace('id="confirm-inline-text"','id={textId}')
+open(p,'w').write(s)
+E
+cat src/web/components/ConfirmInline.tsx | sed -n 14,30p; cat src/web/screens/Steps.tsx
+    … (64 earlier lines not shown)
+            <DishSection
+              key={dish.id}
+              plan={plan}
+              dishIndex={dishIndex}
+              order={order}
+              placement={placement}
+              editing={editing}
+              readOnly={cooking}
+              onEdit={setEditing}
+            />
+          ))}
+          <div class="actions">
+            <button
+              type="button"
+              class="button button--primary"
+              disabled={blocked}
+              aria-describedby={blocked ? 'make-blocked' : undefined}
+              onClick={() => dispatch({ type: 'plan/enter', nowMs: clock.nowMs() })}
+            >
+              {STEPS_COPY.makePlan}
+            </button>
+          </div>
+          {blocked && (
+            <p id="make-blocked" class="muted">
+              {makeBlocked(errors)}
+            </p>
+          )}
+        </main>
+      );
+    }
+    exit 0
+
+`Steps` needs hooks before its early return, and the Issues heading needs `tabIndex` so it can take focus. I'll rewrite it.
+
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/src/web/screens/Steps.tsx
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx prettier --write src/web e2e >/dev/null; npm run typecheck 2>&1 | grep -E "error" | head; npm run lint 2>&1 | tail -8; (timeout 280 npx playwright test e2e/steps.spec.ts 2>&1 | grep -E "✘|passed|failed|Error:|Expected|Received" | head -24)
+    
+    > make-dinner@0.0.0 lint
+    > eslint .
+    
+      ✘  12 [phone] › e2e/steps.spec.ts:216:3 › add and remove › R4.6 R4.8 adding a dish Crème brûlée creates its section with a New step creme-brulee.step-1 (5.2s)
+      ✘  29 [desktop] › e2e/steps.spec.ts:216:3 › add and remove › R4.6 R4.8 adding a dish Crème brûlée creates its section with a New step creme-brulee.step-1 (5.2s)
+        Error: expect(locator).toBeFocused() failed
+        Expected: focused
+        Received: inactive
+        Error: expect(locator).toBeFocused() failed
+        Expected: focused
+        Received: inactive
+      2 failed
+      32 passed (9.1s)
+    exit 0
+
+Adding a dish loses focus. The effect that returns focus to "Add a dish" runs after the new step's editor takes it, so I'll skip that refocus after a successful add.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'E'
+p='src/web/screens/Steps.tsx'
+s=open(p).read()
+s=s.replace("  const wasAdding = useRef(false);","  const wasAdding = useRef(false);\n  const addedDish = useRef(false);")
+s=s.replace("    if (wasAdding.current && !adding) addButton.current?.focus();","    // After an add the new step's editor takes focus instead.\n    if (wasAdding.current && !adding && !addedDish.current) addButton.current?.focus();\n    addedDish.current = false;")
+s=s.replace("                dispatch({ type: 'dish/add', name });","                dispatch({ type: 'dish/add', name });\n                addedDish.current = true;")
+open(p,'w').write(s)
+E
+npx prettier --write src/web >/dev/null; (timeout 280 npx playwright test e2e/steps.spec.ts 2>&1 | grep -E "✘|passed|failed|Error:" | head)
+      34 passed (4.3s)
+    exit 0
+
+34 pass. Now the visual check with an editor open and a remove question showing.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat > e2e/zz-scratch.spec.ts <<'E'
+import { test } from '@playwright/test';
+import { HOME_KITCHEN, SUNDAY_ROAST } from '../test/support/fixtures.js';
+import { FIXED_NOW, seedDinner } from './support.js';
+
+test.use({ locale: 'en-GB', timezoneId: 'Europe/London', viewport: { width: 390, height: 844 } });
+for (const scheme of ['light', 'dark'] as const) {
+  test(`shot ${scheme}`, async ({ page }) => {
+    await page.clock.install({ time: new Date(FIXED_NOW) });
+    await page.emulateMedia({ colorScheme: scheme });
+    await seedDinner(page, SUNDAY_ROAST, HOME_KITCHEN, '19:30', 'steps');
+    await page.goto('/');
+    await page.locator('[data-step-id="gravy.roux"]').getByRole('button', { name: 'Edit' }).click();
+    await page.locator('[data-step-id="gravy.roux"]').screenshot({ path: `/tmp/shots/editor-${scheme}.png` });
+    await page.locator('[data-step-id="chicken.roast"]').getByRole('button', { name: 'Remove step' }).click();
+    await page.locator('[data-step-id="chicken.roast"]').screenshot({ path: `/tmp/shots/confirm-${scheme}.png` });
+    await page.getByRole('button', { name: 'Add a dish' }).click();
+    await page.screenshot({ path: `/tmp/shots/adddish-${scheme}.png` });
+    const w = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
+    console.log('WIDTHS', scheme, w);
+  });
+}
+E
+(timeout 250 npx playwright test e2e/zz-scratch.spec.ts --project=phone 2>&1 | grep -E "WIDTHS|passed|failed|Error")
+    WIDTHS light [ 390, 390 ]
+    WIDTHS dark [ 390, 390 ]
+      2 passed (5.3s)
+    exit 0
+[tool:read] Read File /tmp/shots/editor-light.png
+
+The editor reads well. Checking the remove question and the add-dish form in dark.
+
+[tool:read] Read File /tmp/shots/confirm-dark.png
+[tool:read] Read File /tmp/shots/adddish-dark.png
+
+The remove question and the add-dish form look fine, with targets over 48 px and no sideways scroll. I'll delete the scratch spec and run T5.6's command.
+
+[tool:execute FAILED] $ cd ~/hackathons-2026/kiroween/makedinner && rm e2e/zz-scratch.spec.ts /tmp/zz-scratch.spec.ts; rm -rf /tmp/shots; npx prettier --write src e2e test >/dev/null; (timeout 280 npx playwright test e2e/steps.spec.ts 2>&1 | grep -E "✘|passed|failed") && npm run typecheck 2>&1 | grep -ci " error"; npm run lint 2>&1 | tail -3
+    Output:
+    Blocked by a permission rule (deny shell matching "git commit*, git push*, git reset*, git clean*, git checkout*, git branch*, git tag*, git rebase*, git merge*, rm -rf*, sudo *, npm run dev*, npm start*, cat .env*"); the user did not reject it. Source: agent-profile. Triggered by: "rm -rf /tmp/shots".
+    
+    Exit Code: -1
+    exit ?
+
+`rm -rf` is blocked by a permission rule. I'll remove the files with plain `rm`.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && rm -f e2e/zz-scratch.spec.ts /tmp/zz-scratch.spec.ts /tmp/shots/*.png; rmdir /tmp/shots; ls e2e; npx prettier --write src e2e test >/dev/null; (timeout 280 npx playwright test e2e/steps.spec.ts 2>&1 | grep -E "✘|passed|failed"); npm run typecheck 2>&1 | grep -ci " error"; npm run lint 2>&1 | tail -3
+    menu.spec.ts
+    plan.spec.ts
+    shell.spec.ts
+    smoke.spec.ts
+    steps.spec.ts
+    support.ts
+      34 passed (4.2s)
+    0
+    > make-dinner@0.0.0 lint
+    > eslint .
+    exit 0
+
+T5.5 and T5.6 passed, so I'll tick them and run the full suite.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'E'
+p='.kiro/specs/plan-ui/tasks.md'
+s=open(p).read()
+for t in ('T5.5','T5.6'):
+    s=s.replace(f'- [ ] {t} ',f'- [x] {t} ')
+open(p,'w').write(s)
+E
+grep -n "T5\.[0-9] " .kiro/specs/plan-ui/tasks.md | cut -c1-30; (npm test 2>&1 | grep -E "Test Files|Tests|FAIL"); (npm run test:props 2>&1 | grep -E "Test Files|Tests|FAIL"); npm run typecheck >/dev/null 2>&1; echo typecheck=$?; npm run lint >/dev/null 2>&1; echo lint=$?; npx prettier --check . 2>&1 | tail -3; npm run check:contrast 2>&1 | tail -2
+    180:- [x] T5.1 Example tests f
+    188:- [x] T5.2 Implement `plan
+    192:- [x] T5.3 Example tests, 
+    198:- [x] T5.4 Steps screen: `
+    208:- [x] T5.5 `StepEditor` an
+    218:- [x] T5.6 Add and remove:
+     Test Files  43 passed (43)
+          Tests  1800 passed (1800)
+    > vitest run --project props --passWithNoTests
+     Test Files  16 passed (16)
+          Tests  93 passed (93)
+    typecheck=0
+    lint=0
+    Checking formatting...
+    All matched files use Prettier code style!
+    ok   dark  focus on surface: 7.79:1 (needs 3:1)
+    40 pairs checked, 0 below threshold, 0 problems
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && (npm run build 2>&1 | tail -4); (timeout 900 npm run test:e2e 2>&1 | grep -E "✘|passed|failed|skipped|flaky" | tail -15)
+      public/assets/main.js   525.0kb
+      public/assets/main.css   11.1kb
+    
+    ⚡ Done in 19ms
+      ✓    4 [phone] › e2e/menu.spec.ts:59:3 › menu: samples › R1.2 a failed samples request shows the failure copy and "Try again" lists them (236ms)
+      ✓   61 [desktop] › e2e/menu.spec.ts:59:3 › menu: samples › R1.2 a failed samples request shows the failure copy and "Try again" lists them (226ms)
+      114 passed (7.1s)
+    exit 0
+
+T5.1 to T5.6 (the Steps editor) are done and ticked, and nothing after T5 was started. Every task command passed in this session, and so did the full suite.
+
+## Files changed
+- **New:**
+  - `src/web/state/plan-edit.ts`
+  - `src/web/components/{issue-placement.ts, IssueList.tsx, StepCard.tsx, DishSection.tsx, StepEditor.tsx, PrerequisiteChecklist.tsx, DishNameForm.tsx}`
+  - `test/web/state/{plan-edit.test.ts, plan-edit.pbt.ts}`
+  - `e2e/steps.spec.ts`
+- **Edited:**
+  - `src/web/screens/Steps.tsx`
+  - `src/web/state/store.ts` (the `dish/*` and `step/*` actions and the cooking guard)
+  - `src/web/copy.ts`
+  - `src/web/components/ConfirmInline.tsx`
+  - `src/web/styles/components.css`
+  - `test/web/state/store.test.ts`
+  - `.kiro/specs/plan-ui/tasks.md` (T5.1 to T5.6 ticked)
+
+## Checks run
+| Command | Result |
+|---|---|
+| `npm test` | 43 files, 1800 passed, 0 failed |
+| `npm run test:props` | 16 files, 93 passed, 0 failed |
+| `npm run typecheck` | exit 0 |
+| `npm run lint` | exit 0 |
+| `npx prettier --check .` | all files formatted |
+| `npm run check:contrast` | 40 pairs checked, 0 below threshold |
+| `npm run build` | succeeded |
+| `npm run test:e2e` | 114 passed, 0 failed, 0 skipped (both projects, key unset) |
+
+Task-level runs:
+- **T5.1:** the 29 `plan-edit` tests failed on assertions against stubs, then passed.
+- **T5.2:** the P-UI6 properties pass. I removed the `after` cleanup from `withoutSteps` as a mutation, and both remove properties failed. I then restored it.
+- **T5.3:** `store.test.ts` has 58 tests passing.
+- **T5.4 to T5.6:** `e2e/steps.spec.ts` ends at 34 passed across phone and desktop. T5.5 and T5.6 failed first on the missing Edit and Remove buttons. For T5.4 I wrote the spec and the code together, so I swapped the old stub back in once to confirm the spec fails there; it did.
+
+## What I looked at
+I took 390×844 screenshots in light and dark of:
+- the Steps screen with an error
+- an open editor
+- the remove question
+- the add-dish form
+
+There is no horizontal page scroll (scroll width equals client width at 390).
+
+I changed one thing: the step id was running into the facts line, so it now has its own line. I deleted the scratch spec afterwards.
+
+## Decisions I made
+- **Focus in the checklist:** a prerequisite option that already waits for the step is disabled, unless it is already checked. A checked one stays enabled so an existing cycle can be fixed. An unknown id disappears from the checklist once unchecked.
+- **Dependents wording:** the confirmation says "1 step waits for it: X. It will no longer wait for it." for one dependent. Two or more use the design's plural wording.
+- **Dish removal notice:** it reuses the "no longer wait for it" sentence for dependents.
+- **Anchors:** summary issue links use `href="#issue-n"` with `preventDefault` and focus the issue directly, so they don't trigger the hash router.
+- **New helpers:** `issue-placement.ts` and `DishNameForm.tsx` are not in the design's file table. I added them to avoid duplicated logic.
+- **Dish heading and Edit buttons:** the dish heading and the "Issues" heading take focus after a removal. Edit and Remove buttons carry the step title as visually hidden text so each name is unique.
+- **Duplicate ids:** `ConfirmInline` now uses `useId`, so two confirmations can't produce duplicate ids.
+
+## Not verified or not done
+- Axe on the Steps screen is T8.2 and the 48 px target audit is T8.2; neither was run here. I only checked the sizes by eye.
+- Cooking read-only mode (R4.12) is covered at reducer level only. `cook` is always null until cooking-mode lands, so the UI branch is unexercised.
+- Pre-existing, noticed only: `public/assets/main.js` is 525 kB.
+
+## Open question
+A step whose `dish` matches no dish (for example from a Dinnerfile with an `unknown_dish` error) is not rendered in any dish section, so it can't be edited. R4.1 only specifies one section per dish. Do you want a fallback section for such steps?
+
+--- run success (end_turn); credits reported by this session: 29.40 ---

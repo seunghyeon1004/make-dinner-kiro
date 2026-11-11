@@ -1,5 +1,5 @@
 import type { VNode } from 'preact';
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useId, useRef } from 'preact/hooks';
 
 interface Props {
   text: string;
@@ -14,13 +14,14 @@ interface Props {
  * to the question when it appears; the caller returns focus to its own button on cancel.
  */
 export function ConfirmInline(props: Props): VNode {
+  const textId = useId();
   const question = useRef<HTMLParagraphElement>(null);
   useEffect(() => {
     question.current?.focus();
   }, []);
   return (
-    <div class="confirm-inline" role="group" aria-labelledby="confirm-inline-text">
-      <p id="confirm-inline-text" ref={question} tabIndex={-1}>
+    <div class="confirm-inline" role="group" aria-labelledby={textId}>
+      <p id={textId} ref={question} tabIndex={-1}>
         {props.text}
       </p>
       <div class="actions">

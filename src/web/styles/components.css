@@ -566,3 +566,133 @@ p.mark {
   line-height: 1.5rem;
   vertical-align: top;
 }
+
+/* Steps screen */
+.mark--error {
+  color: var(--color-accent);
+}
+
+.step-list {
+  margin-top: var(--space-2);
+  counter-reset: none;
+}
+
+.step-card h3 {
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+
+.step-card .muted {
+  margin: 0 0 var(--space-2);
+}
+
+.issues {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.issue,
+.summary-issue {
+  overflow-wrap: anywhere;
+}
+
+.issue {
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--color-border);
+  background: var(--color-raised);
+}
+
+.step-card .step-card__id {
+  margin: 0 0 var(--space-1);
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+/* Step editor */
+.step-editor {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-rule);
+}
+
+.field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.field .input {
+  width: 100%;
+}
+
+.field-error {
+  margin: 0;
+  color: var(--color-accent);
+  font-weight: 700;
+}
+
+.check {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  min-height: 3rem;
+}
+
+.check input {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.check--off {
+  color: var(--color-ink-muted);
+}
+
+.checklist {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.checklist legend {
+  padding: 0 var(--space-1);
+  font-weight: 700;
+}
+
+.step-card > .actions {
+  margin-top: var(--space-2);
+}
+
+.name-form {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+}
+
+.add-dish {
+  margin-top: var(--space-5);
+}
+
+.add-dish .muted {
+  margin: var(--space-2) 0 0;
+}
+
+.dish > .muted,
+.step-card > .muted {
+  margin: var(--space-2) 0 0;
+}
