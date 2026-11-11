@@ -33,3 +33,4 @@
 2026-11-11T11:42:45Z impl-kitchen-mcp-session [--v3 --agent sous-chef --trust-all-tools --trust-workspace --model auto] credits 8.16 exit 0
 2026-11-11T11:44:49Z mcp-use-session [--v3 --trust-all-tools --trust-workspace --require-mcp-startup --model auto] credits 2.19 exit 0
 2026-11-11T11:46:49Z mcp-use-session [--v3 --trust-all-tools --trust-workspace --require-mcp-startup --model auto] credits 1.55 exit 0
+2026-11-11T11:52:14Z expediter-scheduler-session [--v3 --agent expediter --trust-all-tools --trust-workspace --model auto] credits 2.01 exit 0
