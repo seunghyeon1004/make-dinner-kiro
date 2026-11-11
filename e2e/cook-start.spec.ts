@@ -59,4 +59,16 @@ test.describe('starting to cook (CM1.1 to CM1.4)', () => {
     await expect(page.getByText('Serve at 19:42')).toBeVisible();
     await expect(page.getByText('Planned for 19:30')).toBeVisible();
   });
+
+  test('CM1.1 opening #/cook with no cook session shows the Plan screen and never begins one', async ({
+    page,
+  }) => {
+    await fixClockAt(page, '2026-11-11T17:30:00Z');
+    await seedDinner(page, SUNDAY_ROAST, HOME_KITCHEN, '19:30');
+    await page.goto('/#/cook');
+    await expect(page.getByRole('link', { name: 'Start cooking' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Right now' })).toBeHidden();
+    const stored = await page.evaluate(() => window.localStorage.getItem('make-dinner:state'));
+    expect(JSON.parse(stored ?? '{}').cook).toBeNull();
+  });
 });

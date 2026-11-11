@@ -1,13 +1,18 @@
 import type { VNode } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { ActionDock, dockCard } from '../components/ActionDock.js';
+import { AlertToggle } from '../components/AlertToggle.js';
 import { BuildLog } from '../components/BuildLog.js';
 import { CookCountdown } from '../components/CookCountdown.js';
+import { CookFinished } from '../components/CookFinished.js';
 import { CookHeader } from '../components/CookHeader.js';
+import { CookStale } from '../components/CookStale.js';
 import { LaneCard } from '../components/LaneCard.js';
 import { DishStrip } from '../components/DishStrip.js';
 import { RunningCard } from '../components/RunningCard.js';
 import { StartCard } from '../components/StartCard.js';
+import { StopCooking } from '../components/StopCooking.js';
+import { WakeLockNote } from '../components/WakeLockNote.js';
 import { UpNext } from '../components/UpNext.js';
 import { COOK_COPY, cookTooLate } from '../copy.js';
 import { formatClock, formatDay, systemClock } from '../state/clock.js';
@@ -20,15 +25,17 @@ import { useAppState, useDispatch, useNow } from '../state/hooks.js';
 import { hashOf } from '../state/route.js';
 import { selectSchedule } from '../state/store.js';
 import { actionId } from '../components/StepCardBody.js';
+import { Plan } from './Plan.js';
 
 /** "Right now": begins a session from the Plan screen's schedule, then shows it (CM1, CM2). */
 export function Cook(): VNode {
   const cook = useAppState((state) => state.cook);
   const serving = useAppState((state) => state.dinner?.serving ?? null);
   const scheduled = useAppState(selectSchedule);
+  const planTitle = useAppState((state) => state.dinner?.plan.title ?? '');
   const dispatch = useDispatch();
   const nowMs = useNow(systemClock, 1000);
-  useCookEffects();
+  const lockStatus = useCookEffects();
 
   const schedule = scheduled !== null && scheduled.ok ? scheduled.value : null;
   const begin =
@@ -36,11 +43,12 @@ export function Cook(): VNode {
       ? canBegin(schedule, serving.atMs, nowMs)
       : null;
 
-  // CM1.1: the first visit begins the session against the Plan screen's schedule.
+  // Q7: `#/cook` with no session is the Plan screen; only the Plan's "Start cooking" begins one.
+  const noSession =
+    cook === null && !(begin !== null && !begin.ok && begin.error.kind === 'too_late');
   useEffect(() => {
-    if (cook !== null || schedule === null || serving === null) return;
-    dispatch({ type: 'cook/begin', schedule, axisMs: serving.atMs, nowMs: systemClock.nowMs() });
-  }, [cook === null]);
+    if (noSession) dispatch({ type: 'navigate', route: 'plan', cookRegistered: true });
+  }, [noSession]);
 
   // Focus after an action goes where `focusAfter` says, once the new view is drawn (CM9.3).
   const [confirming, setConfirming] = useState<string | null>(null);
@@ -55,6 +63,7 @@ export function Cook(): VNode {
 
   const tooLate = begin !== null && !begin.ok && begin.error.kind === 'too_late';
   if (cook === null) {
+    if (noSession) return <Plan />;
     return (
       <main class="screen cook">
         <h1 tabIndex={-1}>{COOK_COPY.h1}</h1>
@@ -118,6 +127,23 @@ export function Cook(): VNode {
         />
       )}
       {view.phase === 'countdown' && <UpNext items={view.upNext} />}
+      {view.phase === 'finished' && view.finished !== null && (
+        <>
+          <CookFinished servedMs={view.finished.servedMs} plannedMs={view.finished.plannedMs} />
+          <BuildLog core={cook.core} />
+        </>
+      )}
+      {view.phase === 'stale' && (
+        <CookStale
+          planTitle={planTitle}
+          beganAtMs={cook.core.beganAtMs}
+          onResume={() => act((at) => ({ type: 'cook/resume', nowMs: at }))}
+          onDiscard={() => {
+            dispatch({ type: 'cook/stop' });
+            dispatch({ type: 'navigate', route: 'plan', cookRegistered: true });
+          }}
+        />
+      )}
       {view.phase === 'cooking' && (
         <>
           <section aria-labelledby="do-now">
@@ -168,6 +194,14 @@ export function Cook(): VNode {
           <UpNext items={view.upNext} />
           <DishStrip dishes={view.dishes} />
           <BuildLog core={cook.core} />
+          <section aria-labelledby="sound-screen">
+            <h2 id="sound-screen" tabIndex={-1}>
+              {COOK_COPY.soundAndScreen}
+            </h2>
+            <AlertToggle />
+            {(lockStatus === 'unsupported' || lockStatus === 'refused') && <WakeLockNote />}
+          </section>
+          <StopCooking />
           <ActionDock
             view={view}
             card={docked}

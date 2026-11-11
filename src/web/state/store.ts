@@ -75,6 +75,8 @@ export interface AppState {
   import: ImportState;
   pendingLoad: DinnerLoad | null;
   notice: string | null;
+  /** Counts `notice/set` actions, so an equal text is announced again. Not persisted. */
+  noticeSeq: number;
   /** Owned by cooking-mode; always null in plan-ui. */
   cook: CookState | null;
 }
@@ -93,6 +95,7 @@ export function initialState(): AppState {
     import: { status: 'idle' },
     pendingLoad: null,
     notice: null,
+    noticeSeq: 0,
     cook: null,
   };
 }
@@ -218,7 +221,7 @@ export function reduce(state: AppState, action: Action): AppState {
     case 'theme/set':
       return action.theme === state.theme ? state : { ...state, theme: action.theme };
     case 'notice/set':
-      return action.text === state.notice ? state : { ...state, notice: action.text };
+      return { ...state, notice: action.text, noticeSeq: state.noticeSeq + 1 };
     case 'notice/clear':
       return state.notice === null ? state : { ...state, notice: null };
     case 'start-over':

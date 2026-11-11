@@ -182,7 +182,7 @@ installed and paused, `seedDinner(page, SUNDAY_ROAST, HOME_KITCHEN, '19:30')` un
   `src/web/state/cook-hooks.ts`, `src/web/copy.ts`, `e2e/cook-roast.spec.ts`.
   Covers: CM3.2–CM3.4, CM5.1, CM5.8.
   Command: `npx playwright test e2e/cook-roast.spec.ts && npm run typecheck && npm run lint`
-- [ ] T4.7 Alerts: `AlertToggle`, time-up announcements and alerts in `useCookEffects`. E2E first
+- [x] T4.7 Alerts: `AlertToggle`, time-up announcements and alerts in `useCookEffects`. E2E first
   with `fakeAudio`: the off copy; a tap turns it on and the fake sees a context resumed in the tap;
   at 19:05 `Time is up: Roast the chicken.` in the live region once, two oscillators, the vibrate
   pattern; after a reload the reload copy; no announcement on any second without an event.
@@ -190,14 +190,14 @@ installed and paused, `seedDinner(page, SUNDAY_ROAST, HOME_KITCHEN, '19:30')` un
   `e2e/support.ts`, `e2e/cook-device.spec.ts`.
   Covers: CM4.2–CM4.4, CM9.4.
   Command: `npx playwright test e2e/cook-device.spec.ts && npm run typecheck`
-- [ ] T4.8 Wake lock: `WakeLockNote` and the lock in `useCookEffects`. E2E first with
+- [x] T4.8 Wake lock: `WakeLockNote` and the lock in `useCookEffects`. E2E first with
   `fakeWakeLock`: `grant` → one request on entry, another after a hidden → visible change, a
   release on going to Plan; `refuse` and `none` → the note and no error text.
   Files: `src/web/components/WakeLockNote.tsx`, `src/web/state/cook-hooks.ts`, `src/web/copy.ts`,
   `e2e/support.ts`, `e2e/cook-device.spec.ts`.
   Covers: CM6.1, CM6.2.
   Command: `npx playwright test e2e/cook-device.spec.ts && npm run typecheck`
-- [ ] T4.9 Persistence and the stale prompt: `CookStale`. E2E first: CM-c at 18:30, reload → the
+- [x] T4.9 Persistence and the stale prompt: `CookStale`. E2E first: CM-c at 18:30, reload → the
   same log and `50:00`; a new page in the same context at 18:50 → `30:00` and no time-up replay; a
   stored session with `lastActiveMs` 9 h old → `Carry on with this dinner?`, Resume shows the view,
   Discard needs its second tap and opens Plan.
@@ -205,7 +205,7 @@ installed and paused, `seedDinner(page, SUNDAY_ROAST, HOME_KITCHEN, '19:30')` un
   `e2e/cook-reload.spec.ts`.
   Covers: CM7.1–CM7.3.
   Command: `npx playwright test e2e/cook-reload.spec.ts && npm run typecheck`
-- [ ] T4.10 Finishing and stopping: `CookFinished`, `StopCooking`. E2E first: H1 followed by taps to
+- [x] T4.10 Finishing and stopping: `CookFinished`, `StopCooking`. E2E first: H1 followed by taps to
   19:30 → `Dinner is served`, `Served at 19:30. Planned for 19:30: on time.`, the wake lock
   released; "Back to the plan" opens Plan; "Stop cooking" needs its second tap and opens Plan with
   `Start cooking` offered again.
@@ -213,7 +213,7 @@ installed and paused, `seedDinner(page, SUNDAY_ROAST, HOME_KITCHEN, '19:30')` un
   `src/web/copy.ts`, `e2e/cook-roast.spec.ts`, `e2e/cook-device.spec.ts`.
   Covers: CM8.1–CM8.3, CM6.1.
   Command: `npx playwright test e2e/cook-roast.spec.ts e2e/cook-device.spec.ts && npm run typecheck`
-- [ ] T4.11 The whole sample. E2E: clock at 2026-11-11T09:00Z, Menu → `sunday-roast` → Plan →
+- [x] T4.11 The whole sample. E2E: clock at 2026-11-11T09:00Z, Menu → `sunday-roast` → Plan →
   Start cooking → `cookUntilServed(page)` → `Planned for 13:30: on time.`; the build log reads
   `No rebuilds yet.` at every step.
   Files: `e2e/support.ts`, `e2e/cook-sample.spec.ts`.
@@ -222,25 +222,25 @@ installed and paused, `seedDinner(page, SUNDAY_ROAST, HOME_KITCHEN, '19:30')` un
 
 ## T5. Accessibility and the full pass
 
-- [ ] T5.1 `e2e/cook-a11y.spec.ts`: axe with zero violations in light and dark on the states of the
+- [x] T5.1 `e2e/cook-a11y.spec.ts`: axe with zero violations in light and dark on the states of the
   design's a11y row; every button at least 48×48 px and the primaries at least 64 px tall; the dock
   primary's top below two thirds of the 844 px viewport; focus after Start, Done and Undo as
   `focusAfter` says.
   Files: `e2e/cook-a11y.spec.ts`, fixes in `src/web/**`.
   Covers: CM3.5, CM3.6, CM9.1–CM9.3, CM10.3.
   Command: `npx playwright test e2e/cook-a11y.spec.ts && npm run check:contrast`
-- [ ] T5.2 Zoom, landscape and motion in `e2e/cook-a11y.spec.ts`: CM-c at 195 px wide and at
+- [x] T5.2 Zoom, landscape and motion in `e2e/cook-a11y.spec.ts`: CM-c at 195 px wide and at
   844×390 passes `expectNoPageScroll` with the dock visible without scrolling; the countdown is 56 px
   at 390 px; under `reducedMotion: 'reduce'` no element has a running transition.
   Files: `e2e/cook-a11y.spec.ts`, fixes in `src/web/styles/cook.css`.
   Covers: CM9.1, CM9.5.
   Command: `npx playwright test e2e/cook-a11y.spec.ts`
-- [ ] T5.3 N3 on the phone project: a `+15 min` tap on the largest sample repaints the log within
+- [x] T5.3 N3 on the phone project: a `+15 min` tap on the largest sample repaints the log within
   200 ms (`performance.now` in the page).
   Files: `e2e/perf.spec.ts`.
   Covers: N3.
   Command: `npx playwright test e2e/perf.spec.ts --project phone`
-- [ ] T5.4 The whole suite. Report each runner's real counts.
+- [x] T5.4 The whole suite. Report each runner's real counts.
   Files: none new.
   Covers: CM10.1–CM10.3, N2, N5.
   Command: `npm test && npm run test:props && npm run typecheck && npm run lint && npx prettier --check . && npm run check:contrast && npm run build && npm run test:e2e`

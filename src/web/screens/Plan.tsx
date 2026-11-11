@@ -53,7 +53,21 @@ export function Plan(): VNode {
       {view !== null && serving !== null && (
         <div class="start-cooking no-print">
           {cooking && <p>{COOK_COPY.cookingNote}</p>}
-          <a class="button button--primary" href={hashOf('cook')}>
+          <a
+            class="button button--primary"
+            href={hashOf('cook')}
+            onClick={() => {
+              // The Plan screen begins the session; opening `#/cook` by hand never does (Q7).
+              if (!cooking && result !== null && result.ok) {
+                dispatch({
+                  type: 'cook/begin',
+                  schedule: result.value,
+                  axisMs: serving.atMs,
+                  nowMs: clock.nowMs(),
+                });
+              }
+            }}
+          >
             {cooking ? COOK_COPY.continueCooking : COOK_COPY.startCooking}
           </a>
         </div>

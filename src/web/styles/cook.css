@@ -241,7 +241,22 @@
 }
 
 .action-dock__row--two {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* The page padding shrinks at 200% zoom (components.css), so the dock's bleed shrinks with it */
+@media (max-width: 15rem) {
+  .action-dock {
+    margin-inline: calc(var(--space-2) * -1);
+    padding-inline: var(--space-2);
+  }
+}
+
+/* At 200% zoom on a phone two buttons side by side no longer fit */
+@media (max-width: 24rem) {
+  .action-dock__row--two {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .action-dock__row .button--cook {

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { HOME_KITCHEN, SUNDAY_ROAST } from '../test/support/fixtures.js';
-import { seedDinner } from './support.js';
+import { fixClockAt, seedDinner } from './support.js';
 
 // N2: on a phone the largest sample's timeline shows within 1 s of the tap, and a stepper tap
 // updates the list within 200 ms. Times are taken in the page with performance.now(), from
@@ -74,6 +74,50 @@ test.describe('speed (N2)', () => {
     await page.goto('/');
     await expect(page.locator('#plan-list')).toContainText('Make a roux in the roasting tin');
     const elapsed = await timedClick(page, 'button[aria-label="Fewer burners"]', 0, 'list-changed');
+    test.info().annotations.push({ type: 'elapsed ms', description: elapsed.toFixed(1) });
+    expect(elapsed).toBeLessThan(200);
+  });
+
+  test('N3 a +15 min tap on the largest sample repaints the build log within 200 ms', async ({
+    page,
+  }) => {
+    const response = await page.request.get('/api/samples');
+    const body = (await response.json()) as { samples: SampleSummary[] };
+    const sizes = body.samples.map((sample) => sample.plan.steps.length);
+    const largest = sizes.indexOf(Math.max(...sizes));
+    await fixClockAt(page, '2026-11-11T09:00:00Z');
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Plan this dinner' }).nth(largest).click();
+    await page.getByRole('link', { name: 'Start cooking' }).click();
+    await page.getByRole('button', { name: 'Start now' }).click();
+    await page
+      .getByRole('region', { name: 'Actions' })
+      .getByRole('button', { name: 'Start', exact: true })
+      .click();
+    await expect(page.getByRole('button', { name: '+15 min' }).first()).toBeVisible();
+
+    const elapsed = await page.evaluate(
+      () =>
+        new Promise<number>((resolve, reject) => {
+          const button = [...document.querySelectorAll<HTMLElement>('button')].find(
+            (b) => b.textContent?.startsWith('+15 min') === true,
+          );
+          if (button === undefined) {
+            reject(new Error('no +15 min button'));
+            return;
+          }
+          const started = performance.now();
+          button.click();
+          const poll = (): void => {
+            if (document.querySelector('.build-log .log-line') !== null) {
+              resolve(performance.now() - started);
+            } else if (performance.now() - started > 5000) {
+              reject(new Error('the build log did not change in 5 s'));
+            } else requestAnimationFrame(poll);
+          };
+          requestAnimationFrame(poll);
+        }),
+    );
     test.info().annotations.push({ type: 'elapsed ms', description: elapsed.toFixed(1) });
     expect(elapsed).toBeLessThan(200);
   });

@@ -1,26 +1,8 @@
 import { expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
-import { HOME_KITCHEN, SUNDAY_ROAST, TWO_COOK_KITCHEN } from '../test/support/fixtures.js';
-import type { Kitchen } from '../src/core/index.js';
-import { advanceClock, fixClockAt, seedDinner } from './support.js';
+import { TWO_COOK_KITCHEN } from '../test/support/fixtures.js';
+import { advanceClock, cookAt, cookUntilServed, dock, tapToCmF } from './support.js';
 
 test.use({ locale: 'en-GB', timezoneId: 'Europe/London' });
-
-/** Sunday roast for 19:30 on Wed 2026-11-11, "Start cooking" tapped at `iso`. */
-async function cookAt(
-  page: Page,
-  iso: string,
-  kitchen: Kitchen = HOME_KITCHEN,
-  serve: '19:30' = '19:30',
-): Promise<void> {
-  await fixClockAt(page, iso);
-  await seedDinner(page, SUNDAY_ROAST, kitchen, serve);
-  await page.goto('/');
-  await page.getByRole('link', { name: 'Start cooking' }).click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Right now' })).toBeVisible();
-}
-
-const dock = (page: Page) => page.getByRole('region', { name: 'Actions' });
 
 test.describe('Do now and the dock (CM2.2 to CM2.4, CM3.1, CM3.5, CM3.6, CM9.3)', () => {
   test('CM3.1 at 17:40 the dock names the prep step with Start; Start moves focus to Done', async ({
@@ -61,21 +43,6 @@ test.describe('Do now and the dock (CM2.2 to CM2.4, CM3.1, CM3.5, CM3.6, CM9.3)'
     await expect(page.getByRole('heading', { level: 3, name: 'Shred the greens' })).toBeVisible();
   });
 });
-
-/** CM-c up to the shred: prep done, the roast and the shred started 17:50, the shred done 17:55. */
-async function tapToCmF(page: Page): Promise<void> {
-  const click = (name: string) => dock(page).getByRole('button', { name, exact: true }).click();
-  await click('Start');
-  await advanceClock(page, 10 * 60_000);
-  await expect(dock(page).getByRole('button', { name: 'Done', exact: true })).toBeVisible();
-  await click('Done'); // prep, 17:50
-  const roast = page.getByRole('region', { name: 'Roast the chicken' });
-  await roast.getByRole('button', { name: /^Start/ }).click(); // roast, 17:50
-  await click('Start'); // shred, 17:50
-  await advanceClock(page, 5 * 60_000);
-  await expect(dock(page).getByRole('button', { name: 'Done', exact: true })).toBeVisible();
-  await click('Done'); // shred, 17:55
-}
 
 test.describe('Running and Needs more time (CM2.5, CM3.1, CM4.1, CM4.2)', () => {
   test('CM2.5 the roast started at 17:50 reads ready at 19:05 with 75:00 in the Running section', async ({
@@ -324,5 +291,34 @@ test.describe("I'm behind, Undo, blocked starts and late cards (CM2.9, CM3.2 to 
     await dock(page).getByRole('button', { name: 'Start', exact: true }).click();
     await dock(page).getByRole('button', { name: 'Start anyway' }).click();
     await expect(dock(page).getByRole('button', { name: 'Done', exact: true })).toBeVisible();
+  });
+});
+
+test.describe('Finishing and stopping (CM8.1 to CM8.3)', () => {
+  test('CM8.1 CM-j H1 followed to 19:30 ends with "Dinner is served" and "on time"; Back to the plan opens the Plan', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    await cookAt(page, '2026-11-11T17:40:00Z');
+    await cookUntilServed(page);
+    await expect(page.getByRole('heading', { level: 2, name: 'Dinner is served' })).toBeVisible();
+    await expect(page.getByText('Served at 19:30. Planned for 19:30: on time.')).toBeVisible();
+    await page.getByRole('link', { name: 'Back to the plan' }).click();
+    await expect(page.getByRole('link', { name: 'Continue cooking' })).toBeVisible();
+  });
+
+  test('CM8.3 Stop cooking needs a second tap, then opens the Plan with Start cooking offered again', async ({
+    page,
+  }) => {
+    await cookAt(page, '2026-11-11T17:40:00Z');
+    await page.getByRole('button', { name: 'Stop cooking', exact: true }).click();
+    await expect(
+      page.getByText('Stop cooking? The times you recorded will be cleared.'),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Keep cooking' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Right now' })).toBeVisible();
+    await page.getByRole('button', { name: 'Stop cooking', exact: true }).click();
+    await page.getByRole('button', { name: 'Yes, stop cooking' }).click();
+    await expect(page.getByRole('link', { name: 'Start cooking' })).toBeVisible();
   });
 });

@@ -48,6 +48,7 @@ describe('initialState', () => {
       import: { status: 'idle' },
       pendingLoad: null,
       notice: null,
+      noticeSeq: 0,
       cook: null,
     });
   });
@@ -147,6 +148,13 @@ describe('reduce: small actions', () => {
     const set = reduce(initialState(), { type: 'notice/set', text: 'Opened a shared dinner.' });
     expect(set.notice).toBe('Opened a shared dinner.');
     expect(reduce(set, { type: 'notice/clear' }).notice).toBeNull();
+  });
+  it('Q: setting the same notice text again counts as a new announcement (noticeSeq)', () => {
+    const first = reduce(initialState(), { type: 'notice/set', text: 'Time is up: Roast.' });
+    const again = reduce(first, { type: 'notice/set', text: 'Time is up: Roast.' });
+    expect(first.noticeSeq).toBe(1);
+    expect(again.noticeSeq).toBe(2);
+    expect(again.notice).toBe('Time is up: Roast.');
   });
   it('R9.7 start-over keeps theme and samples and clears the rest', () => {
     const samples = { status: 'failed' } as const;

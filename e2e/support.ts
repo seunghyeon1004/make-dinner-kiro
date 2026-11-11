@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { HOME_KITCHEN, SUNDAY_ROAST } from '../test/support/fixtures.js';
 import type { Kitchen, Plan, ServeTime } from '../src/core/index.js';
 
 /** The key `src/web/state/persist.ts` stores the dinner under. */
@@ -109,4 +110,194 @@ export async function fixClockAt(page: Page, iso: string): Promise<void> {
 export async function advanceClock(page: Page, ms: number): Promise<void> {
   const now = await page.evaluate(() => Date.now());
   await page.clock.setFixedTime(new Date(now + ms));
+}
+
+/** Sunday roast for 19:30 on Wed 2026-11-11, "Start cooking" tapped at `iso`. */
+export async function cookAt(
+  page: Page,
+  iso: string,
+  kitchen: Kitchen = HOME_KITCHEN,
+  serve: '19:30' = '19:30',
+): Promise<void> {
+  await fixClockAt(page, iso);
+  await seedDinner(page, SUNDAY_ROAST, kitchen, serve);
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Start cooking' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Right now' })).toBeVisible();
+}
+
+export const dock = (page: Page) => page.getByRole('region', { name: 'Actions' });
+
+/** CM-c up to the shred: prep done, the roast and the shred started 17:50, the shred done 17:55. */
+export async function tapToCmF(page: Page): Promise<void> {
+  const click = (name: string) => dock(page).getByRole('button', { name, exact: true }).click();
+  await click('Start');
+  await advanceClock(page, 10 * 60_000);
+  await expect(dock(page).getByRole('button', { name: 'Done', exact: true })).toBeVisible();
+  await click('Done'); // prep, 17:50
+  const roast = page.getByRole('region', { name: 'Roast the chicken' });
+  await roast.getByRole('button', { name: /^Start/ }).click(); // roast, 17:50
+  await click('Start'); // shred, 17:50
+  await advanceClock(page, 5 * 60_000);
+  await expect(dock(page).getByRole('button', { name: 'Done', exact: true })).toBeVisible();
+  await click('Done'); // shred, 17:55
+}
+
+/**
+ * Cooks a whole dinner on time: taps every Start and every Done whose time has come, else moves
+ * the fixed clock to the earliest of the next Up next time and the running timers. Stops at
+ * "Dinner is served".
+ */
+export async function cookUntilServed(page: Page, afterEach?: () => Promise<void>): Promise<void> {
+  const served = page.getByRole('heading', { name: 'Dinner is served' });
+  for (let guard = 0; guard < 400; guard += 1) {
+    if (await served.isVisible()) return;
+    const step = await page.evaluate(() => {
+      const parse = (text: string): number => {
+        const [m, s] = text.replace('+', '').split(':').map(Number);
+        return ((m ?? 0) * 60 + (s ?? 0)) * (text.startsWith('+') ? -1000 : 1000);
+      };
+      const buttons = [...document.querySelectorAll<HTMLButtonElement>('button[id^="act-"]')];
+      const usable = (button: HTMLButtonElement, want: string): boolean => {
+        const match = /^act-(.+)-(start|done)$/.exec(button.id);
+        if (match === null || match[2] !== want) return false;
+        const card = document.getElementById(`card-${match[1]}`)?.parentElement;
+        if (want === 'start') return card?.querySelector('.cook-card__warn') == null;
+        const text = card?.querySelector('[role="timer"]')?.textContent ?? '';
+        return text === '' || text.startsWith('+') || text === '00:00';
+      };
+      // Finish what is finished before starting what waits for it.
+      const next =
+        buttons.find((b) => usable(b, 'done')) ?? buttons.find((b) => usable(b, 'start'));
+      if (next !== undefined) {
+        next.click();
+        return { clicked: true, waitMs: 0 };
+      }
+      const waits: number[] = [];
+      for (const time of document.querySelectorAll<HTMLTimeElement>('time[datetime]')) {
+        waits.push(Date.parse(time.dateTime) - Date.now());
+      }
+      for (const timer of document.querySelectorAll('[role="timer"]')) {
+        waits.push(parse(timer.textContent ?? ''));
+      }
+      const positive = waits.filter((ms) => ms > 0);
+      return { clicked: false, waitMs: positive.length === 0 ? 0 : Math.min(...positive) };
+    });
+    if (step.clicked) {
+      await page.waitForTimeout(60);
+      await afterEach?.();
+      continue;
+    }
+    expect(step.waitMs, 'something to wait for').toBeGreaterThan(0);
+    await advanceClock(page, step.waitMs);
+    await page.waitForTimeout(1100);
+  }
+  throw new Error(
+    `cookUntilServed did not finish the dinner:\n${await page.locator('main').innerText()}`,
+  );
+}
+
+/** What the fakes of `fakeWakeLock` and `fakeAudio` recorded in the page. */
+export interface CookFakes {
+  wakeRequests: number;
+  wakeReleases: number;
+  audioContexts: number;
+  oscillators: { frequency: number; start: number }[];
+  resumed: number;
+  vibrations: number[][];
+}
+
+/** Replaces `navigator.wakeLock` before the app boots; calls are counted in `window.__cookFakes`. */
+export async function fakeWakeLock(page: Page, mode: 'grant' | 'refuse' | 'none'): Promise<void> {
+  await page.addInitScript((how) => {
+    const w = window as unknown as { __cookFakes: Record<string, unknown> };
+    const fakes = (w.__cookFakes ??= {}) as Record<string, number>;
+    fakes['wakeRequests'] = 0;
+    fakes['wakeReleases'] = 0;
+    if (how === 'none') {
+      Object.defineProperty(navigator, 'wakeLock', { value: undefined, configurable: true });
+      return;
+    }
+    Object.defineProperty(navigator, 'wakeLock', {
+      configurable: true,
+      value: {
+        request: async () => {
+          fakes['wakeRequests'] = (fakes['wakeRequests'] ?? 0) + 1;
+          if (how === 'refuse') throw new DOMException('refused', 'NotAllowedError');
+          const listeners: (() => void)[] = [];
+          const release = async (): Promise<void> => {
+            fakes['wakeReleases'] = (fakes['wakeReleases'] ?? 0) + 1;
+            for (const listener of listeners) listener();
+          };
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') void release();
+          });
+          return { release, addEventListener: (_t: string, l: () => void) => listeners.push(l) };
+        },
+      },
+    });
+  }, mode);
+}
+
+/** Pretends the page is hidden or visible again and fires `visibilitychange`. */
+export async function setVisibility(page: Page, state: 'hidden' | 'visible'): Promise<void> {
+  await page.evaluate((value) => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => value });
+    document.dispatchEvent(new Event('visibilitychange'));
+  }, state);
+}
+
+export async function cookFakes(page: Page): Promise<CookFakes> {
+  return page.evaluate(() => (window as unknown as { __cookFakes: CookFakes }).__cookFakes);
+}
+
+/** Replaces `AudioContext` and `navigator.vibrate` before the app boots; calls land in `window.__cookFakes`. */
+export async function fakeAudio(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __cookFakes: Record<string, unknown> };
+    const fakes = (w.__cookFakes ??= {}) as Record<string, unknown>;
+    fakes['audioContexts'] = 0;
+    fakes['resumed'] = 0;
+    fakes['oscillators'] = [];
+    fakes['vibrations'] = [];
+    class FakeContext {
+      currentTime = 0;
+      destination = {};
+      constructor() {
+        fakes['audioContexts'] = (fakes['audioContexts'] as number) + 1;
+      }
+      async resume(): Promise<void> {
+        fakes['resumed'] = (fakes['resumed'] as number) + 1;
+      }
+      createGain() {
+        return {
+          gain: { value: 0, setValueAtTime() {}, linearRampToValueAtTime() {} },
+          connect() {},
+        };
+      }
+      createOscillator() {
+        const osc = {
+          type: '',
+          frequency: { value: 0 },
+          connect() {},
+          start(when: number) {
+            (fakes['oscillators'] as unknown[]).push({
+              frequency: osc.frequency.value,
+              start: when,
+            });
+          },
+          stop() {},
+        };
+        return osc;
+      }
+    }
+    Object.defineProperty(window, 'AudioContext', { value: FakeContext, configurable: true });
+    Object.defineProperty(navigator, 'vibrate', {
+      configurable: true,
+      value: (pattern: number[]) => {
+        (fakes['vibrations'] as unknown[]).push(pattern);
+        return true;
+      },
+    });
+  });
 }
