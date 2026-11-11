@@ -102,3 +102,60 @@ Format: the same as the recipe-graph spec (requirements with EARS criteria and i
 [tool:edit] Write File .kiro/specs/scheduler/requirements.md
 [tool:edit] Write File .kiro/specs/scheduler/design.md
 [tool:edit] Replace in File .kiro/specs/scheduler/design.md
+[tool:edit] Append to File .kiro/specs/scheduler/design.md
+[tool:edit] Replace in File .kiro/specs/scheduler/design.md
+[tool:edit] Write File .kiro/specs/scheduler/tasks.md
+[tool:execute] $ bash scripts/hooks/tasks-lint.sh .kiro/specs/scheduler/tasks.md; npx prettier --check .kiro/specs/scheduler/ 2>&1 | tail -5; grep -c "" .kiro/specs/scheduler/*.md
+    [tasks-lint] ok: 1 file(s)
+    Checking formatting...
+    All matched files use Prettier code style!
+    .kiro/specs/scheduler/design.md:648
+    .kiro/specs/scheduler/requirements.md:220
+    .kiro/specs/scheduler/tasks.md:250
+    exit 0
+[tool:other] Update Session Information
+
+I've written the `scheduler` spec in `.kiro/specs/scheduler/`. Writing the design turned up no case where the algorithm, as described, breaks G1 to G8. It did turn up two problems in the guarantees themselves, listed under "Conflicts found" below.
+
+The three files are `requirements.md`, `design.md` and `tasks.md`. No code was written. The checks I ran were `bash scripts/hooks/tasks-lint.sh .kiro/specs/scheduler/tasks.md` (ok, 1 file) and `npx prettier --check .kiro/specs/scheduler/` (all files formatted).
+
+The hand-worked tables are in design H1 to H6:
+- **H1, Sunday roast with 4 burners, 1 oven, 1 cook:** prep-forward moves `greens.shred` from −15 to −100. Span 110, no warnings.
+- **H2, the same with 1 burner:** the backward pass pushes `gravy.simmer` to −20..−10 and `gravy.roux` to −22. `greens.boil` ends up on burner 1.
+- **Right-justify does nothing on the Sunday roast in either kitchen.** Every hot step there is pinned by a successor or by the single cook. To show that pass at work I added a small fixture, `PREP_AHEAD` (H5): there `bread.shape` moves from −17 to −13, and its wait drops from 4 minutes (over its hold of 2) to 0.
+- **Other tables:**
+  - `TIGHT_OVEN`: a `hold_exceeded` warning; G4.2 is exactly at its limit.
+  - `MEZZE`: a terminal step whose result keeps moves to the front.
+  - Seven corner-case fixtures, including 80 steps of 480 minutes.
+
+## Conflicts found
+- **C1. G4.1 cannot apply to larger plans.** Its premise needs at least as many burners, ovens and cooks as steps that use each. The kitchen schema caps them at 8, 4 and 6, and `schedule` re-checks the kitchen. So a plan with 7 hands-on steps has no valid "unlimited" kitchen, and G4.1 says nothing about it. I propose keeping the text and proving G4.1 on plans that fit those caps (`arbUnlimitedPair`). You could also add that limit to the steering wording. That needs your decision; I did not edit the steering file.
+- **C2. The G8 property is weaker than the G8 definition.** The property checks only slack and slack + 1; the definition requires every delay in between to work too. Example: delays 1 and 2 fit, 3 collides, 4 to 19 fit again. A wrong answer of 19 passes the property. The G8 property also asserts `slackMin === oracleSlack`, which closes the gap without changing the steering.
+
+## Decisions (decided here)
+- **`Schedule.plan` added:** it holds the canonical plan, because `rebuild(schedule, progress, now)` takes no plan.
+- **Waits and warnings:**
+  - `waitMin` is `null` for steps whose result keeps.
+  - `Schedule.warnings` holds only `hold_exceeded`; plan warnings are not included.
+  - The `hold_exceeded` message wording is fixed in the design.
+- **Errors:** `ScheduleError` has three kinds, `invalid_plan`, `invalid_kitchen` and `missing_appliance`, and only the first failure is returned. `schedule` never throws, whatever it receives.
+- **Tie-breaks:**
+  - The hold order applies only to terminal steps; everything else is ordered by deadline, then id.
+  - Right-justify works in a fixed order: end descending, then id.
+  - A step keeps a prerequisite's lane, preferring the prerequisite that ended last.
+- **Search loops:** each search jumps past the first full minute it finds and has a hard bound that throws. Without the jump the worst case is about 1.5 G reads; with it, about 25 M per call.
+- **Schema bounds:** schedule minutes run from −38400 to 0.
+- **New test support:**
+  - Five kitchens and eight fixtures.
+  - Three generators: `arbUnlimitedKitchen`, `arbUnlimitedPair`, `arbHandsFreePair`.
+  - Internal properties P-SC1 to P-SC5. These include G1 to G3 after each pass.
+  - A 60 s per-test timeout for scheduler properties.
+- **Coverage check:** `test/meta/guarantees.test.ts` uses a `CLAIMS` list of whole guarantee families per spec. The required families are `CLAIMS` plus every family that appears at the start of a property title, so deleting a claim doesn't switch the check off. Later specs add `rebuild: ['R']` and `dinnerfile: ['D']`. Guarantee properties may not use `it.each`.
+
+## Open questions
+- **C1:** should the G4.1 wording in the steering file change?
+- **"Critical" on prep steps:** prep-forward packs prep steps back to back, so they show "Critical" even though the whole block could move later (hummus and `salad.chop` in MEZZE). Should the UI word or mark this differently?
+- **Recipe-graph test edit:** adding `hold_exceeded` means appending to the recipe-graph test that lists `WARNING_CODES` (task T1.1). I've treated that as extending the test, not weakening it.
+- **Ordering:** the scheduler spec assumes the recipe-graph tasks are all done first. None of them are ticked yet.
+
+--- run success (end_turn); credits reported by this session: 33.47 ---

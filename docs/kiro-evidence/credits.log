@@ -5,3 +5,4 @@
 2026-11-11T04:32:56Z agents-hooks-session [--v3 --trust-all-tools --trust-workspace --model auto] credits 7.45 exit 0
 2026-11-11T04:36:07Z impl-recipe-graph-session [--v3 --agent sous-chef --trust-all-tools --trust-workspace --model auto] credits 6.42 exit 0
 2026-11-11T04:45:17Z impl-recipe-graph-session [--v3 --agent sous-chef --trust-all-tools --trust-workspace --model auto] credits 15.29 exit 0
+2026-11-11T04:49:38Z spec-scheduler-session [--v3 --mode spec --trust-all-tools --trust-workspace --model claude-opus-5.5] credits 33.47 exit 0

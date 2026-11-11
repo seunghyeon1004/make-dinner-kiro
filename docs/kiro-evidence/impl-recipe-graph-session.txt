@@ -2071,3 +2071,241 @@ Tests were written first and failed on assertions against stubs before each impl
 None that block T3.
 
 --- run success (end_turn); credits reported by this session: 15.29 ---
+
+=== session 2026-11-11T04:47:00Z ===
+$ kiro-cli chat --output-format stream-json --v3 --agent sous-chef --trust-all-tools --trust-workspace --model auto "$(cat docs/kiro-evidence/prompts/06c-impl-recipe-graph-b.md)"
+--- prompt ---
+Spec: recipe-graph. Implement T3 (graph helpers), T4 (canonical form) and T5 (parsing), in that order, and nothing after T5. T1 and T2 are done and ticked.
+
+Each sub-task: test first, see it fail on an assertion, implement, run the proving command the task names, tick the sub-task only when it passed in this session. Property tasks are real fast-check properties using the generators in test/support/arbitraries.ts and `fcParams()`; never lower the run count in code.
+
+Working rule: when the design is ambiguous or slightly off in a way that touches no guarantee, no schema bound and no sanity rule, choose the reading closest to the requirement, write it under "Decisions I made" in your report, and continue. Stop and ask only when a requirement, a guarantee or a property would have to change.
+
+Keep the example tests proportionate: one test per rule and boundary the requirement names, not a matrix. Do not commit. End with the report kiro-conduct.md asks for.
+--- transcript (rendered from the event stream by scripts/kiro-render.mjs) ---
+[steering] {"steeringDocuments":["file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/kiro-conduct.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/product.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/scheduler-guarantees.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/structure.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/tech.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/testing.md"],"kind":"steering_inclusion"}
+
+Let me start by reading the spec files in full.
+
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/recipe-graph/requirements.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/recipe-graph/design.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/recipe-graph/tasks.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/recipe-graph/design.md
+[tool:search] List Directory ~/hackathons-2026/kiroween/makedinner
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && find src test -type f | sort && cat src/core/result.ts src/core/index.ts vitest.config.ts test/support/fc-params.ts && wc -l src/core/*.ts && git status --short
+    … (53 earlier lines not shown)
+          {
+            test: {
+              name: 'props',
+              include: ['test/**/*.pbt.ts'],
+              environment: 'node',
+            },
+          },
+        ],
+      },
+    });
+    import type { Parameters } from 'fast-check';
+    
+    const DEFAULT_NUM_RUNS = 200;
+    
+    /**
+     * The shared fast-check parameters: 200 runs, or `FC_NUM_RUNS` when it is a positive
+     * integer. No property file sets `numRuns` itself (testing.md).
+     */
+    export function fcParams(): Parameters<unknown[]> {
+      const requested = Number(process.env.FC_NUM_RUNS);
+      const numRuns = Number.isInteger(requested) && requested > 0 ? requested : DEFAULT_NUM_RUNS;
+      return { numRuns };
+    }
+           2 src/core/index.ts
+           9 src/core/result.ts
+         149 src/core/schema.ts
+         160 total
+     M docs/kiro-evidence/hook-fires.log
+     M docs/kiro-evidence/impl-recipe-graph-session.txt
+    ?? docs/kiro-evidence/prompts/06c-impl-recipe-graph-b.md
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/schema.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && grep -n "export" test/support/oracles.ts test/support/arbitraries.ts test/support/fixtures.ts; head -30 test/meta/oracles.test.ts; cat package.json | grep -n '"' | head -40
+    … (64 earlier lines not shown)
+    13:    "test:props": "vitest run --project props --passWithNoTests",
+    14:    "test:e2e": "playwright test",
+    15:    "typecheck": "tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit",
+    16:    "lint": "eslint .",
+    17:    "format": "prettier --write .",
+    18:    "build": "tsc -p tsconfig.core.json && tsc -p tsconfig.server.json && tsc -p tsconfig.mcp.json && tsx scripts/build-web.ts",
+    19:    "dev": "tsx scripts/build-web.ts --watch & tsx watch src/server/index.ts",
+    20:    "start": "node dist/server/index.js",
+    21:    "check:contrast": "tsx scripts/check-contrast.ts",
+    22:    "record": "tsx scripts/record.ts"
+    24:  "dependencies": {
+    25:    "@anthropic-ai/sdk": "1.8.0",
+    26:    "@hono/node-server": "2.1.6",
+    27:    "@modelcontextprotocol/sdk": "1.32.2",
+    28:    "hono": "4.13.17",
+    29:    "preact": "11.2.0",
+    30:    "zod": "4.6.7"
+    32:  "devDependencies": {
+    33:    "@axe-core/playwright": "4.14.0",
+    34:    "@playwright/test": "1.60.0",
+    35:    "@types/node": "22.20.5",
+    36:    "@vitest/eslint-plugin": "1.6.28",
+    37:    "esbuild": "0.28.2",
+    38:    "eslint": "10.14.0",
+    39:    "eslint-plugin-import-x": "4.18.1",
+    40:    "fast-check": "4.10.2",
+    41:    "playwright-core": "1.60.0",
+    42:    "prettier": "3.9.10",
+    43:    "tsx": "4.23.15",
+    44:    "typescript": "6.0.3",
+    exit 0
+
+Starting T3. First the stubs, so the tests fail on assertions.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat >> src/core/schema.ts <<'EOF'
+
+/** Order on ids by UTF-16 code units: -1, 0 or 1. Never localeCompare. */
+export function compareIds(_a: string, _b: string): number {
+  return 0;
+}
+EOF
+cat > src/core/graph.ts <<'EOF'
+import { err, type Result } from './result.js';
+import type { Plan } from './schema.js';
+
+export interface CycleError {
+  kind: 'cycle';
+  path: string[];
+}
+
+export function successors(_plan: Plan): ReadonlyMap<string, readonly string[]> {
+  return new Map();
+}
+
+export function terminalSteps(_plan: Plan): string[] {
+  return [];
+}
+
+export function topologicalOrder(_plan: Plan): Result<string[], CycleError> {
+  return err({ kind: 'cycle', path: [] });
+}
+
+export function findCycles(_plan: Plan): string[][] {
+  return [];
+}
+
+export function longestChainMinutes(_plan: Plan): Result<number, CycleError> {
+  return err({ kind: 'cycle', path: [] });
+}
+EOF
+sed -n 1,60p test/support/fixtures.ts; sed -n 40,60p test/support/oracles.ts
+    … (50 earlier lines not shown)
+        {
+          id: 'chicken.carve',
+          dish: 'chicken',
+          title: 'Carve the chicken',
+          minutes: 5,
+          appliance: 'none',
+          handsOn: true,
+          after: ['chicken.rest'],
+          holdMin: 5,
+        },
+        minutes.set(id, largest);
+      }
+      return { ids, prereqs, minutes };
+    }
+    
+    const prereqsOf = (n: Node, id: string): string[] => n.prereqs.get(id) ?? [];
+    
+    /** For every step id, the ids of the steps that list it in `after`, sorted. */
+    export function oracleSuccessors(plan: Plan): Record<string, string[]> {
+      const n = nodes(plan);
+      const result: Record<string, string[]> = {};
+      for (const p of n.ids) {
+        const found: string[] = [];
+        for (const s of n.ids) {
+          if (prereqsOf(n, s).includes(p)) found.push(s);
+        }
+        result[p] = found;
+      }
+      return result;
+    }
+    exit 0
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/test/core/graph.test.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && unset ANTHROPIC_API_KEY; npx vitest run --project examples test/core/graph.test.ts 2>&1 | grep -E "✓|×|FAIL|AssertionError|Tests|Error" | head -40
+    … (10 earlier lines not shown)
+         × R3.6 R3.5 a self-dependency gives [id] from topologicalOrder and nothing from findCycles 0ms
+         × R3.7 longestChainMinutes returns the cycle error on a cycle 0ms
+         × R3.1 unknown after entries are ignored 0ms
+         × R3.1 duplicate ids are one node: union of after lists, largest minutes 0ms
+    ⎯⎯⎯⎯⎯⎯ Failed Tests 14 ⎯⎯⎯⎯⎯⎯⎯
+     FAIL  |examples| test/core/graph.test.ts > compareIds (R3.8) > R3.8 compares by UTF-16 code units: "-" (U+002D) sorts before "." (U+002E)
+    AssertionError: expected +0 to be -1 // Object.is equality
+     FAIL  |examples| test/core/graph.test.ts > compareIds (R3.8) > R3.8 compares by code units, not locale: "Z" sorts before "a"
+    AssertionError: expected +0 to be -1 // Object.is equality
+     FAIL  |examples| test/core/graph.test.ts > fixture facts (R3.2, R3.3, R3.4, R3.7) > R3.2 SUNDAY_ROAST: successors of chicken.roast are chicken.rest and gravy.roux, keys in id order
+    AssertionError: expected undefined to deeply equal [ 'chicken.rest', 'gravy.roux' ]
+     FAIL  |examples| test/core/graph.test.ts > fixture facts (R3.2, R3.3, R3.4, R3.7) > R3.2 MEZZE: salad.toss is the only successor of salad.chop and salad.dressing
+    AssertionError: expected undefined to deeply equal [ 'salad.toss' ]
+     FAIL  |examples| test/core/graph.test.ts > fixture facts (R3.2, R3.3, R3.4, R3.7) > R3.3 terminal steps of the three fixtures
+    AssertionError: expected [] to deeply equal [ 'chicken.carve', …(2) ]
+     FAIL  |examples| test/core/graph.test.ts > fixture facts (R3.2, R3.3, R3.4, R3.7) > R3.4 topological order of the three fixtures takes the smallest ready id first
+    AssertionError: expected { ok: false, …(1) } to deeply equal { ok: true, value: [ …(10) ] }
+     FAIL  |examples| test/core/graph.test.ts > fixture facts (R3.2, R3.3, R3.4, R3.7) > R3.7 longest chains are 110, 82 and 55
+    AssertionError: expected { ok: false, …(1) } to deeply equal { ok: true, value: 110 }
+     FAIL  |examples| test/core/graph.test.ts > cycles (R3.5, R3.6) > R3.6 a 3-cycle entered at its middle step reports [a.x, a.y, a.z]
+    AssertionError: expected [] to deeply equal [ [ 'a.x', 'a.y', 'a.z' ] ]
+     FAIL  |examples| test/core/graph.test.ts > cycles (R3.5, R3.6) > R3.5 topologicalOrder returns the cycle error with the same path
+    AssertionError: expected { ok: false, …(1) } to deeply equal { ok: false, …(1) }
+     FAIL  |examples| test/core/graph.test.ts > cycles (R3.5, R3.6) > R3.6 two disjoint cycles give two paths in first-id order, whatever the input order
+    AssertionError: expected [] to deeply equal [ [ 'a.p', 'a.q' ], [ 'c.m', 'c.n' ] ]
+     FAIL  |examples| test/core/graph.test.ts > cycles (R3.5, R3.6) > R3.6 R3.5 a self-dependency gives [id] from topologicalOrder and nothing from findCycles
+    AssertionError: expected { ok: false, …(1) } to deeply equal { ok: false, …(1) }
+     FAIL  |examples| test/core/graph.test.ts > cycles (R3.5, R3.6) > R3.7 longestChainMinutes returns the cycle error on a cycle
+    AssertionError: expected { ok: false, …(1) } to deeply equal { ok: false, …(1) }
+     FAIL  |examples| test/core/graph.test.ts > ids that need care (R3.1) > R3.1 unknown after entries are ignored
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 95,200p test/support/oracles.ts; sed -n 1,30p test/support/arbitraries.ts
+    … (105 earlier lines not shown)
+    }
+    import fc from 'fast-check';
+    import type { Appliance, Dish, ErrorCode, Kitchen, Plan, Step } from '../../src/core/schema.js';
+    
+    // Generators for tests (testing.md). They may be extended to cover more cases, never narrowed
+    // to avoid a failing case.
+    
+    export interface PlanOpts {
+      /** Reach the limits of 12 dishes and 80 steps. */
+      large?: boolean;
+      /** Appliances the steps may use. Default: all three. */
+      appliances?: readonly Appliance[];
+    }
+    
+    export interface BrokenCase {
+      rule: ErrorCode;
+      /** Passed to `validatePlan`. */
+      input: unknown;
+      /** Passed to `checkKitchen` when the plan parses. Has a burner and an oven, except for `missing_appliance`. */
+      kitchen: Kitchen;
+      /** An issue with `rule` must carry these ids. */
+      target: { stepId?: string; dishId?: string };
+    }
+    
+    const ALL_APPLIANCES: readonly Appliance[] = ['burner', 'oven', 'none'];
+    
+    // ---------------------------------------------------------------------------------------
+    // Small building blocks
+    
+    type Draw = fc.GeneratorValue;
+    exit 0
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/test/core/graph.pbt.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx vitest run --project props test/core/graph.pbt.ts 2>&1 | grep -E "✓|×|FAIL|AssertionError|Tests|Error" | head -30
+     1: 0x100ba51d4 node::OOMErrorHandler(char const*, v8::OOMDetails const&) [~/.nvm/versions/node/v24.5.0/bin/node]
+    ⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+    ⎯⎯⎯⎯⎯⎯ Unhandled Error ⎯⎯⎯⎯⎯⎯⎯
+    Error: [vitest-pool]: Worker forks emitted error.
+     ❯ EventEmitter.onTaskError node_modules/vitest/dist/chunks/index.Di8au7q4.js:5926:21
+    Caused by: Error: Worker exited unexpectedly with signal SIGABRT during started state while running test file ~/hackathons-2026/kiroween/makedinner/test/core/graph.pbt.ts
+          Tests   (8)
+         Errors  1 error
+    exit 0

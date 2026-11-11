@@ -34,7 +34,9 @@ in `src/core` (cooking mode calls `rebuild` from core) and have no network acces
   appears, `end - start = minutes`, both are integers, and `end(s) <= 0` for every `s`.
 - **G4 landing.**
   - G4.1 With unlimited resources (counts >= the number of steps needing each), every terminal
-    step with `holdMin !== null` has `end = 0`.
+    step with `holdMin !== null` has `end = 0`. The kitchen schema caps the counts at 8, 4 and
+    6, so this speaks only about plans small enough to have such a kitchen (conflict C1 found
+    by the scheduler spec; wording added by hand).
   - G4.2 With any kitchen, every terminal step with `holdMin !== null` has
     `end >= -(sum of minutes of all other terminal steps)`.
   - G4.3 Every step with `wait > holdMin` has exactly one `hold_exceeded` warning carrying
