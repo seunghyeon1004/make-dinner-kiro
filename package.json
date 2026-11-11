@@ -19,7 +19,8 @@
     "dev": "tsx scripts/build-web.ts --watch & tsx watch src/server/index.ts",
     "start": "node dist/server/index.js",
     "check:contrast": "tsx scripts/check-contrast.ts",
-    "record": "tsx scripts/record.ts"
+    "record": "tsx scripts/record.ts",
+    "mcp": "tsx src/mcp/index.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.8.0",

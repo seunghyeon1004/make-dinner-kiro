@@ -241,3 +241,21 @@
 2026-11-11T11:09:30Z on-spawn changed_files=2 unticked_shown=20
 2026-11-11T11:27:17Z on-stop test=0 (Test Files 52 passed (52);Tests 2014 passed (2014)) test:props=0 (Test Files 20 passed (20);Tests 106 passed (106)) lint=0
 2026-11-11T11:29:55Z tasks-lint files=8 bad_files=0
+2026-11-11T11:36:30Z on-spawn changed_files=2 unticked_shown=16
+2026-11-11T11:36:56Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T11:37:06Z after-write ran=typecheck,test:props typecheck=0 props=0
+2026-11-11T11:37:22Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T11:37:41Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T11:37:55Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T11:37:58Z after-write ran=typecheck,test:props typecheck=0 props=0
+2026-11-11T11:38:03Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T11:38:25Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T11:38:29Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T11:39:09Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T11:39:31Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T11:39:31Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T11:39:36Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T11:39:49Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T11:39:53Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T11:42:39Z on-stop test=1 (Test Files 1 failed | 55 passed (56);Tests 1 failed | 2029 passed (2030)) test:props=0 (Test Files 20 passed (20);Tests 106 passed (106)) lint=1
+2026-11-11T11:43:38Z tasks-lint files=8 bad_files=0

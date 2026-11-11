@@ -162,7 +162,9 @@ export default tseslint.config(
           patterns: [
             coreOnlyThroughIndex,
             {
-              group: ['**/server/**', '**/web/**'],
+              // The MCP SDK's own `server/` folder is not src/server (exception added by hand:
+              // the pattern also matched `@modelcontextprotocol/sdk/server/*.js`).
+              group: ['**/server/**', '!@modelcontextprotocol/sdk/server/**', '**/web/**'],
               message: 'src/mcp imports neither src/server nor src/web.',
             },
             noTestImports,

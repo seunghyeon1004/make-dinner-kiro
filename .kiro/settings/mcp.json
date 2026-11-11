@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "make-dinner": {
+      "command": "npx",
+      "args": ["--no-install", "tsx", "src/mcp/index.ts"],
+      "disabled": false,
+      "autoApprove": ["check_plan", "schedule_plan"]
+    }
+  }
+}

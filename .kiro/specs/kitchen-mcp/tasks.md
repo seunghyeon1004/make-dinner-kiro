@@ -14,17 +14,19 @@ never start `npm run mcp` from an agent session (the stdio test starts and stops
 
 ## T1. Text and samples (pure)
 
-- [ ] T1.1 Example tests for `src/mcp/text.ts`: the plan list of `H1_SCHEDULE` equals the design's
+- [x] T1.1 Example tests for `src/mcp/text.ts`: the plan list of `H1_SCHEDULE` equals the design's
   13 lines; for `H3_SCHEDULE` the `potatoes.roast` line ends with `, waits <w> min (hold <h> min)`
   and a `Warning:` line carries its message (H3 table values); the RB-a rebuilt schedule gives the
   serving, `Moved:`, `done` and `running` lines; the other tools' summaries on hand-written inputs.
   Files: `test/mcp/text.test.ts`, `src/mcp/text.ts` (stubs).
   Covers: KM5.1, KM5.2.
   Command: `npx vitest run --project examples test/mcp/text.test.ts`
-- [ ] T1.2 Implement `text.ts` until T1.1 passes.
+  Slice: only check_plan and schedule_plan are built. Narrowed to the plan list of `H1_SCHEDULE` and the H3 wait/Warning lines; the rebuild lines (RB-a) and the other tools' summaries are not built or tested.
+- [x] T1.2 Implement `text.ts` until T1.1 passes.
   Files: `src/mcp/text.ts`.
   Covers: KM5.1, KM5.2.
   Command: `npx vitest run --project examples test/mcp/text.test.ts && npm run typecheck`
+  Slice: only check_plan and schedule_plan are built. `text.ts` has `planList` only; the summaries of the other tools are not written.
 - [ ] T1.3 Example tests for `src/mcp/samples.ts` with `memorySamples`: index order; `getSample`
   returns the entry, `SUNDAY_ROAST` as plan and its issues (SHA-256 computed in the test with
   `node:crypto`); each problem in the design's order gives its code and exact line;
@@ -39,7 +41,7 @@ never start `npm run mcp` from an agent session (the stdio test starts and stops
 
 ## T2. Tools over the in-memory transport
 
-- [ ] T2.1 Add `connectInProcess` to `test/support/mcp.ts`. Tests: `tools/list` has exactly the
+- [x] T2.1 Add `connectInProcess` to `test/support/mcp.ts`. Tests: `tools/list` has exactly the
   seven names, each with a description, the three annotations, the design's required input keys
   and an output schema; `check_plan` on `SUNDAY_ROAST`, on a plan with an unknown dependency
   (code, step id) and on `42` (not valid, the parse issue); `schedule_plan(SUNDAY_ROAST,
@@ -49,11 +51,13 @@ never start `npm run mcp` from an agent session (the stdio test starts and stops
   Files: `test/support/mcp.ts`, `test/mcp/tools.test.ts`, `src/mcp/server.ts`, `src/mcp/tools.ts` (stubs).
   Covers: KM1.1, KM1.3, KM2.1, KM2.2, KM3.1, KM3.3, KM6.1.
   Command: `npx vitest run --project examples test/mcp/tools.test.ts`
-- [ ] T2.2 Implement `createKitchenServer`, `toCallToolResult`, `guarded` and the `check_plan` and
+  Slice: only check_plan and schedule_plan are built. `tools/list` is asserted to be exactly those two names (not seven); `connectInProcess` takes `{ log }` only (no sample source); the 20,001-element case is not tested here (T2.5).
+- [x] T2.2 Implement `createKitchenServer`, `toCallToolResult`, `guarded` and the `check_plan` and
   `schedule_plan` handlers until T2.1 passes.
   Files: `src/mcp/server.ts`, `src/mcp/tools.ts`.
   Covers: KM1.1–KM1.3, KM2.1, KM2.2, KM3.1.
   Command: `npx vitest run --project examples test/mcp/tools.test.ts && npm run typecheck`
+  Slice: only check_plan and schedule_plan are built. `createKitchenServer` registers those two tools; `ToolErrorCode` has the schedule codes and `internal`.
 - [ ] T2.3 Tests, then implement: `rebuild_plan(H1_SCHEDULE, RB_A_PROGRESS, RB_A_NOW)` gives RB-a's
   hand-worked diff, serving minute and text; its output is accepted back; each reachable rebuild
   error (`invalid_schedule` reason `step_ids`, `invalid_now`, `unknown_step`,
@@ -86,13 +90,14 @@ never start `npm run mcp` from an agent session (the stdio test starts and stops
   Files: `eslint.config.js`, `test/mcp/lint.test.ts`.
   Covers: KM6.1.
   Command: `npx vitest run --project examples test/mcp/lint.test.ts && npm run lint`
-- [ ] T3.2 Write `src/mcp/index.ts` and the `mcp` script; `stdio.test.ts` as in the design; a
+- [x] T3.2 Write `src/mcp/index.ts` and the `mcp` script; `stdio.test.ts` as in the design; a
   parity test that the copied schemas in `samples.ts` and those of `src/server/parse/recordings.ts`
   accept and reject the same values on the recipe-reader fixtures (needs the prerequisites above).
   Files: `src/mcp/index.ts`, `package.json`, `test/mcp/stdio.test.ts`, `test/mcp/samples.test.ts`.
   Covers: KM6.1, KM6.2, KM8.1.
   Command: `npx vitest run --project examples test/mcp/stdio.test.ts test/mcp/samples.test.ts && npm run build && test -f dist/mcp/index.js`
-- [ ] T3.3 Write `.kiro/settings/mcp.json`; `config.test.ts` asserts its command, args, the `mcp`
+  Slice: only check_plan and schedule_plan are built. The stdio test lists those two tools and calls `schedule_plan` with `SUNDAY_ROAST` from fixtures instead of `get_sample`; the parity test (needs samples) is not built. Lint (T3.1) is still red on the SDK import pattern, see the session report.
+- [x] T3.3 Write `.kiro/settings/mcp.json`; `config.test.ts` asserts its command, args, the `mcp`
   script and `autoApprove` (sorted, equal to the `tools/list` names). By hand (the user): Kiro's MCP
   panel shows `make-dinner` with seven tools (Q2); "schedule the Sunday roast with one burner"
   calls `get_sample` and `schedule_plan`.

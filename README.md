@@ -107,6 +107,21 @@ npm run test:e2e      # Playwright, phone and desktop, light and dark, axe on ev
 npm run typecheck && npm run lint && npx prettier --check . && npm run check:contrast
 ```
 
+## The scheduler as an MCP tool
+
+The scheduler is plain deterministic code, so an agent can use it as a tool. `npm run mcp`
+(or `node dist/mcp/index.js` after a build) starts a stdio MCP server named `make-dinner` with
+two tools: `check_plan` (schema and sanity rules) and `schedule_plan` (plan and kitchen in,
+schedule out, with a readable plan list). The plan may be passed as an object or as a JSON
+string. To add it to an MCP client:
+
+```json
+{ "mcpServers": { "make-dinner": { "command": "node", "args": ["/path/to/dist/mcp/index.js"] } } }
+```
+
+This is a slice of a larger spec (`.kiro/specs/kitchen-mcp`): rebuild, Dinnerfile and sample
+tools are specified there and not built.
+
 ## How it was built with Kiro
 
 Steering first, then every feature through Kiro's spec workflow, implemented by a custom agent

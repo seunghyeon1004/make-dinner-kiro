@@ -50,7 +50,7 @@ format note, the fifth sample, the "Critical" wording.
 | recipe-reader  | 28 of 28     | implemented by Kiro; T6.3 (recording with the real key) run by hand   |
 | plan-ui        | 40 of 40     | implemented by Kiro                                                   |
 | cooking-mode   | 32 of 32     | implemented by Kiro                                                   |
-| kitchen-mcp    | 0 of 16      | **spec only, not built**: the credit budget ran out (see "Not done")  |
+| kitchen-mcp    | 6 of 16      | **a slice**: `check_plan` and `schedule_plan` over stdio (see below)  |
 
 ### agents/
 
@@ -135,11 +135,26 @@ found" section or a session transcript.
 - Re-running every check after every session, and looking at every screen in headless
   Chromium at phone and desktop widths.
 
+## The MCP server (a slice)
+
+`settings/mcp.json` registers `make-dinner`, a stdio MCP server in `src/mcp` that exposes the
+deterministic core: `check_plan` and `schedule_plan`. Kiro built it from the kitchen-mcp spec
+in one session (tasks T1.1, T1.2, T2.1, T2.2, T3.2; T3.3 finished by hand because the builder's
+write rules do not allow `.kiro/settings`). It stopped rather than narrow a lint rule that
+wrongly matched the MCP SDK's own `server/` folder; that exception was added by hand.
+
+Then Kiro used it (`docs/kiro-evidence/mcp-use-session.txt`). The first attempt failed in an
+instructive way: Kiro's MCP client dropped the empty `after: []` lists and `holdMin: null`
+values from the plan object, so the server rejected the plan. Both tools were changed by hand
+to also accept the plan as a JSON string (tests first), and the second attempt worked: Kiro
+scheduled the recorded Sunday roast in two kitchens through the tools and reported 115
+minutes with no warnings against 155 minutes with two.
+
 ## Not done
 
-- **kitchen-mcp** (an MCP server exposing the scheduler as tools, and a `taster` agent using
-  it) has a complete spec and no code. There is no `.kiro/settings/mcp.json`. It was left out
-  whole rather than half-built when the credit budget was reached.
+- The rest of **kitchen-mcp**: `rebuild_plan`, `export_dinnerfile`, `import_dinnerfile`,
+  `list_samples`, `get_sample`, the lint rules of T3.1, the `taster` agent and its README
+  section. 10 of its 16 tasks are open. The credit budget was reached.
 - The `expediter` agent was not run.
 - Kiro powers and Kiro Crew were not used.
 

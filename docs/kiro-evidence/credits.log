@@ -30,3 +30,6 @@
 2026-11-11T10:44:33Z impl-cooking-mode-session [--v3 --agent sous-chef --trust-all-tools --trust-workspace --model auto] credits 38.06 exit 0
 2026-11-11T11:09:01Z impl-cooking-mode-session [--v3 --agent sous-chef --trust-all-tools --trust-workspace --model auto] credits 40.69 exit 0
 2026-11-11T11:27:18Z impl-cooking-mode-session [--v3 --agent sous-chef --trust-all-tools --trust-workspace --model auto] credits 26.60 exit 0
+2026-11-11T11:42:45Z impl-kitchen-mcp-session [--v3 --agent sous-chef --trust-all-tools --trust-workspace --model auto] credits 8.16 exit 0
+2026-11-11T11:44:49Z mcp-use-session [--v3 --trust-all-tools --trust-workspace --require-mcp-startup --model auto] credits 2.19 exit 0
+2026-11-11T11:46:49Z mcp-use-session [--v3 --trust-all-tools --trust-workspace --require-mcp-startup --model auto] credits 1.55 exit 0
