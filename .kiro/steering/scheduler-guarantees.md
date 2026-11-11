@@ -87,7 +87,8 @@ on the same axis, the new serving minute `S' >= 0`, and a diff.
 
 ## Other properties (decided here)
 
-- **S1 total.** `checkPlan` on any JSON value returns issues or a plan; it never throws.
+- **S1 total.** `parsePlan` and `validatePlan` on any JSON value return issues or a plan; they
+  never throw. (`checkPlan` takes a typed `Plan`; reworded by hand after the recipe-graph spec.)
 - **S2 sound.** Every sanity error rule fires on a plan built to break it, and no error fires
   on output of the valid-plan generator.
 - **D1 round trip.** `fromDinnerfile(toDinnerfile(plan))` deep-equals `plan` (canonical order).

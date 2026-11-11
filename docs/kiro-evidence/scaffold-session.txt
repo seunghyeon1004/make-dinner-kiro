@@ -42,14 +42,14 @@ I'll start by reading the existing steering files and the brief, since `ui.md` i
     v24.5.0
     11.5.1
     total 16
-    drwxr-xr-x   8 m4pro-1  staff   256 11월 11 12:42 .
-    drwxr-xr-x@  7 m4pro-1  staff   224 11월 11 12:41 ..
-    drwxr-xr-x  12 m4pro-1  staff   384 11월 11 12:52 .git
-    -rw-r--r--   1 m4pro-1  staff   243 11월 11 12:42 .gitignore
-    drwxr-xr-x   4 m4pro-1  staff   128 11월 11 12:46 .kiro
-    drwxr-xr-x   4 m4pro-1  staff   128 11월 11 12:43 docs
-    -rw-r--r--   1 m4pro-1  staff  1072 11월 11 12:41 LICENSE
-    drwxr-xr-x   4 m4pro-1  staff   128 11월 11 12:51 scripts
+    drwxr-xr-x   8 user  staff   256 11월 11 12:42 .
+    drwxr-xr-x@  7 user  staff   224 11월 11 12:41 ..
+    drwxr-xr-x  12 user  staff   384 11월 11 12:52 .git
+    -rw-r--r--   1 user  staff   243 11월 11 12:42 .gitignore
+    drwxr-xr-x   4 user  staff   128 11월 11 12:46 .kiro
+    drwxr-xr-x   4 user  staff   128 11월 11 12:43 docs
+    -rw-r--r--   1 user  staff  1072 11월 11 12:41 LICENSE
+    drwxr-xr-x   4 user  staff   128 11월 11 12:51 scripts
     chromium not found
     chromium-browser not found
     google-chrome not found
@@ -1207,34 +1207,34 @@ Lint, prettier, tests and props all pass, with one lint warning in the existing 
     … (10 earlier lines not shown)
     dist:
     total 0
-    drwxr-xr-x   5 m4pro-1  staff   160 11월 11 13:07 .
-    drwxr-xr-x  34 m4pro-1  staff  1088 11월 11 13:07 ..
-    drwxr-xr-x   4 m4pro-1  staff   128 11월 11 13:07 core
-    drwxr-xr-x   3 m4pro-1  staff    96 11월 11 13:07 mcp
-    drwxr-xr-x   8 m4pro-1  staff   256 11월 11 13:07 server
+    drwxr-xr-x   5 user  staff   160 11월 11 13:07 .
+    drwxr-xr-x  34 user  staff  1088 11월 11 13:07 ..
+    drwxr-xr-x   4 user  staff   128 11월 11 13:07 core
+    drwxr-xr-x   3 user  staff    96 11월 11 13:07 mcp
+    drwxr-xr-x   8 user  staff   256 11월 11 13:07 server
     
     dist/core:
     total 16
-    drwxr-xr-x  4 m4pro-1  staff  128 11월 11 13:07 .
-    drwxr-xr-x  5 m4pro-1  staff  160 11월 11 13:07 ..
-    -rw-r--r--  1 m4pro-1  staff   39 11월 11 13:07 index.js
-    -rw-r--r--  1 m4pro-1  staff  126 11월 11 13:07 result.js
+    drwxr-xr-x  4 user  staff  128 11월 11 13:07 .
+    drwxr-xr-x  5 user  staff  160 11월 11 13:07 ..
+    -rw-r--r--  1 user  staff   39 11월 11 13:07 index.js
+    -rw-r--r--  1 user  staff  126 11월 11 13:07 result.js
     
     dist/server:
     total 40
-    drwxr-xr-x  8 m4pro-1  staff   256 11월 11 13:07 .
-    drwxr-xr-x  5 m4pro-1  staff   160 11월 11 13:07 ..
-    -rw-r--r--  1 m4pro-1  staff   878 11월 11 13:07 app.js
-    -rw-r--r--  1 m4pro-1  staff  1528 11월 11 13:07 env.js
-    -rw-r--r--  1 m4pro-1  staff  1279 11월 11 13:07 errors.js
-    -rw-r--r--  1 m4pro-1  staff   945 11월 11 13:07 index.js
-    -rw-r--r--  1 m4pro-1  staff  1348 11월 11 13:07 log.js
-    drwxr-xr-x  3 m4pro-1  staff    96 11월 11 13:07 routes
+    drwxr-xr-x  8 user  staff   256 11월 11 13:07 .
+    drwxr-xr-x  5 user  staff   160 11월 11 13:07 ..
+    -rw-r--r--  1 user  staff   878 11월 11 13:07 app.js
+    -rw-r--r--  1 user  staff  1528 11월 11 13:07 env.js
+    -rw-r--r--  1 user  staff  1279 11월 11 13:07 errors.js
+    -rw-r--r--  1 user  staff   945 11월 11 13:07 index.js
+    -rw-r--r--  1 user  staff  1348 11월 11 13:07 log.js
+    drwxr-xr-x  3 user  staff    96 11월 11 13:07 routes
     
     public/assets:
     total 32
-    drwxr-xr-x  4 m4pro-1  staff    128 11월 11 13:07 .
-    drwxr-xr-x  4 m4pro-1  staff    128 11월 11 13:07 ..
+    drwxr-xr-x  4 user  staff    128 11월 11 13:07 .
+    drwxr-xr-x  4 user  staff    128 11월 11 13:07 ..
     exit 0
 
 Both pass. The unit test covers `findForbidden`, but I also want to see the real build fail when a marker reaches the bundle. I'll add a temporary string to `main.tsx`, build, then revert.

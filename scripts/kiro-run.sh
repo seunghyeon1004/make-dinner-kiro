@@ -23,7 +23,7 @@ out="docs/kiro-evidence/${name}.txt"
 here="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p docs/kiro-evidence
 tmp="$(mktemp)"
-trap 'rm -f "$tmp"' EXIT
+trap 'rm -f "$tmp" "$tmp.err"' EXIT
 
 {
   echo
@@ -34,13 +34,20 @@ trap 'rm -f "$tmp"' EXIT
   echo "--- transcript (rendered from the event stream by scripts/kiro-render.mjs) ---"
 } | sed "s#${HOME}#~#g" >>"$out"
 
-"$KIRO" chat --output-format stream-json "$@" "$(cat "$prompt_file")" 2>&1 |
+# stderr (the CLI's own logger) is kept apart so it cannot split a JSON line.
+"$KIRO" chat --output-format stream-json "$@" "$(cat "$prompt_file")" 2>"$tmp.err" |
   tee "$tmp" | node "$here/kiro-render.mjs" | tee -a "$out"
 code="${PIPESTATUS[0]}"
+if [ "$code" != "0" ]; then
+  {
+    echo "--- kiro-cli exited ${code}; last lines of its stderr ---"
+    tail -15 "$tmp.err" | cut -c1-400 | sed "s#${HOME}#~#g; s#${USER}#user#g"
+  } | tee -a "$out"
+fi
 
 if [ -n "${KIRO_RAW_DIR:-}" ]; then
   mkdir -p "$KIRO_RAW_DIR" && cp "$tmp" "$KIRO_RAW_DIR/${name}-$(date +%s).jsonl"
 fi
-credits="$(tail -1 "$out" | grep -oE 'session: [0-9.]+' | grep -oE '[0-9.]+' || true)"
+credits="$(grep -E '^--- run ' "$out" | tail -1 | grep -oE 'session: [0-9.]+' | grep -oE '[0-9.]+' || true)"
 echo "$(date -u +%FT%TZ) ${name} [$*] credits ${credits:-?} exit ${code}" >>docs/kiro-evidence/credits.log
 exit "$code"

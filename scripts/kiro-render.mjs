@@ -4,14 +4,17 @@
 // shell command with its exit code and the tail of its output, the steering files Kiro
 // loaded, and the credits the session reported. Nothing is invented: a line that is not
 // in the event stream is not in the transcript.
+import { userInfo } from 'node:os';
 import { createInterface } from 'node:readline';
 
 const TAIL_LINES = Number(process.env.KIRO_RENDER_TAIL ?? 30);
 const home = process.env.HOME ?? '';
+const user = userInfo().username;
 const tidy = (s) =>
   String(s)
     .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '')
-    .replaceAll(home, '~');
+    .replaceAll(home, '~')
+    .replaceAll(user, 'user');
 
 const calls = new Map();
 let text = '';

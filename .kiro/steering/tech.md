@@ -6,7 +6,7 @@ inclusion: always
 
 ## Stack
 
-- Runtime: Node 22 (`engines.node: ">=22 <23"`, `.nvmrc` with `22`) (decided here). ES modules (`"type": "module"`).
+- Runtime: Node 22 (`engines.node: ">=22"`, `.nvmrc` with `22`; Docker runs 22, the dev machine runs 24). ES modules (`"type": "module"`).
 - Language: TypeScript, strict. Validation: zod.
 - Server: Hono on `@hono/node-server`; serves `public/` and `/api/*`.
 - Front end: Preact, bundled by esbuild into `public/assets/` (gitignored build output).
