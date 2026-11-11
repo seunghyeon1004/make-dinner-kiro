@@ -56,9 +56,12 @@ back without the model.
 ## The Dinnerfile (decided here)
 
 - One target per step, named by step id; prerequisites are its `after` list.
-- The recipe line is `@echo '<title>'`; step fields live in a comment line directly above
-  the target: `# step dish=<id> minutes=<n> appliance=<a> handsOn=<bool> hold=<n|keeps>`.
-- Dishes are declared as `# dish <id> <name>`, the title as `# plan <title>`.
+- The recipe line is `@echo '<quoted title>' # <step-id>`; step fields, including the title
+  and detail as JSON strings, live in a `# step ...` comment line directly above the target.
+  The exact grammar and escaping are in the dinnerfile spec, which found that the simpler
+  format first written here could not round-trip every title or keep `make -n` from running
+  `$(MAKE)` (updated by hand after that spec's conflicts C2 and C3).
+- Dishes are declared as `# dish <id> "<name>"`, the title as `# plan "<title>"`.
 - A `dinner` target depends on every terminal step; all targets are `.PHONY`.
 - Import parses only these comments and targets; it goes through the same schema and
   sanity rules as model output.

@@ -991,3 +991,19 @@ All use `fcParams()` (200 runs, `FC_NUM_RUNS`); titles start with the id. Files:
   `loadSampleLibrary` on `samples/` and `recordings/` is `ok`; and, through the fake model
   client, `POST /api/parse` with each sample text plus one extra line (so it does not match)
   answers 200 `source: "model"` with the recorded plan.
+
+## Review notes (by hand, 2026-11-11)
+
+- `messages.create` with the schema from `zodOutputFormat` is accepted, for the reason given.
+- Steering updated to match: five samples, `PARSE_TIMEOUT_MS`, length checked after normalising.
+- Q1: yes, one oven step takes a whole oven; the UI labels the setting so a cook can count a
+  second shelf as a second oven.
+- Q2: `npm run record` is run by hand with the real key at T6.3.
+- Q4: text that is not a recipe. The prompt tells the model to return exactly one dish with id
+  `not-a-recipe` and one step in that case; the route turns that into `invalid_plan` (422,
+  "That does not look like a recipe. Paste the ingredients and method for each dish.") and
+  never returns the plan. Add it to the prompt block, R-ids, the error table and the tasks
+  when implementing (T-ids: fold into the route task).
+- Q5: yes. The response schemas (`SamplesResponseSchema`, `ParseResponseSchema`,
+  `ApiErrorSchema`) and `RECIPE_TEXT_MAX` live in `src/core/api.ts` so the web code and the
+  server share them.

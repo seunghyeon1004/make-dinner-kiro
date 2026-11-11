@@ -76,7 +76,7 @@ Never start `npm run dev` or any watcher from an agent session.
 
 - Only `src/server/parse/` talks to Anthropic, through an injected client interface so tests
   can replay recordings.
-- Order in `POST /api/parse`: validate (max 12,000 characters) → normalise → recorded sample
+- Order in `POST /api/parse`: validate (body) → normalise → length (max 12,000 characters after normalising) → recorded sample
   match → rate limit → daily cap → key present → model call → schema → sanity rules.
 - Normalisation (decided here, pure, in core): Unicode NFC, CRLF to LF, trailing whitespace
   stripped per line, runs of blank lines collapsed to one, whole text trimmed.
@@ -93,6 +93,7 @@ Never start `npm run dev` or any watcher from an agent session.
 | `PARSE_DAILY_CAP`         | `200`    | model calls per UTC day, all clients            |
 | `TRUST_PROXY`             | `false`  | read client IP from `X-Forwarded-For` (Render: `true`) |
 | `LOG_LEVEL`               | `info`   | `debug`, `info`, `warn`, `error`                |
+| `PARSE_TIMEOUT_MS`        | `60000`  | model request timeout (added by the recipe-reader spec) |
 
 Read and validate env once at startup with zod in `src/server/env.ts`. `.env.example` lists
 every variable with an empty key.

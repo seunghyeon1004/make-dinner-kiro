@@ -58,7 +58,7 @@ Dockerfile  package.json  package-lock.json  tsconfig*.json  eslint.config.js
 ```
 
 Samples (decided here): `sunday-roast`, `halloween-party`, `weeknight-curry`,
-`vegetarian-feast`. Each has a matching file in `recordings/`.
+`vegetarian-feast`, `korean-table` (the fifth added by hand). Each has a matching file in `recordings/`.
 
 ## Import rules (enforced by eslint `no-restricted-imports`)
 

@@ -809,3 +809,12 @@ confirmation.
 
 **C4. Docker has no `make`.** `node:22-slim` does not ship GNU Make, so D2 and P-DF7 fail
 there by design (R9.3). Tests do not run in Docker today; CI needs GNU Make on `PATH`.
+
+## Review notes (by hand, 2026-11-11)
+
+- C1 accepted: D2 and P-DF7 run 50 times by default (`FC_MAKE_RUNS`), because each run spawns
+  `make`. `testing.md`'s 200 applies to in-process properties.
+- C2 and C3 accepted; `product.md` now describes this format.
+- C4: Docker does not run the tests, so `make` is not needed in the image.
+- Open question 1: no line mapping for `validatePlan` issues. 2: keep `@echo`. 3: import
+  reports at most 50 errors, then one line saying how many more there are.
