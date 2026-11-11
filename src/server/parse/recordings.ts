@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { z } from 'zod';
 import {
   RECIPE_TEXT_MAX,
-  DishIdSchema,
+  RecordingSchema,
   SampleEntrySchema,
+  SampleIndexSchema,
   checkKitchen,
   compareIds,
   err,
@@ -13,23 +13,13 @@ import {
   ok,
   validatePlan,
 } from '../../core/index.js';
-import type { Issue, Kitchen, Plan, Result, SampleEntry } from '../../core/index.js';
+import type { Issue, Kitchen, Plan, Recording, Result, SampleEntry } from '../../core/index.js';
 import { MODEL_ID } from './anthropic-client.js';
 import { countChars } from './limits.js';
 
-export { SampleEntrySchema };
-export type { SampleEntry };
-
-export const SampleIndexSchema = z.array(SampleEntrySchema).min(1).max(12);
-
-export const RecordingSchema = z.strictObject({
-  sampleId: DishIdSchema,
-  textSha256: z.string().regex(/^[0-9a-f]{64}$/),
-  model: z.string().max(100).regex(/\S/),
-  recordedAt: z.iso.datetime(),
-  raw: z.unknown(),
-});
-export type Recording = z.infer<typeof RecordingSchema>;
+// The schemas live in core/api.ts (kitchen-mcp review note Q1); re-exported for existing callers.
+export { RecordingSchema, SampleEntrySchema, SampleIndexSchema };
+export type { Recording, SampleEntry };
 
 export interface LibraryPaths {
   samplesDir: string;

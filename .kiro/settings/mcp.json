@@ -2,9 +2,21 @@
   "mcpServers": {
     "make-dinner": {
       "command": "npx",
-      "args": ["--no-install", "tsx", "src/mcp/index.ts"],
+      "args": [
+        "--no-install",
+        "tsx",
+        "src/mcp/index.ts"
+      ],
       "disabled": false,
-      "autoApprove": ["check_plan", "schedule_plan"]
+      "autoApprove": [
+        "check_plan",
+        "schedule_plan",
+        "rebuild_plan",
+        "export_dinnerfile",
+        "import_dinnerfile",
+        "list_samples",
+        "get_sample"
+      ]
     }
   }
 }

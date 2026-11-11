@@ -69,6 +69,9 @@ const VALUES = {
   API_ERROR_CODES: [api.API_ERROR_CODES, 'object'],
   ApiErrorSchema: [api.ApiErrorSchema, 'object'],
   SampleEntrySchema: [api.SampleEntrySchema, 'object'],
+  // kitchen-mcp review (Q1): shared with the MCP server, which may not import src/server.
+  SampleIndexSchema: [api.SampleIndexSchema, 'object'],
+  RecordingSchema: [api.RecordingSchema, 'object'],
   SampleItemSchema: [api.SampleItemSchema, 'object'],
   SamplesResponseSchema: [api.SamplesResponseSchema, 'object'],
   ParseRequestSchema: [api.ParseRequestSchema, 'object'],

@@ -35,6 +35,9 @@ file back without the model.
 
 ## Try it
 
+Live: **https://make-dinner-kiro.onrender.com** (a free server that sleeps, so the first load
+can take up to a minute).
+
 Open the page, pick a sample dinner (there are five, one of them a Halloween dinner party) and
 you have a schedule. No login, and no model is needed: every sample's reading was recorded from
 a real model call and is served from the recording.
@@ -107,20 +110,39 @@ npm run test:e2e      # Playwright, phone and desktop, light and dark, axe on ev
 npm run typecheck && npm run lint && npx prettier --check . && npm run check:contrast
 ```
 
-## The scheduler as an MCP tool
+## Use the scheduler from your MCP client
 
-The scheduler is plain deterministic code, so an agent can use it as a tool. `npm run mcp`
-(or `node dist/mcp/index.js` after a build) starts a stdio MCP server named `make-dinner` with
-two tools: `check_plan` (schema and sanity rules) and `schedule_plan` (plan and kitchen in,
-schedule out, with a readable plan list). The plan may be passed as an object or as a JSON
-string. To add it to an MCP client:
+The scheduler, rebuild and Dinnerfile code are plain deterministic functions, so an agent can
+call them instead of reasoning about a schedule in prose. The server needs no key and no
+network, and it writes nothing. Build it, then register `dist/mcp/index.js` in your client:
 
-```json
-{ "mcpServers": { "make-dinner": { "command": "node", "args": ["/path/to/dist/mcp/index.js"] } } }
+```sh
+npm ci && npm run build
 ```
 
-This is a slice of a larger spec (`.kiro/specs/kitchen-mcp`): rebuild, Dinnerfile and sample
-tools are specified there and not built.
+```json
+{
+  "mcpServers": {
+    "make-dinner": {
+      "command": "node",
+      "args": ["/absolute/path/to/makedinner/dist/mcp/index.js"]
+    }
+  }
+}
+```
+
+(`npm run mcp` starts the same server from source. This workspace registers it in
+`.kiro/settings/mcp.json`.) The server is `make-dinner`, with seven read-only tools. A plan,
+schedule or progress argument may be an object or a JSON string; some clients drop empty
+arrays and nulls from objects, and a string arrives intact.
+
+- `check_plan`: checks any JSON value against the plan schema and the sanity rules.
+- `schedule_plan`: a plan and a kitchen in, a schedule out, with a readable plan list.
+- `rebuild_plan`: a schedule, progress and the current minute in, a new schedule and what moved out.
+- `export_dinnerfile`: a plan out as a Dinnerfile that GNU Make accepts.
+- `import_dinnerfile`: a Dinnerfile back to a plan, with its issues.
+- `list_samples`: the built-in sample dinners.
+- `get_sample`: one sample with its recorded plan; it needs the files in `recordings/`.
 
 ## How it was built with Kiro
 

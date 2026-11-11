@@ -100,7 +100,9 @@ export {
   ParseRequestSchema,
   ParseResponseSchema,
   RECIPE_TEXT_MAX,
+  RecordingSchema,
   SampleEntrySchema,
+  SampleIndexSchema,
   SampleItemSchema,
   SamplesResponseSchema,
 } from './api.js';
@@ -108,6 +110,7 @@ export type {
   ApiErrorCode,
   ParseRequest,
   ParseResponse,
+  Recording,
   SampleEntry,
   SampleItem,
   SamplesResponse,

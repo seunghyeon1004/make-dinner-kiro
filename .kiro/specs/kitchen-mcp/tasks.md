@@ -21,20 +21,18 @@ never start `npm run mcp` from an agent session (the stdio test starts and stops
   Files: `test/mcp/text.test.ts`, `src/mcp/text.ts` (stubs).
   Covers: KM5.1, KM5.2.
   Command: `npx vitest run --project examples test/mcp/text.test.ts`
-  Slice: only check_plan and schedule_plan are built. Narrowed to the plan list of `H1_SCHEDULE` and the H3 wait/Warning lines; the rebuild lines (RB-a) and the other tools' summaries are not built or tested.
 - [x] T1.2 Implement `text.ts` until T1.1 passes.
   Files: `src/mcp/text.ts`.
   Covers: KM5.1, KM5.2.
   Command: `npx vitest run --project examples test/mcp/text.test.ts && npm run typecheck`
-  Slice: only check_plan and schedule_plan are built. `text.ts` has `planList` only; the summaries of the other tools are not written.
-- [ ] T1.3 Example tests for `src/mcp/samples.ts` with `memorySamples`: index order; `getSample`
+- [x] T1.3 Example tests for `src/mcp/samples.ts` with `memorySamples`: index order; `getSample`
   returns the entry, `SUNDAY_ROAST` as plan and its issues (SHA-256 computed in the test with
   `node:crypto`); each problem in the design's order gives its code and exact line;
   `fileSampleSource` on a temp directory reads, gives `null` when missing, refuses `../x` and `A`.
   Files: `test/mcp/samples.test.ts`, `test/support/mcp.ts`, `src/mcp/samples.ts` (stubs).
   Covers: KM2.6, KM4.1, KM4.2.
   Command: `npx vitest run --project examples test/mcp/samples.test.ts`
-- [ ] T1.4 Implement `samples.ts` (schemas as in design F4) until T1.3 passes.
+- [x] T1.4 Implement `samples.ts` (schemas as in design F4) until T1.3 passes.
   Files: `src/mcp/samples.ts`.
   Covers: KM4.1, KM4.2.
   Command: `npx vitest run --project examples test/mcp/samples.test.ts && npm run typecheck`
@@ -51,14 +49,12 @@ never start `npm run mcp` from an agent session (the stdio test starts and stops
   Files: `test/support/mcp.ts`, `test/mcp/tools.test.ts`, `src/mcp/server.ts`, `src/mcp/tools.ts` (stubs).
   Covers: KM1.1, KM1.3, KM2.1, KM2.2, KM3.1, KM3.3, KM6.1.
   Command: `npx vitest run --project examples test/mcp/tools.test.ts`
-  Slice: only check_plan and schedule_plan are built. `tools/list` is asserted to be exactly those two names (not seven); `connectInProcess` takes `{ log }` only (no sample source); the 20,001-element case is not tested here (T2.5).
 - [x] T2.2 Implement `createKitchenServer`, `toCallToolResult`, `guarded` and the `check_plan` and
   `schedule_plan` handlers until T2.1 passes.
   Files: `src/mcp/server.ts`, `src/mcp/tools.ts`.
   Covers: KM1.1–KM1.3, KM2.1, KM2.2, KM3.1.
   Command: `npx vitest run --project examples test/mcp/tools.test.ts && npm run typecheck`
-  Slice: only check_plan and schedule_plan are built. `createKitchenServer` registers those two tools; `ToolErrorCode` has the schedule codes and `internal`.
-- [ ] T2.3 Tests, then implement: `rebuild_plan(H1_SCHEDULE, RB_A_PROGRESS, RB_A_NOW)` gives RB-a's
+- [x] T2.3 Tests, then implement: `rebuild_plan(H1_SCHEDULE, RB_A_PROGRESS, RB_A_NOW)` gives RB-a's
   hand-worked diff, serving minute and text; its output is accepted back; each reachable rebuild
   error (`invalid_schedule` reason `step_ids`, `invalid_now`, `unknown_step`,
   `done_ends_before_start`, `done_after_now`, `running_starts_after_now`, `serving_out_of_range`)
@@ -66,7 +62,7 @@ never start `npm run mcp` from an agent session (the stdio test starts and stops
   Files: `test/mcp/tools.test.ts`, `src/mcp/tools.ts`.
   Covers: KM2.3, KM3.1, KM5.1.
   Command: `npx vitest run --project examples test/mcp/tools.test.ts -t rebuild_plan`
-- [ ] T2.4 Tests, then implement: `export_dinnerfile(SUNDAY_ROAST)` gives `SUNDAY_ROAST_DINNERFILE`,
+- [x] T2.4 Tests, then implement: `export_dinnerfile(SUNDAY_ROAST)` gives `SUNDAY_ROAST_DINNERFILE`,
   and with `options` the dinnerfile design's `# kitchen` and `# serve` lines; importing it gives
   `canonicalPlan(SUNDAY_ROAST)`; without its `# plan` line, `invalid_dinnerfile` with `missing_plan`
   and line `null`; one broken line gives that line number; a sanity error is a success with the
@@ -74,7 +70,7 @@ never start `npm run mcp` from an agent session (the stdio test starts and stops
   Files: `test/mcp/tools.test.ts`, `src/mcp/tools.ts`.
   Covers: KM2.4, KM2.5, KM3.1.
   Command: `npx vitest run --project examples test/mcp/tools.test.ts -t dinnerfile`
-- [ ] T2.5 Tests, then implement: `list_samples` and `get_sample` over the transport with
+- [x] T2.5 Tests, then implement: `list_samples` and `get_sample` over the transport with
   `memorySamples` (success, `samples_unavailable`, `not_found`, `sample_unavailable`); `internal`
   from a throwing source: fixed message, no stack frame or absolute path in any block, the log fake
   received the stack; arguments of 20,001 elements are rejected with `isError`.
@@ -84,7 +80,7 @@ never start `npm run mcp` from an agent session (the stdio test starts and stops
 
 ## T3. Entry point, lint and registration
 
-- [ ] T3.1 Add the design's lint rules to the `src/mcp/**` block. ESLint API test (`lintText`,
+- [x] T3.1 Add the design's lint rules to the `src/mcp/**` block. ESLint API test (`lintText`,
   `filePath: 'src/mcp/probe.ts'`): `fetch('x')`, `process.env.X`, `import { writeFileSync } from
   'node:fs'`, `import 'node:child_process'` each report the expected rule; `readFileSync` does not.
   Files: `eslint.config.js`, `test/mcp/lint.test.ts`.
@@ -93,10 +89,11 @@ never start `npm run mcp` from an agent session (the stdio test starts and stops
 - [x] T3.2 Write `src/mcp/index.ts` and the `mcp` script; `stdio.test.ts` as in the design; a
   parity test that the copied schemas in `samples.ts` and those of `src/server/parse/recordings.ts`
   accept and reject the same values on the recipe-reader fixtures (needs the prerequisites above).
+  (Review note Q1: the schemas are shared from `src/core/api.ts`, nothing is copied, so there is no
+  parity test.)
   Files: `src/mcp/index.ts`, `package.json`, `test/mcp/stdio.test.ts`, `test/mcp/samples.test.ts`.
   Covers: KM6.1, KM6.2, KM8.1.
   Command: `npx vitest run --project examples test/mcp/stdio.test.ts test/mcp/samples.test.ts && npm run build && test -f dist/mcp/index.js`
-  Slice: only check_plan and schedule_plan are built. The stdio test lists those two tools and calls `schedule_plan` with `SUNDAY_ROAST` from fixtures instead of `get_sample`; the parity test (needs samples) is not built. Lint (T3.1) is still red on the SDK import pattern, see the session report.
 - [x] T3.3 Write `.kiro/settings/mcp.json`; `config.test.ts` asserts its command, args, the `mcp`
   script and `autoApprove` (sorted, equal to the `tools/list` names). By hand (the user): Kiro's MCP
   panel shows `make-dinner` with seven tools (Q2); "schedule the Sunday roast with one burner"
@@ -107,13 +104,13 @@ never start `npm run mcp` from an agent session (the stdio test starts and stops
 
 ## T4. The taster
 
-- [ ] T4.1 Check the agent config fields against the Kiro docs (Q3), then write `taster.json` with
+- [x] T4.1 Check the agent config fields against the Kiro docs (Q3), then write `taster.json` with
   the design's prompt; `config.test.ts` asserts `tools` is exactly `["read", "@make-dinner"]`, the
   deny rules, and that the prompt names K1 to K3 and the three checks.
   Files: `.kiro/agents/taster.json`, `test/mcp/config.test.ts`.
   Covers: KM7.1, KM7.2.
   Command: `npx vitest run --project examples test/mcp/config.test.ts`
-- [ ] T4.2 (user) Write `docs/kiro-evidence/prompts/<nn>-taster-sunday-roast.md`, run the design's
+- [x] T4.2 (user) Write `docs/kiro-evidence/prompts/<nn>-taster-sunday-roast.md`, run the design's
   command, and read the transcript: `get_sample` once, `schedule_plan` at least twice, no write or
   shell tool, every quoted line present in a tool result.
   Files: `docs/kiro-evidence/taster-sunday-roast.txt` (written by the script).
@@ -122,12 +119,12 @@ never start `npm run mcp` from an agent session (the stdio test starts and stops
 
 ## T5. README and the whole suite
 
-- [ ] T5.1 Write the design's README section; `config.test.ts` asserts it names `dist/mcp/index.js`,
+- [x] T5.1 Write the design's README section; `config.test.ts` asserts it names `dist/mcp/index.js`,
   `npm run build` and all seven tools.
   Files: `README.md`, `test/mcp/config.test.ts`.
   Covers: KM6.3.
   Command: `npx vitest run --project examples test/mcp/config.test.ts && npx prettier --check README.md`
-- [ ] T5.2 Run the wider suite and fix what it finds, never by weakening a check; confirm nothing in
+- [x] T5.2 Run the wider suite and fix what it finds, never by weakening a check; confirm nothing in
   `src/mcp` computes a start, slack, lane or issue itself (N1).
   Files: none expected.
   Covers: KM1.2, N1.

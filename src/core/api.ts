@@ -41,6 +41,18 @@ export const SampleEntrySchema = z.strictObject({
   servingTime: ServeTimeSchema,
 });
 
+/** `samples/index.json`: the entries in display order. Shared by the server and the MCP server. */
+export const SampleIndexSchema = z.array(SampleEntrySchema).min(1).max(12);
+
+/** `recordings/<id>.json`: one recorded model parse, `raw` unchecked until `validatePlan`. */
+export const RecordingSchema = z.strictObject({
+  sampleId: DishIdSchema,
+  textSha256: z.string().regex(/^[0-9a-f]{64}$/),
+  model: z.string().max(100).regex(/\S/),
+  recordedAt: z.iso.datetime(),
+  raw: z.unknown(),
+});
+
 /** One item of `GET /api/samples` (R3.2). */
 export const SampleItemSchema = SampleEntrySchema.extend({
   text: z.string(),
@@ -61,6 +73,7 @@ export const ParseResponseSchema = z.strictObject({
 });
 
 export type SampleEntry = z.infer<typeof SampleEntrySchema>;
+export type Recording = z.infer<typeof RecordingSchema>;
 export type SampleItem = z.infer<typeof SampleItemSchema>;
 export type SamplesResponse = z.infer<typeof SamplesResponseSchema>;
 export type ParseRequest = z.infer<typeof ParseRequestSchema>;

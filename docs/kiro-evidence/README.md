@@ -28,19 +28,21 @@ says its ending was lost (see below).
 | `spec-cooking-mode-session.txt` | claude-opus-5.5, spec mode | spec | 33.60 |
 | `impl-cooking-mode-session.txt` | auto, sous-chef | three sessions | 38.06, 40.69, 26.60 |
 | `spec-kitchen-mcp-session.txt` | claude-opus-5.5, spec mode | spec | 63.57 |
-| `impl-kitchen-mcp-session.txt` | auto, sous-chef | the two-tool slice; stopped at a blocked write and a lint rule instead of working around them | 8.16 |
+| `impl-kitchen-mcp-session.txt` | auto, sous-chef | two sessions: two tools first, then the other five; both stopped at a blocked write instead of working around it | 8.16, 22.21 |
+| `expediter-scheduler-session.txt` | auto, expediter | the checker agent verifying all 38 ticked scheduler tasks | 2.01 |
+| `taster-sunday-roast.txt` | auto, taster | the read-only agent scheduling the Sunday roast under three kitchens through the MCP server | 1.47 |
 | `mcp-use-session.txt` | auto | Kiro calling the `make-dinner` MCP server: a first attempt that failed because the client dropped empty arrays and nulls, then a working one | 2.19, 1.55 |
 
 `hook-fires.log` is appended to by the hook scripts themselves, one line per firing.
 
 ## Credits
 
-Sessions that reported a figure add up to **976.29** credits. Three did not report one: the
+Sessions that reported a figure add up to **1,001.98** credits. Three did not report one: the
 steering session (run before the runner read the event stream; the shared account meter moved
 60.81 during it, with other work on the same account running at the same time), the first run
 of the recipe-graph spec (exited with code 1) and the rebuild spec (final message lost). Judged
-by similar sessions those three cost about 100 to 130 together, so the total is roughly 1,075
-to 1,105. `credits.log` is the runner's raw log; where it disagrees with the table above, the
+by similar sessions those three cost about 100 to 130 together, so the total is roughly 1,100
+to 1,130. `credits.log` is the runner's raw log; where it disagrees with the table above, the
 table is right (the log's figure for a file with several sessions was sometimes read from the
 wrong session).
 
@@ -54,7 +56,7 @@ final report as captured from the runner's output, and says so at that point.
 
 ## Not shown here
 
-- No Kiro session ran the `expediter` agent, a Kiro power or Kiro Crew.
+- No Kiro session used a Kiro power or Kiro Crew.
 - The save-triggered workspace hooks for `tokens.css` and `tasks.md` were not seen firing.
 - The five files in `recordings/` were made by `npm run record` run by hand with a real key,
   not by a Kiro session.

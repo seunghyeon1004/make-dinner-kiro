@@ -152,13 +152,38 @@ export default tseslint.config(
     },
   },
 
-  // src/mcp: core through index only; neither server nor web.
+  // src/mcp: core through index only; neither server nor web; no network, no file writes, no
+  // child processes, no model SDK, no environment (kitchen-mcp design, "Lint"; KM6.1).
   {
     files: ['src/mcp/**/*.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
         {
+          paths: [
+            ...[
+              'http',
+              'https',
+              'net',
+              'tls',
+              'dgram',
+              'child_process',
+              'worker_threads',
+              'fs/promises',
+            ].flatMap((name) => [
+              { name: `node:${name}`, message: 'src/mcp does no network, process or file writes.' },
+              { name, message: 'src/mcp does no network, process or file writes.' },
+            ]),
+            ...['@anthropic-ai/sdk', 'hono', '@hono/node-server'].map((name) => ({
+              name,
+              message: 'src/mcp calls no model and serves no HTTP.',
+            })),
+            ...['node:fs', 'fs'].map((name) => ({
+              name,
+              allowImportNames: ['readFileSync'],
+              message: 'src/mcp only reads files: import readFileSync alone.',
+            })),
+          ],
           patterns: [
             coreOnlyThroughIndex,
             {
@@ -170,6 +195,18 @@ export default tseslint.config(
             noTestImports,
           ],
         },
+      ],
+      'no-restricted-globals': [
+        'error',
+        { name: 'fetch', message: 'src/mcp opens no network connection.' },
+        { name: 'WebSocket', message: 'src/mcp opens no network connection.' },
+        { name: 'XMLHttpRequest', message: 'src/mcp opens no network connection.' },
+      ],
+      'no-restricted-properties': [
+        'error',
+        { object: 'process', property: 'env', message: 'src/mcp reads no environment.' },
+        { object: 'process', property: 'stdout', message: 'stdout carries only MCP messages.' },
+        { object: 'process', property: 'argv', message: 'src/mcp reads no arguments.' },
       ],
     },
   },

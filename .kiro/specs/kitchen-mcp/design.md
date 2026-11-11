@@ -13,6 +13,7 @@ Requirements: `requirements.md`. Core signatures as exported by `src/core/index.
 | ---- | ----- |
 | `src/mcp/index.ts` | the only file with side effects: root URL, stdio transport, stderr log |
 | `src/mcp/server.ts` | `createKitchenServer(deps)`, `SERVER_INFO`, `MAX_TOOL_INPUT_ELEMENTS` |
+| `src/mcp/errors.ts` | `ToolError`, `ToolErrorCode` (split out so `samples.ts` and `tools.ts` do not import each other) |
 | `src/mcp/tools.ts` | output schemas, one handler per tool, `ToolOutcome`, `ToolError`, `toCallToolResult`, `guarded` |
 | `src/mcp/text.ts` | the summaries of "Text" below (pure) |
 | `src/mcp/samples.ts` | `SampleSource`, `fileSampleSource(root)`, sample schemas, `listSamples`, `getSample` |
@@ -37,10 +38,11 @@ Requirements: `requirements.md`. Core signatures as exported by `src/core/index.
   `invalid_progress`, `invalid_schedule` with reason `shape`) are still mapped.
 - F4 At the start of this session `samples/index.json`, `src/server/parse/` and `recordings/`
   did not exist; a recipe-reader session running alongside has since added the first two
-  (uncommitted), with `SampleEntrySchema` in `src/core/api.ts` (exported from `src/core/index.ts`)
-  and `SampleIndexSchema`, `RecordingSchema` in `src/server/parse/recordings.ts`, which `src/mcp`
-  may not import (`structure.md`). `samples.ts` imports `SampleEntrySchema` from core and copies
-  the other two, and a parity test (T3.2) keeps them equal. Recordings need the user's key (Q1).
+  (uncommitted). Review note Q1 (applied): `SampleEntrySchema`, `SampleIndexSchema` and
+  `RecordingSchema` live in `src/core/api.ts` and are exported from `src/core/index.ts`;
+  `src/server/parse/recordings.ts` re-exports them. `src/mcp` may not import `src/server`
+  (`structure.md`), so it takes all three from core and copies nothing; there is no parity test.
+  Recordings need the user's key (Q1).
 - F5 `AXIS_MIN` and `REBUILD_LIMITS` are not exported by `src/core/index.ts`, so the
   `invalid_now` message names no numbers (this spec does not change core).
 - F6 Import paths, confirmed by importing them: `@modelcontextprotocol/sdk/` + `server/mcp.js`,
@@ -71,6 +73,14 @@ export const SERVER_INFO = { name: 'make-dinner', version: '0.1.0' } as const;
 export const MAX_TOOL_INPUT_ELEMENTS = 20_000;
 export function createKitchenServer(deps: KitchenServerDeps): McpServer; // no I/O until connect
 ```
+
+Arguments that carry a plan, a schedule or progress (`check_plan`, `schedule_plan`, `rebuild_plan`,
+`export_dinnerfile`) also accept a JSON string, because Kiro's MCP client drops empty arrays and
+nulls from object arguments (`docs/kiro-evidence/mcp-use-session.txt`); `planFromArgument` in
+`server.ts` parses a string, and text that is not JSON stays a string for the core to reject.
+Their input shapes are `z.union([<Schema>, z.string()])`. `SampleSummary` and `SampleDetail` are
+type aliases, not interfaces, so they fit `structuredContent`. `toCallToolResult` also lists
+`details.errors` (Dinnerfile errors) as `Line <n>: <message>` lines.
 
 `toCallToolResult`: ok → `{ structuredContent: data, content: [{type:'text', text}, {type:'text',
 text: JSON.stringify(data)}] }`; error → `{ isError: true, content: [{ text: message + list lines },
@@ -193,13 +203,14 @@ logs `make-dinner MCP server ready`. A failed start logs one line and sets `proc
 directory (Q2). The server is started from source, so after a change to `src/core` the developer
 reconnects it from Kiro's MCP panel before asking "does every sample still land within its holds".
 
-README section "Use the scheduler from your MCP client": `npm ci && npm run build`, a config with
+README section "Use the scheduler from your MCP client" (it replaced "The scheduler as an MCP tool"): `npm ci && npm run build`, a config with
 `"command": "node", "args": ["/absolute/path/to/makedinner/dist/mcp/index.js"]`, the seven tools
 one line each; no key, no network, nothing written; samples need `recordings/`.
 
 ## Lint
 
-Added to the `src/mcp/**` block of `eslint.config.js`: `no-restricted-imports` paths `node:http`,
+Added to the `src/mcp/**` block of `eslint.config.js` (the by-hand exception that lets `src/mcp`
+import `@modelcontextprotocol/sdk/server/*` stays): `no-restricted-imports` paths `node:http`,
 `node:https`, `node:net`, `node:tls`, `node:dgram`, `node:child_process`, `node:worker_threads`,
 `node:fs/promises`, their bare names, `@anthropic-ai/sdk`, `hono`, `@hono/node-server`, and
 `node:fs` with `allowImportNames: ['readFileSync']`; `no-restricted-globals` `fetch`, `WebSocket`,
@@ -253,8 +264,7 @@ number (17 is taken by plan-ui); all its tools are read-only, so trusting them i
 
 ## Open questions
 
-- Q1 Move `SampleIndexSchema` and `RecordingSchema` into `src/core/api.ts` beside
-  `SampleEntrySchema`, so server and MCP share them? Until then they are copied (F4).
+- Q1 Answered yes, see the review notes.
 - Q2 Does Kiro start workspace MCP servers in the workspace root? T3.3 checks; if not, use an
   absolute path. Q3 Does `tools: ["@make-dinner"]` keep user-level servers from the taster? T4.1.
 

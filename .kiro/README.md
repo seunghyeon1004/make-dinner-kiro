@@ -50,7 +50,7 @@ format note, the fifth sample, the "Critical" wording.
 | recipe-reader  | 28 of 28     | implemented by Kiro; T6.3 (recording with the real key) run by hand   |
 | plan-ui        | 40 of 40     | implemented by Kiro                                                   |
 | cooking-mode   | 32 of 32     | implemented by Kiro                                                   |
-| kitchen-mcp    | 6 of 16      | **a slice**: `check_plan` and `schedule_plan` over stdio (see below)  |
+| kitchen-mcp    | 16 of 16     | implemented by Kiro; registration and the taster agent by hand        |
 
 ### agents/
 
@@ -64,9 +64,9 @@ format note, the fifth sample, the "Critical" wording.
   evidence folder and `recordings/`; its shell rules deny commits, pushes and resets (a
   `git checkout` and an `rm -rf` were in fact blocked mid-session, see the transcripts).
 - `expediter.json`, the checker: given a spec name it re-runs the proving command of every
-  ticked task, reads the tests, and may untick but never tick. It is configured and validated
-  (`kiro-cli agent validate`), but **it was never run on a spec**: the budget went to building
-  the product. The checking it describes was done by hand after each session instead.
+  ticked task, reads the tests, and may untick but never tick. It was run once, on the
+  scheduler spec (see "The expediter's run").
+- `taster.json`: read-only, uses only the `make-dinner` MCP server (see below).
 
 ### hooks/ (workspace hooks)
 
@@ -135,28 +135,43 @@ found" section or a session transcript.
 - Re-running every check after every session, and looking at every screen in headless
   Chromium at phone and desktop widths.
 
-## The MCP server (a slice)
+## The MCP server and the taster
 
 `settings/mcp.json` registers `make-dinner`, a stdio MCP server in `src/mcp` that exposes the
-deterministic core: `check_plan` and `schedule_plan`. Kiro built it from the kitchen-mcp spec
-in one session (tasks T1.1, T1.2, T2.1, T2.2, T3.2; T3.3 finished by hand because the builder's
-write rules do not allow `.kiro/settings`). It stopped rather than narrow a lint rule that
-wrongly matched the MCP SDK's own `server/` folder; that exception was added by hand.
+deterministic core as seven read-only tools: `check_plan`, `schedule_plan`, `rebuild_plan`,
+`export_dinnerfile`, `import_dinnerfile`, `list_samples`, `get_sample`. Kiro built it from the
+kitchen-mcp spec in two sessions. Three things were done by hand because the builder's write
+rules do not cover `.kiro/settings` or `.kiro/agents`, and it stopped rather than work around
+them: the registration file, the `taster` agent config with its config tests, and a lint
+exception (the rule that keeps `src/mcp` away from `src/server` also matched the MCP SDK's own
+`server/` folder; Kiro refused to narrow a lint rule by itself).
 
 Then Kiro used it (`docs/kiro-evidence/mcp-use-session.txt`). The first attempt failed in an
 instructive way: Kiro's MCP client dropped the empty `after: []` lists and `holdMin: null`
-values from the plan object, so the server rejected the plan. Both tools were changed by hand
-to also accept the plan as a JSON string (tests first), and the second attempt worked: Kiro
-scheduled the recorded Sunday roast in two kitchens through the tools and reported 115
-minutes with no warnings against 155 minutes with two.
+values from the plan object, so the server rejected the plan. The tools were changed (by hand
+for the first two, tests first; by Kiro for the rest) to also accept a JSON string, and the
+second attempt worked: 115 minutes with no warnings in the suggested kitchen against 155
+minutes with two warnings in a small one.
+
+`agents/taster.json` can only read and call that server. Given a sample, it schedules it under
+three kitchens and reports what a cook would mind, separating scheduler facts from its own
+reading of the recipe text. Its recorded run is `docs/kiro-evidence/taster-sunday-roast.txt`.
+It noticed, for example, that with one oven the potatoes are peeled 70 minutes before they
+boil. It also misread its own instructions for the second kitchen (it removed one burner
+where the prompt says "with 1 burner"); the transcript is left as it ran.
+
+## The expediter's run
+
+`docs/kiro-evidence/expediter-scheduler-session.txt`: the checker agent went through all 38
+ticked tasks of the scheduler spec, ran the suites, read the properties against the oracles,
+confirmed the oracles import no scheduling code, swept for weakened checks, and unticked
+nothing. It said plainly what it could not do: re-run the G9 mutation check, because it may
+not edit `src/`. It ran on one spec only; the other seven were checked by hand.
 
 ## Not done
 
-- The rest of **kitchen-mcp**: `rebuild_plan`, `export_dinnerfile`, `import_dinnerfile`,
-  `list_samples`, `get_sample`, the lint rules of T3.1, the `taster` agent and its README
-  section. 10 of its 16 tasks are open. The credit budget was reached.
-- The `expediter` agent was not run.
 - Kiro powers and Kiro Crew were not used.
+- The expediter ran on the scheduler spec only.
 
 ## Mistakes of mine that affect the evidence
 
