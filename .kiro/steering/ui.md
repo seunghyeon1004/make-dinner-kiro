@@ -51,7 +51,7 @@ least 4.5:1; border and focus on bg and surface at least 3:1. Changing a token m
 ## Counter distance and one-handed reach
 
 - Every interactive target is at least 48×48 px with 8 px between targets. Cooking-mode
-  primary actions ("Done", "Started") are at least 64 px tall and full width (decided here).
+  primary actions ("Done", "Start") are at least 64 px tall and full width (decided here).
 - Primary actions sit in the bottom third of the screen in cooking mode, reachable by a thumb.
 - No hover-only affordance, no swipe-only, long-press-only or double-tap-only action.
 - Destructive actions ("Start over") need a second, separate confirmation tap.

@@ -49,7 +49,7 @@ back without the model.
    accessible alternative and the print layout). Export: Dinnerfile (copy, download), share
    link (plan in the URL fragment, no server storage), print.
 4. **Cook.** "Right now" cards: what to do, what is running with a countdown, what is next
-   and when. "Done", "Started", "Needs more time" (+5, +10, +15) and "I'm behind" trigger a
+   and when. "Done", "Start", "Needs more time" (+5, +10, +15) and "I'm behind" trigger a
    rebuild and show what moved. Screen kept awake where the browser allows (Wake Lock).
    State survives a reload.
 

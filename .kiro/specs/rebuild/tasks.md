@@ -148,7 +148,7 @@ reported and need the user's decision, not a code change).
   Covers: RQ1, RQ3, RQ9.3.
   Command: `npx vitest run --project props test/core/rebuild.pbt.ts -t "^P-RB[789] "`
 
-- [ ] T6.9 (added by hand after T6: the mutation check in the T5 to T7 session showed that
+- [x] T6.9 (added by hand after T6: the mutation check in the T5 to T7 session showed that
   removing the re-align pass failed no property) Property R7 re-aligned, as worded in
   `scheduler-guarantees.md`: for rebuilds with `servingShiftMin > 0`, no pending step with
   `holdMin !== null` has a valid later position (reuse `oracleLatestPosition`, extended to take

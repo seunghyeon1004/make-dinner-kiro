@@ -371,6 +371,7 @@ sizes) then `arbProgress(s)`; "in-order" = no options. Every property also accep
 | R4 no slip | starts equal the input's, `servingMin 0`, `moved []`, `servingShiftMin 0` | RQ6.2, RQ4.2 | `arbScheduled`, `arbOnPlan` |
 | R5 serving time | `servingMin === max(0, latest end of oracleForwardRepair) === max(0, max endMin)`; in-order runs: also `=== max(0, latest terminal end)` | RQ5.1 | run, both options |
 | R6 honest diff | `moved` = exactly the ids whose start changed, with input and output starts; `unchanged` the rest; both sorted; `servingShiftMin === servingMin` | RQ9.1, RQ9.2 | run, both options |
+| R7 re-aligned | when `servingShiftMin > 0`, for every pending step with `holdMin !== null`, `oracleLatestPosition` (given the serving minute and the pinned intervals) equals its start | RQ6.1, RQ6.3 | run, both options and `overCapacity` |
 | P-RB1 idempotent | `rebuild(R.schedule, p, n)` deep-equals `R` but for a diff of `moved []`, all unchanged, shift 0 | RQ9.3 | run |
 | P-RB2 no slip twice | `n' = n + 0..90`: `rebuild(R.schedule, followPlan(R.schedule, p, n'), n')` keeps every start and `servingMin`; `moved []` | RQ9.3 | run |
 | P-RB3 slips twice | `(p2, n2) = arbProgress(R.schedule, { base: { p, n } })`: R1 to R3 against `R`; `servingMin === max(R.servingMin, max end) >= R.servingMin`; diff against `R`; shift `S'' - S'` | RQ5.1, RQ9.2, RQ10.1 | run, then base run |

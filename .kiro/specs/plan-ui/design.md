@@ -611,4 +611,8 @@ E2E (`e2e/`, both projects; `test.use({ locale: 'en-GB', timezoneId: 'Europe/Lon
 - Q6: one sentence for "no key" and "model down" is enough.
 - Q7: add a tiny blocking `public/theme.js` (not inline, so a strict CSP still holds) that sets
   `data-theme` from localStorage before first paint; fold it into the shell task.
+- Needs from cooking-mode (found by that spec): `persist.ts` drops only an unreadable cook
+  session, never the whole state; `LiveNotice` re-announces a repeated message; while a cook
+  session exists the Plan screen says "You are cooking this dinner" with a link back to it and
+  shows the session's current schedule; opening `#/cook` with no session shows the Plan screen.
 

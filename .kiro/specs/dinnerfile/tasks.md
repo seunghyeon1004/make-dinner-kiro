@@ -24,14 +24,14 @@ with its seed in a comment before anything else changes (`testing.md`).
 
 ## T1. Types and test support
 
-- [ ] T1.1 Example tests for `ServeTimeSchema`: `00:00`, `09:05`, `19:00`, `23:59` pass;
+- [x] T1.1 Example tests for `ServeTimeSchema`: `00:00`, `09:05`, `19:00`, `23:59` pass;
   `24:00`, `7:00`, `19:60`, `19:00 `, `1900`, `''` fail. Then add `SERVE_TIME_PATTERN`,
   `ServeTimeSchema` and `ServeTime`, and `src/core/dinnerfile.ts` with the design's types and
   both functions returning `err([])`.
   Files: `test/core/schema.test.ts`, `src/core/schema.ts`, `src/core/dinnerfile.ts` (stub).
   Covers: R5.1.
   Command: `npx vitest run --project examples test/core/schema.test.ts && npm run typecheck`
-- [ ] T1.2 Extend `arbNonBlank`, `arbDishId` and `arbSlug`, and add `arbHostileText`,
+- [x] T1.2 Extend `arbNonBlank`, `arbDishId` and `arbSlug`, and add `arbHostileText`,
   `arbServeTime`, `arbDinnerfileOptions` and `arbAnyDinnerfileOptions` as in the design.
   Meta tests from `fc.sample` with a fixed seed: every extended `arbPlan` value still passes
   the existing validity checks; the samples hold every hostile token, a `dinner` dish, a
@@ -41,7 +41,7 @@ with its seed in a comment before anything else changes (`testing.md`).
   Files: `test/support/arbitraries.ts`, `test/meta/arbitraries.test.ts`.
   Covers: R10.1.
   Command: `npx vitest run --project examples test/meta/arbitraries.test.ts && npm run test:props`
-- [ ] T1.3 Write `SUNDAY_ROAST_DINNERFILE`, `SUNDAY_ROAST_MAKE_DINNER`,
+- [x] T1.3 Write `SUNDAY_ROAST_DINNERFILE`, `SUNDAY_ROAST_MAKE_DINNER`,
   `SUNDAY_ROAST_MAKE_GRAVY`, `WORST_CASE`, `WORST_CASE_DINNERFILE` and
   `WORST_CASE_MAKE_DINNER` by hand exactly as the design gives them (tabs as `\t`, lines
   joined with `'\n'`, a final `'\n'`), each with a comment saying where it was worked out.

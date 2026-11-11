@@ -189,12 +189,10 @@ timer ends.
   session's rebuilt one or a "Start now" shift. Asked: a note "You are cooking this dinner." with a
   link to the Cook screen; showing the rebuilt schedule there is a later change.
 - plan-ui `app.tsx`, `main.tsx`: this spec sets `SCREENS.cook`, imports `cook.css` and provides the
-  wake-lock and alert ports. These are the only edits to plan-ui files besides `cook-slot.ts` and
-  `copy.ts`.
+  ports: its only edits to plan-ui files besides `cook-slot.ts` and `copy.ts`.
 - steering `ui.md` names the primary actions "Done" and "Started"; this spec uses "Start", as asked.
 
 ## Out of scope
 
-Sync between devices or tabs; push notifications or alarms with the page closed; a service worker;
-voice control; editing steps while cooking; pulling steps earlier after an early finish (R3);
-choosing a later serving time instead of rebuilding.
+Sync between devices or tabs; alarms with the page closed; a service worker; voice control; editing
+steps while cooking; pulling steps earlier after an early finish (R3); choosing a later serving time.
