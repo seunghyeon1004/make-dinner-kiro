@@ -31,20 +31,18 @@ test.describe('shell: routing and navigation', () => {
     await expect(items.nth(1)).toContainText('Pick a dinner first');
     await expect(items.nth(2)).toContainText('3 Plan');
     await expect(items.nth(3)).toContainText('4 Cook');
-    await expect(items.nth(3)).toContainText('Cooking mode is not available yet');
+    // The Cook screen is registered (cooking-mode); without a plan it says what is missing.
+    await expect(items.nth(3)).toContainText('Make the plan first');
     await expect(nav.getByRole('link', { name: 'Menu' })).toHaveAttribute('aria-current', 'step');
     await expect(nav.getByRole('link')).toHaveCount(1);
   });
 
-  test('R9.2 with a dinner, Steps and Plan become links and Cook stays text', async ({ page }) => {
+  test('R9.2 with a dinner, Steps, Plan and Cook become links', async ({ page }) => {
     await seedDinner(page, SUNDAY_ROAST, HOME_KITCHEN, '19:30', 'steps');
     await page.goto('/');
     const nav = page.getByRole('navigation', { name: 'Dinner' });
-    await expect(nav.getByRole('link')).toHaveText(['1 Menu', '2 Steps', '3 Plan']);
+    await expect(nav.getByRole('link')).toHaveText(['1 Menu', '2 Steps', '3 Plan', '4 Cook']);
     await expect(nav.getByRole('link', { name: 'Steps' })).toHaveAttribute('aria-current', 'step');
-    await expect(nav.getByRole('listitem').last()).toContainText(
-      'Cooking mode is not available yet',
-    );
   });
 
   test('R9.4 each screen has one h1 and the document title "<screen> · Make Dinner"', async ({
@@ -159,7 +157,7 @@ test.describe('shell: compact flow navigation (review B)', () => {
     await steps.click({ force: true });
     await expect(helper).toHaveText('Pick a dinner first');
     await nav.getByRole('button', { name: 'Cook' }).click({ force: true });
-    await expect(helper).toHaveText('Cooking mode is not available yet');
+    await expect(helper).toHaveText('Make the plan first');
     await page.getByRole('link', { name: 'Make Dinner' }).focus();
     await expect(helper).toHaveText('');
   });

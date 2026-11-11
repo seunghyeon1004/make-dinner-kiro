@@ -1,5 +1,5 @@
 import { compareIds } from '../../core/index.js';
-import { COOK_ANNOUNCE, cookRebuilt, cookUndone } from '../copy.js';
+import { COOK_ANNOUNCE, cookRebuilt, cookUndoWords, cookUndone } from '../copy.js';
 import { clockAt, formatClock, MINUTE_MS, minuteAt } from './clock.js';
 import { endsAtMs, overdueIds, phaseOf, terminalIdsOf, UP_NEXT_COUNT } from './cook-session.js';
 import type { Phase } from './cook-session.js';
@@ -305,20 +305,10 @@ export function finishedBetween(state: CookState, fromMs: number, toMs: number):
 export type Announcement = string | null;
 
 function undoWords(after: CookState, label: UndoLabel): string {
-  const title = (id: string): string =>
-    after.core.schedule.plan.steps.find((step) => step.id === id)?.title ?? id;
-  switch (label.kind) {
-    case 'start':
-      return `started ${title(label.stepId)}`;
-    case 'done':
-      return `done ${title(label.stepId)}`;
-    case 'extra':
-      return `+${label.minutes} min on ${title(label.stepId)}`;
-    case 'behind':
-      return "I'm behind";
-    case 'start-now':
-      return 'start now';
-  }
+  const id =
+    label.kind === 'start' || label.kind === 'done' || label.kind === 'extra' ? label.stepId : '';
+  const title = after.core.schedule.plan.steps.find((step) => step.id === id)?.title ?? id;
+  return cookUndoWords(label, title);
 }
 
 /**

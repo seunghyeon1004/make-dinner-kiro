@@ -1,0 +1,265 @@
+/* Cook screen (cooking-mode design, "Layout"). Tokens only; sizes in rem on the 18 px root. */
+
+.start-cooking {
+  margin: var(--space-4) 0;
+}
+
+.start-cooking p {
+  margin: 0 0 var(--space-2);
+}
+
+.start-cooking .button {
+  min-height: 4rem;
+}
+
+.cook-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-4);
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.cook-header p {
+  margin: 0;
+}
+
+.cook-header__clock {
+  font-size: 2rem;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+
+.cook-header__serving {
+  font-size: 1.15rem;
+}
+
+/* 56 px at the 18 px root, shrinking only on a very narrow viewport (design, C1) */
+.countdown {
+  font-size: min(3.1111rem, 15vw);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  margin: var(--space-3) 0;
+}
+
+.cook-countdown p {
+  margin: 0 0 var(--space-3);
+}
+
+.button--cook {
+  display: block;
+  width: 100%;
+  min-height: 4rem;
+  font-size: 1.15rem;
+}
+
+/* Cards */
+.cook-card {
+  margin: var(--space-3) 0;
+  padding: var(--space-4);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.cook-card--hands-free {
+  border-style: dashed;
+}
+
+.cook-card p {
+  margin: 0 0 var(--space-2);
+}
+
+.cook-card__label {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+/* The instruction: 32 px at the 18 px root */
+.screen .cook-card__title {
+  margin: 0 0 var(--space-2);
+  font-size: 1.7778rem;
+  line-height: 1.2;
+}
+
+.cook-card__meta {
+  font-size: 1rem;
+}
+
+.cook-card__warn {
+  color: var(--color-warn);
+  font-weight: 700;
+}
+
+.cook-card .button--cook {
+  margin-top: var(--space-3);
+}
+
+.cook-card__also {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-rule);
+}
+
+.screen .cook-card__also-heading {
+  margin: 0 0 var(--space-2);
+  font-size: 1.15rem;
+}
+
+/* The dock: content first, then the thumb zone, sticky at the bottom */
+.action-dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin: var(--space-4) calc(var(--space-4) * -1) 0;
+  padding: var(--space-3) var(--space-4);
+  border-top: 2px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.action-dock:empty {
+  display: none;
+}
+
+.action-dock__title {
+  margin: 0 0 var(--space-2);
+  font-weight: 700;
+}
+
+.action-dock .button--cook + .button--cook {
+  margin-top: var(--space-2);
+}
+
+/* Needs more time */
+.extra-time {
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.extra-time legend {
+  padding: 0;
+  margin-bottom: var(--space-2);
+  font-weight: 700;
+}
+
+.extra-time__buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+}
+
+.extra-time .button--cook {
+  min-width: 0;
+  padding: 0 var(--space-2);
+}
+
+/* Up next and the dish strip */
+.up-next,
+.dish-strip {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.up-next__item,
+.dish-strip__chip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.up-next__title {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.up-next__meta,
+.dish-strip__state {
+  font-size: 1rem;
+}
+
+.dish-strip__count {
+  font-weight: 700;
+}
+
+.dish-strip__state {
+  font-family: var(--font-mono);
+}
+
+/* The build log: mono lines, like a terminal */
+.build-log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.log-entry {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-raised);
+}
+
+.log-entry__lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.log-entry__lines li {
+  overflow-wrap: anywhere;
+}
+
+.log-line {
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.log-entry__cause .log-line {
+  font-weight: 700;
+}
+
+.log-entry__warning {
+  margin: var(--space-3) 0 0;
+  color: var(--color-warn);
+}
+
+.log-entry__toggle {
+  display: block;
+  margin-top: var(--space-3);
+}
+
+/* Dock rows: "I'm behind" and Undo side by side when both are shown */
+.action-dock__row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-2);
+}
+
+.action-dock__row--two {
+  grid-template-columns: 1fr 1fr;
+}
+
+.action-dock__row .button--cook {
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+}
+
+.action-dock .confirm-inline .button {
+  min-height: 4rem;
+}
+
+.action-dock .confirm-inline .actions {
+  margin-top: var(--space-3);
+}
+
+/* "I'm behind" is emphasised while a step is late: a heavier border and a mark, not colour alone */
+.button--emphasis {
+  border-color: var(--color-accent);
+  border-width: 4px;
+  font-weight: 700;
+}

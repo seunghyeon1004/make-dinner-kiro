@@ -5,6 +5,7 @@ import { FlowNav } from './components/FlowNav.js';
 import { Header } from './components/Header.js';
 import { LiveNotice } from './components/LiveNotice.js';
 import { COPY, documentTitle } from './copy.js';
+import { Cook } from './screens/Cook.js';
 import { Menu } from './screens/Menu.js';
 import { Plan } from './screens/Plan.js';
 import { Steps } from './screens/Steps.js';
@@ -16,7 +17,7 @@ export const SCREENS: Record<Route, ComponentType | null> = {
   menu: Menu,
   steps: Steps,
   plan: Plan,
-  cook: null,
+  cook: Cook,
 };
 
 const SCREEN_NAMES: Record<Route, string> = {

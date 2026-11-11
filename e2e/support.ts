@@ -94,3 +94,19 @@ export async function openSettings(page: Page): Promise<void> {
     await toggle.click();
   }
 }
+
+/**
+ * Fixes `Date.now()` at `iso` (a UTC instant on the fixed day; London is on GMT then) for the
+ * cooking-mode flows. Timers keep running: a paused clock (`install` + `pauseAt`) also freezes
+ * `requestAnimationFrame`, which Preact uses to run `useEffect`, so the screen would never
+ * update after a tap. The app re-reads the time at most a second after it moves.
+ */
+export async function fixClockAt(page: Page, iso: string): Promise<void> {
+  await page.clock.setFixedTime(new Date(iso));
+}
+
+/** Moves the fixed time forward by `ms`; the screen catches up at its next one-second read. */
+export async function advanceClock(page: Page, ms: number): Promise<void> {
+  const now = await page.evaluate(() => Date.now());
+  await page.clock.setFixedTime(new Date(now + ms));
+}

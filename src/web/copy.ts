@@ -1,5 +1,6 @@
 import type { ParseFailure } from './state/api.js';
-import { formatClock, formatDuration } from './state/clock.js';
+import { clockAt, formatClock, formatDuration } from './state/clock.js';
+import type { LogCause, LogEntry, UndoLabel } from './state/cook-slot.js';
 
 /**
  * Every string the cook sees (plan-ui R10.3). Pure: no DOM, no clock.
@@ -458,3 +459,253 @@ export function cookUndone(words: string): string {
 export function cookTimeUp(titles: readonly string[]): string {
   return `Time is up: ${titles.join(', ')}.`;
 }
+
+// Cooking mode (cooking-mode design, "Copy"). Marks such as `!` and `✓` are drawn by the
+// components next to these words; the strings here carry the words only.
+export const COOK_COPY = {
+  documentTitle: 'Cook',
+  h1: 'Right now',
+  doNow: 'Do now',
+  dockLabel: 'Actions',
+  running: 'Running',
+  upNext: 'Up next',
+  dishes: 'Dishes',
+  buildLog: 'Build log',
+  soundAndScreen: 'Sound and screen',
+  countdownLabel: 'Time until cooking starts',
+  timeLeft: 'Time left',
+  timeIsUp: 'Time is up',
+  start: 'Start',
+  done: 'Done',
+  startNow: 'Start now',
+  behind: "I'm behind",
+  needsMoreTime: 'Needs more time',
+  startThenLeave: 'Start, then leave it',
+  alsoDue: 'Also due',
+  nothingToDo: 'Nothing to do now',
+  nothingMore: 'Nothing more for this cook.',
+  startAnyway: 'Start anyway',
+  notYet: 'Not yet',
+  nothingElse: 'Nothing else is planned.',
+  logEmpty: 'No rebuilds yet.',
+  onTime: 'Everything is on time',
+  alertsButton: 'Sound and vibration',
+  alertsOff: 'Off',
+  alertsOn: 'On',
+  wakeNote:
+    'The screen may turn off while you cook. To keep it on, set Auto-Lock or Screen timeout to a longer time in your device settings.',
+  finishedHeading: 'Dinner is served',
+  backToPlan: 'Back to the plan',
+  staleHeading: 'Carry on with this dinner?',
+  resume: 'Resume',
+  discard: 'Discard',
+  discardAsk: 'Discard the recorded times?',
+  discardYes: 'Yes, discard',
+  stopCooking: 'Stop cooking',
+  stopAsk: 'Stop cooking? The times you recorded will be cleared.',
+  stopYes: 'Yes, stop cooking',
+  keepCooking: 'Keep cooking',
+  goToPlan: 'Go to the plan',
+  startCooking: 'Start cooking',
+  cookingNote: 'You are cooking this dinner.',
+  continueCooking: 'Continue cooking',
+  storedBad:
+    'Your cooking session could not be read, so it was cleared. Your dinner is still here.',
+} as const;
+
+export type { LogCause };
+
+/** A build log line: the mono text shown, and the sentence read by screen readers (ui.md). */
+export interface LogLine {
+  mono: string;
+  sentence: string;
+}
+export interface LogLines {
+  cause: LogLine;
+  moves: LogLine[];
+  unchanged: LogLine | null;
+  serving: LogLine | null;
+  nothing: LogLine | null;
+  failed: LogLine | null;
+  upToDate: LogLine[];
+}
+export interface LogContext {
+  axisMs: number;
+  titleOf(stepId: string): string;
+  locale?: string | undefined;
+}
+
+function causeWords(cause: LogCause, name: (id: string) => string): string {
+  switch (cause.kind) {
+    case 'begin-late':
+      return `started ${formatDuration(cause.byMin)} late`;
+    case 'start':
+    case 'done': {
+      const verb = cause.kind === 'start' ? 'started' : 'done';
+      const how = cause.byMin >= 0 ? 'late' : 'early';
+      return `${name(cause.stepId)} ${verb} ${formatDuration(Math.abs(cause.byMin))} ${how}`;
+    }
+    case 'extra':
+      return `${name(cause.stepId)} needs ${cause.minutes} more min`;
+    case 'behind':
+      return COOK_COPY.behind;
+  }
+}
+
+/** Every line of one build log entry (design, "Build log lines"). */
+export function cookLogLines(entry: LogEntry, ctx: LogContext): LogLines {
+  const at = formatClock(entry.atMs, ctx.locale);
+  const time = (min: number): string => formatClock(clockAt(ctx.axisMs, min), ctx.locale);
+  const cause: LogLine = {
+    mono: `${at} rebuild: ${causeWords(entry.cause, (id) => id)}`,
+    sentence: `Rebuilt at ${at}: ${causeWords(entry.cause, ctx.titleOf)}.`,
+  };
+  const lines: LogLines = {
+    cause,
+    moves: [],
+    unchanged: null,
+    serving: null,
+    nothing: null,
+    failed: null,
+    upToDate: [],
+  };
+  const { result } = entry;
+  if (!result.ok) {
+    lines.failed = {
+      mono: `rebuild failed: ${result.error}`,
+      sentence:
+        "The plan could not be rebuilt, so it is unchanged. Carry on by the times shown and tap I'm behind to try again.",
+    };
+    return lines;
+  }
+  lines.moves = result.moved.map((move) => {
+    const from = time(move.fromStartMin);
+    const to = time(move.toStartMin);
+    return {
+      mono: `${move.stepId} ${from} -> ${to}`,
+      sentence: `${ctx.titleOf(move.stepId)} moved from ${from} to ${to}.`,
+    };
+  });
+  if (result.unchanged.length > 0) {
+    const text = `${plural(result.unchanged.length, 'step', 'steps')} up to date`;
+    lines.unchanged = { mono: text, sentence: `${text}.` };
+  }
+  const servingMoved = result.servingToMin !== result.servingFromMin;
+  if (servingMoved) {
+    const from = time(result.servingFromMin);
+    const to = time(result.servingToMin);
+    lines.serving = {
+      mono: `serve ${from} -> ${to}`,
+      sentence: `Serving moved from ${from} to ${to}.`,
+    };
+  }
+  if (result.moved.length === 0 && !servingMoved) {
+    lines.nothing = { mono: COOK_COPY.onTime, sentence: `${COOK_COPY.onTime}.` };
+  }
+  lines.upToDate = result.unchanged.map((id) => ({
+    mono: `${id} is up to date`,
+    sentence: `${ctx.titleOf(id)} is up to date.`,
+  }));
+  return lines;
+}
+
+/** "10:00", "69:00", and "+02:10" once over. Whole seconds, rounded up. */
+export function cookCountdown(ms: number): string {
+  const seconds = Math.ceil(ms / 1000);
+  const abs = Math.abs(seconds);
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  const text = `${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
+  return seconds < 0 ? `+${text}` : text;
+}
+
+/** The words of an undo, used by the Undo button and the "Undone" announcement. */
+export function cookUndoWords(label: UndoLabel, title: string): string {
+  switch (label.kind) {
+    case 'start':
+      return `started ${title}`;
+    case 'done':
+      return `done ${title}`;
+    case 'extra':
+      return `+${label.minutes} min on ${title}`;
+    case 'behind':
+      return COOK_COPY.behind;
+    case 'start-now':
+      return 'start now';
+  }
+}
+export const cookUndoButton = (words: string): string => `Undo: ${words}`;
+
+export const cookStartsAt = (time: string): string => `Cooking starts at ${time}`;
+export const cookPlannedFor = (time: string): string => `Planned for ${time}`;
+export function cookFirst(items: readonly { title: string; dish: string }[]): string {
+  return `First: ${items.map((item) => `${item.title} (${item.dish})`).join('; ')}`;
+}
+export function cookStartNow(time: string, minutes: number): string {
+  return `Start now to serve at ${time}, ${formatDuration(minutes)} earlier.`;
+}
+
+export function cookDue(dish: string, minutes: number, time: string, since: boolean): string {
+  return `${dish} \u00b7 ${formatDuration(minutes)} \u00b7 due ${since ? 'since ' : ''}${time}`;
+}
+export const cookReady = (dish: string, time: string): string => `${dish} \u00b7 ready at ${time}`;
+const quoted = (titles: readonly string[]): string =>
+  titles.map((title) => `\u201c${title}\u201d`).join(', ');
+export const cookWaitsFor = (titles: readonly string[]): string =>
+  `Waits for ${quoted(titles)}, not done yet.`;
+export function cookNext(title: string, time: string, inMin: number): string {
+  return `Next: ${title} at ${time}, in ${formatDuration(inMin)}.`;
+}
+export const cookLate = (minutes: number): string => `Late by ${formatDuration(minutes)}`;
+export const cookIn = (minutes: number): string => `in ${formatDuration(minutes)}`;
+export const cookExtra = (minutes: number): string => `+${minutes} min`;
+export function cookBlockedAsk(title: string, titles: readonly string[]): string {
+  return `${title} waits for ${quoted(titles)}, not done yet. Start it anyway?`;
+}
+
+export const cookDishChip = (name: string, done: number, total: number): string =>
+  `${name}: ${done} of ${total} done`;
+export function cookDishState(kind: 'done' | 'cooking' | 'due' | 'next', time: string): string {
+  switch (kind) {
+    case 'done':
+      return 'Done';
+    case 'cooking':
+      return 'Cooking';
+    case 'due':
+      return 'Due now';
+    case 'next':
+      return `Next at ${time}`;
+  }
+}
+
+export const cookEarlier = (n: number): string => `Earlier rebuilds (${n})`;
+export const cookHideUpToDate = (): string => 'Hide the steps that are up to date';
+export const cookShowUpToDate = (n: number): string =>
+  `Show the ${n} ${n === 1 ? 'step that is' : 'steps that are'} up to date`;
+
+/** `lateMin` is served minus planned: 0 on time, positive later, negative earlier. */
+export function cookFinishedLine(served: string, planned: string, lateMin: number): string {
+  const how =
+    lateMin === 0
+      ? 'on time'
+      : `${formatDuration(Math.abs(lateMin))} ${lateMin > 0 ? 'later' : 'earlier'}`;
+  return `Served at ${served}. Planned for ${planned}: ${how}.`;
+}
+export function cookStaleBody(title: string, weekday: string, time: string): string {
+  return `You started cooking ${title} on ${weekday} at ${time}, more than 8 hours ago.`;
+}
+export function cookTooLate(time: string, day: string | null): string {
+  const when = day === null ? time : `${time} ${day}`;
+  return `This plan was for ${when}, too long ago to cook against. Choose a new serving time on the Plan screen.`;
+}
+
+export function cookAlertsText(mode: 'off' | 'on' | 'reload', canVibrate: boolean): string {
+  const base =
+    mode === 'off'
+      ? 'Turn on to hear a chime and feel a buzz when a timer ends. The browser allows sound only after you tap here.'
+      : mode === 'on'
+        ? 'A chime and a buzz play when a timer ends. Silent mode may still mute them.'
+        : 'Sound was on before the page reloaded. Tap once to turn it on again.';
+  return canVibrate ? base : `${base} This device cannot vibrate.`;
+}
+export const cookStartReached = (titles: readonly string[]): string =>
+  `Time to start: ${titles.join(', ')}.`;

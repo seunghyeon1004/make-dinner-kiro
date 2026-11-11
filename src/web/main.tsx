@@ -2,12 +2,16 @@ import { render } from 'preact';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/components.css';
+import './styles/cook.css';
 import './styles/print.css';
 import { App, SCREENS } from './app.js';
+import { createAlerts } from './state/alerts.js';
+import { CookPortsProvider } from './state/cook-hooks.js';
 import { StoreProvider } from './state/hooks.js';
 import { startEffects } from './state/effects.js';
 import { loadState } from './state/persist.js';
 import { createStore } from './state/store.js';
+import { createWakeLock } from './state/wake-lock.js';
 
 const root = document.getElementById('app');
 if (root === null) {
@@ -40,9 +44,13 @@ startEffects(store, {
   cookRegistered,
 });
 
+const ports = { wakeLock: createWakeLock(window.navigator), alerts: createAlerts(window) };
+
 render(
   <StoreProvider store={store}>
-    <App />
+    <CookPortsProvider ports={ports}>
+      <App />
+    </CookPortsProvider>
   </StoreProvider>,
   root,
 );

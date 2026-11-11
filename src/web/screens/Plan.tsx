@@ -10,7 +10,7 @@ import { PlanList } from '../components/PlanList.js';
 import { PlanSummary } from '../components/PlanSummary.js';
 import { ServingTime } from '../components/ServingTime.js';
 import { WarningList } from '../components/WarningList.js';
-import { COPY, EXPORT_COPY } from '../copy.js';
+import { COOK_COPY, COPY, EXPORT_COPY } from '../copy.js';
 import { useAppState, useClock, useDispatch, useNow } from '../state/hooks.js';
 import { systemClock } from '../state/clock.js';
 import { hashOf } from '../state/route.js';
@@ -24,6 +24,7 @@ export function Plan(): VNode {
   const hasDinner = useAppState((state) => state.dinner !== null);
   const dinner = useAppState((state) => state.dinner);
   const result = useAppState(selectSchedule);
+  const cooking = useAppState((state) => state.cook !== null);
   const dispatch = useDispatch();
   const clock = useClock();
   const nowMs = useNow(systemClock, 30_000);
@@ -48,6 +49,14 @@ export function Plan(): VNode {
       <h1 tabIndex={-1}>{title}</h1>
       {view !== null && serving !== null && (
         <PlanSummary view={view} chosenMs={serving.atMs} nowMs={nowMs} />
+      )}
+      {view !== null && serving !== null && (
+        <div class="start-cooking no-print">
+          {cooking && <p>{COOK_COPY.cookingNote}</p>}
+          <a class="button button--primary" href={hashOf('cook')}>
+            {cooking ? COOK_COPY.continueCooking : COOK_COPY.startCooking}
+          </a>
+        </div>
       )}
       <section aria-labelledby="kitchen-heading" class="no-print">
         <h2 id="kitchen-heading">{COPY.kitchenHeading}</h2>

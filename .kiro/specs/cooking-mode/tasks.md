@@ -110,18 +110,18 @@ before the fix. Every string goes into `src/web/copy.ts` as the design's tables 
 
 ## T3. Copy and device ports
 
-- [ ] T3.1 Example tests for the cooking copy: every log line, sentence and new-warning line of CM-b,
+- [x] T3.1 Example tests for the cooking copy: every log line, sentence and new-warning line of CM-b,
   CM-c, CM-d and CM-g; countdowns `10:00`, `69:00`, `+02:10`, and `00:01` for 500 ms; each
   announcement; the finished, stale, stop, too-late and alerts strings; plan-ui's copy checks run
   over the new strings.
   Files: `test/web/copy.test.ts`, `src/web/copy.ts` (stubs).
   Covers: CM5.3–CM5.6, CM9.4, N4.
   Command: `npx vitest run --project examples test/web/copy.test.ts`
-- [ ] T3.2 Implement the copy until T3.1 passes.
+- [x] T3.2 Implement the copy until T3.1 passes.
   Files: `src/web/copy.ts`.
   Covers: CM5.3–CM5.6, CM9.4, N4.
   Command: `npx vitest run --project examples test/web/copy.test.ts && npm run typecheck`
-- [ ] T3.3 Example tests, then implementation, for the device ports with fakes. `createWakeLock`:
+- [x] T3.3 Example tests, then implementation, for the device ports with fakes. `createWakeLock`:
   held, a second `acquire` makes no request, unsupported, refused, a sentinel `release` event gives
   `idle`, `release` calls the sentinel once. `createAlerts`: `enable` resumes one context, two
   oscillators at 880 Hz starting 0 and 0.25 s after `play`, the gain ramps, `vibrate([200, 100,
@@ -136,7 +136,7 @@ before the fix. Every string goes into `src/web/copy.ts` as the design's tables 
 E2E: both projects, `test.use({ locale: 'en-GB', timezoneId: 'Europe/London' })`, `page.clock`
 installed and paused, `seedDinner(page, SUNDAY_ROAST, HOME_KITCHEN, '19:30')` unless stated.
 
-- [ ] T4.1 Register the screen: `SCREENS.cook`, `Cook.tsx` beginning a session from an effect,
+- [x] T4.1 Register the screen: `SCREENS.cook`, `Cook.tsx` beginning a session from an effect,
   `CookHeader`, `CookCountdown`, `Countdown`, `cook.css`, `CookPortsProvider` and `useCookEffects`
   (tick only), `e2e/support.ts` helpers. E2E first: at 17:30 "Start cooking" opens `Right now` with
   `Cooking starts at 17:40`, `10:00`, the start-now sentence; `runFor(60_000)` shows `09:00`;
@@ -146,7 +146,7 @@ installed and paused, `seedDinner(page, SUNDAY_ROAST, HOME_KITCHEN, '19:30')` un
   `src/web/styles/cook.css`, `src/web/copy.ts`, `e2e/support.ts`, `e2e/cook-start.spec.ts`.
   Covers: CM1.1–CM1.4, CM2.1, CM4.1.
   Command: `npx playwright test e2e/cook-start.spec.ts && npm run typecheck && npm run lint`
-- [ ] T4.2 `LaneCard`, `StartCard`, `ActionDock` with Start and Done. E2E first: at 17:40 the dock
+- [x] T4.2 `LaneCard`, `StartCard`, `ActionDock` with Start and Done. E2E first: at 17:40 the dock
   says `Season and truss the chicken` with `Start`; Start → `Done` focused; at 17:50 Done → the
   roast `Start, then leave it` card and `Shred the greens` in the dock; seeded `TWO_COOK_KITCHEN` at
   17:40 shows `Cook 1` and `Cook 2` cards.
@@ -154,19 +154,19 @@ installed and paused, `seedDinner(page, SUNDAY_ROAST, HOME_KITCHEN, '19:30')` un
   `src/web/copy.ts`, `src/web/styles/cook.css`, `e2e/cook-roast.spec.ts`.
   Covers: CM2.2–CM2.4, CM3.1, CM3.5, CM3.6, CM9.3.
   Command: `npx playwright test e2e/cook-roast.spec.ts && npm run typecheck && npm run lint`
-- [ ] T4.3 `RunningCard` and `ExtraTime`. E2E first: after starting the roast at 17:50 its card
+- [x] T4.3 `RunningCard` and `ExtraTime`. E2E first: after starting the roast at 17:50 its card
   says `ready at 19:05` and `75:00`; `fastForward` to 19:05 shows `! Time is up` and the dock
   `Done`; `+5 min` is in a `Needs more time` group.
   Files: `src/web/components/{RunningCard,ExtraTime}.tsx`, `src/web/copy.ts`,
   `src/web/styles/cook.css`, `e2e/cook-roast.spec.ts`.
   Covers: CM2.5, CM3.1, CM4.1, CM4.2.
   Command: `npx playwright test e2e/cook-roast.spec.ts && npm run typecheck`
-- [ ] T4.4 `UpNext` and `DishStrip`. E2E first: CM-f at 17:56: up next `Rest the chicken under foil`
+- [x] T4.4 `UpNext` and `DishStrip`. E2E first: CM-f at 17:56: up next `Rest the chicken under foil`
   `in 1 h 9 min` `19:05`, then roux and simmer; dish chips as CM-f with words, no colour-only state.
   Files: `src/web/components/{UpNext,DishStrip}.tsx`, `src/web/copy.ts`, `e2e/cook-roast.spec.ts`.
   Covers: CM2.6, CM2.7, CM9.5.
   Command: `npx playwright test e2e/cook-roast.spec.ts && npm run typecheck`
-- [ ] T4.5 `BuildLog` and `LogEntryView` with new warnings. E2E first: CM-c by taps, `+15 min` on
+- [x] T4.5 `BuildLog` and `LogEntryView` with new warnings. E2E first: CM-c by taps, `+15 min` on
   the roast at 18:30 → the log's mono lines exactly as CM-c, `Serve at 19:45`, `Planned for 19:30`,
   the two warning sentences, the up-to-date toggle listing three `is up to date` lines, and the
   announcement in the live region.
@@ -174,7 +174,7 @@ installed and paused, `seedDinner(page, SUNDAY_ROAST, HOME_KITCHEN, '19:30')` un
   `src/web/styles/cook.css`, `e2e/cook-roast.spec.ts`.
   Covers: CM5.1, CM5.3–CM5.6.
   Command: `npx playwright test e2e/cook-roast.spec.ts && npm run typecheck`
-- [ ] T4.6 "I'm behind", Undo, the blocked-start confirmation, late cards. E2E first: CM-d at
+- [x] T4.6 "I'm behind", Undo, the blocked-start confirmation, late cards. E2E first: CM-d at
   17:53; CM-c then `Undo: +15 min on Roast the chicken` restores `Serve at 19:30` and is gone after
   `runFor(10_000)` without a tap; CM-g by `fastForward` to 19:10 shows `! Late by 5 min` on the roast and the rest and no log entry, then "I'm behind" shows the E3 log; starting `Make a
   roux in the roasting tin` while the roast runs asks first, `Not yet` changes nothing.
