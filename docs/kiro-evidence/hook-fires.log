@@ -88,3 +88,7 @@
 2026-11-11T05:21:57Z after-write ran=typecheck,test:props typecheck=0 props=0
 2026-11-11T05:22:44Z after-write ran=typecheck typecheck=0 props=skipped
 2026-11-11T05:25:16Z on-stop test=1 (Test Files 1 failed | 16 passed (17);Tests 1 failed | 715 passed (716)) test:props=0 (Test Files 4 passed (4);Tests 32 passed (32)) lint=0
+2026-11-11T05:25:56Z on-spawn changed_files=1 unticked_shown=20
+2026-11-11T05:26:48Z after-write ran=typecheck,test:props typecheck=0 props=0
+2026-11-11T05:26:51Z after-write ran=typecheck typecheck=0 props=skipped
+2026-11-11T05:29:00Z on-stop test=1 (Test Files 1 failed | 17 passed (18);Tests 1 failed | 747 passed (748)) test:props=0 (Test Files 4 passed (4);Tests 32 passed (32)) lint=0

@@ -2847,3 +2847,1176 @@ I'm leaving the failure in place. The only ways to make it pass now would be ski
 To keep the hook green in the meantime, you could scope it to leave out `test/meta/guarantees.test.ts`. I haven't changed any hook or config.
 
 --- run success (end_turn); credits reported by this session: 23.12 ---
+
+=== session 2026-11-11T05:25:54Z ===
+$ kiro-cli chat --output-format stream-json --v3 --agent sous-chef --trust-all-tools --trust-workspace --model auto "$(cat docs/kiro-evidence/prompts/13b-impl-scheduler.md)"
+--- prompt ---
+Spec: scheduler. Implement T5 (backward pass), T6 (prep-forward and right-justify) and T7 (lanes and readout), in that order, and nothing after. T1 to T4 are done.
+
+Read .kiro/specs/scheduler/requirements.md, design.md and tasks.md in full first, and the recipe-graph code they build on. The hand-worked tables H1 to H6 in the design are the expected results: if your implementation disagrees with a table, work the case by hand before deciding which is wrong; if the table is wrong, stop and report it with your working (do not change the expected values to match the code).
+
+Each sub-task: test first, see it fail on an assertion, implement, run the proving command the task names, tick the sub-task only when it passed in this session. Property tasks are real fast-check properties using `fcParams()`; never lower the run count in code; a failing property is a scheduler bug until shown otherwise (scheduler-guarantees.md).
+
+Working rule: when the design is ambiguous or slightly off in a way that touches no guarantee, no schema bound and no sanity rule, choose the reading closest to the requirement, write it under "Decisions I made", and continue. Stop and ask only when a requirement, a guarantee, a property or a hand-worked table would have to change.
+
+Keep example tests proportionate. Do not commit. End with the report kiro-conduct.md asks for, with the real counts from `npm test`, `npm run test:props`, `npm run typecheck`, `npm run lint` and `npx prettier --check .`.
+--- transcript (rendered from the event stream by scripts/kiro-render.mjs) ---
+[steering] {"steeringDocuments":["file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/kiro-conduct.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/product.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/scheduler-guarantees.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/structure.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/tech.md","file://~/hackathons-2026/kiroween/makedinner/.kiro/steering/testing.md"],"kind":"steering_inclusion"}
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/scheduler/requirements.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/scheduler/design.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/scheduler/tasks.md
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/.kiro/specs/scheduler/design.md
+[tool:search] List Directory ~/hackathons-2026/kiroween/makedinner
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && find src/core test -type f | sort && cat src/core/timeline.ts src/core/index.ts && ls src/core/passes 2>/dev/null; wc -l src/core/graph.ts test/support/fixtures.ts test/core/timeline.test.ts
+    … (177 earlier lines not shown)
+      Plan,
+      Step,
+      WarningCode,
+    } from './schema.js';
+    
+    export {
+      findCycles,
+      longestChainMinutes,
+      successors,
+      terminalSteps,
+      topologicalOrder,
+    } from './graph.js';
+    export type { CycleError } from './graph.js';
+    
+    export {
+      checkKitchen,
+      checkPlan,
+      hasErrors,
+      parseKitchen,
+      parsePlan,
+      sortIssues,
+      validatePlan,
+    } from './sanity.js';
+    export type { PlanCheck } from './sanity.js';
+    
+    export { normaliseRecipeText } from './normalise.js';
+         153 src/core/graph.ts
+         610 test/support/fixtures.ts
+         226 test/core/timeline.test.ts
+         989 total
+    exit 0
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/src/core/graph.ts
+[tool:read] Read File ~/hackathons-2026/kiroween/makedinner/test/support/fixtures.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && grep -n "Schedule\|StepLanes\|export const LIMITS" -A3 src/core/schema.ts | head -120; head -30 test/core/timeline.test.ts; cat test/support/fc-params.ts | head -30
+    … (44 earlier lines not shown)
+    describe('R3.5 capacityOf and resourcesOf', () => {
+      it('RESOURCES lists burner, oven, cook in that order', () => {
+        expect(RESOURCES).toEqual(['burner', 'oven', 'cook']);
+      });
+      it('capacityOf reads burners, ovens and cooks', () => {
+        expect(capacityOf({ burners: 4, ovens: 1, cooks: 2 })).toEqual({
+          burner: 4,
+          oven: 1,
+          cook: 2,
+        });
+        expect(capacityOf({ burners: 0, ovens: 0, cooks: 1 })).toEqual({
+          burner: 0,
+          oven: 0,
+          cook: 1,
+        });
+      });
+      it.each([
+    import type { Parameters } from 'fast-check';
+    
+    const DEFAULT_NUM_RUNS = 200;
+    
+    /**
+     * The shared fast-check parameters: 200 runs, or `FC_NUM_RUNS` when it is a positive
+     * integer. No property file sets `numRuns` itself (testing.md).
+     */
+    export function fcParams(): Parameters<unknown[]> {
+      const requested = Number(process.env.FC_NUM_RUNS);
+      const numRuns = Number.isInteger(requested) && requested > 0 ? requested : DEFAULT_NUM_RUNS;
+      return { numRuns };
+    }
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && mkdir -p src/core/passes && cat > src/core/passes/backward.ts <<'EOF'
+import type { Plan } from '../schema.js';
+import type { Capacity } from '../timeline.js';
+
+export function backwardPass(_plan: Plan, _cap: Capacity): Map<string, number> {
+  return new Map();
+}
+EOF
+cat > test/core/passes.test.ts <<'EOF'
+import { describe, expect, it } from 'vitest';
+import { backwardPass } from '../../src/core/passes/backward.js';
+import { canonicalPlan } from '../../src/core/schema.js';
+import type { Kitchen, Plan } from '../../src/core/schema.js';
+import { capacityOf } from '../../src/core/timeline.js';
+import {
+  BARE_KITCHEN,
+  BURNER_ONLY_KITCHEN,
+  HOME_KITCHEN,
+  LONG_DAY,
+  MEZZE,
+  NO_BURNER_KITCHEN,
+  ONE_BURNER_KITCHEN,
+  PREP_AHEAD,
+  SOLO_BURNER,
+  SUNDAY_ROAST,
+  TIGHT_OVEN,
+} from '../support/fixtures.js';
+
+type Starts = Record<string, number>;
+
+const plain = (starts: ReadonlyMap<string, number>): Starts =>
+  Object.fromEntries([...starts.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+
+const pass1 = (plan: Plan, kitchen: Kitchen): Starts => {
+  const canonical = canonicalPlan(plan);
+  return plain(backwardPass(canonical, capacityOf(kitchen)));
+};
+
+describe('R3 backward pass (design H1 to H5, "pass 1 start")', () => {
+  it('R3.3 H1: SUNDAY_ROAST x HOME_KITCHEN, carve before toss on the hold tie', () => {
+    expect(pass1(SUNDAY_ROAST, HOME_KITCHEN)).toEqual({
+      'chicken.carve': -5,
+      'chicken.prep': -110,
+      'chicken.rest': -25,
+      'chicken.roast': -100,
+      'gravy.roux': -20,
+      'gravy.simmer': -18,
+      'gravy.strain': -8,
+      'greens.boil': -10,
+      'greens.shred': -15,
+      'greens.toss': -6,
+    });
+  });
+  it('R3.4 H2: one burner pushes simmer and roux earlier', () => {
+    expect(pass1(SUNDAY_ROAST, ONE_BURNER_KITCHEN)).toEqual({
+      'chicken.carve': -5,
+      'chicken.prep': -110,
+      'chicken.rest': -25,
+      'chicken.roast': -100,
+      'gravy.roux': -22,
+      'gravy.simmer': -20,
+      'gravy.strain': -8,
+      'greens.boil': -10,
+      'greens.shred': -15,
+      'greens.toss': -6,
+    });
+  });
+  it('R3.3 H3: pie.bake before potatoes.roast on the hold tie, one oven', () => {
+    expect(pass1(TIGHT_OVEN, HOME_KITCHEN)).toEqual({
+      'pie.assemble': -55,
+      'pie.bake': -40,
+      'potatoes.peel': -95,
+      'potatoes.roast': -85,
+    });
+  });
+  it('R3.3 H4: MEZZE, a keeps terminal step is placed after the hot ones', () => {
+    expect(pass1(MEZZE, HOME_KITCHEN)).toEqual({
+      'flatbread.cook': -14,
+      'flatbread.mix': -84,
+      'flatbread.rise': -74,
+      'hummus.blend': -24,
+      'salad.chop': -34,
+      'salad.dressing': -39,
+      'salad.toss': -2,
+    });
+  });
+  it('R3.1 H5: PREP_AHEAD x NO_BURNER_KITCHEN', () => {
+    expect(pass1(PREP_AHEAD, NO_BURNER_KITCHEN)).toEqual({
+      'bread.bake': -8,
+      'bread.shape': -17,
+      'jelly.set': -60,
+      'salad.chop': -12,
+      'salad.toss': -2,
+    });
+  });
+  it('R3.4 H6: SOLO_BURNER ends at 0', () => {
+    expect(pass1(SOLO_BURNER, BURNER_ONLY_KITCHEN)).toEqual({ 'solo.sear': -30 });
+  });
+  it('R9.4 H6: LONG_DAY stacks 80 steps down to -38400, smallest id first', () => {
+    const starts = pass1(LONG_DAY, BARE_KITCHEN);
+    const expected: Starts = {};
+    for (let n = 1; n <= 80; n++) {
+      expected[`feast.s${String(n).padStart(2, '0')}`] = -480 * n;
+    }
+    expect(starts).toEqual(expected);
+  });
+});
+EOF
+npx vitest run --project examples test/core/passes.test.ts 2>&1 | tail -30
+    -   "feast.s70": -33600,
+    -   "feast.s71": -34080,
+    -   "feast.s72": -34560,
+    -   "feast.s73": -35040,
+    -   "feast.s74": -35520,
+    -   "feast.s75": -36000,
+    -   "feast.s76": -36480,
+    -   "feast.s77": -36960,
+    -   "feast.s78": -37440,
+    -   "feast.s79": -37920,
+    -   "feast.s80": -38400,
+    - }
+    + {}
+    
+     ❯ test/core/passes.test.ts:96:20
+         94|       expected[`feast.s${String(n).padStart(2, '0')}`] = -480 * n;
+         95|     }
+         96|     expect(starts).toEqual(expected);
+           |                    ^
+         97|   });
+         98| });
+    
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+    
+    
+     Test Files  1 failed (1)
+          Tests  7 failed (7)
+       Start at  14:26:35
+       Duration  151ms (import 66%, transform 24%, tests 8%, worker 3%)
+    exit 0
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/src/core/passes/backward.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx vitest run --project examples test/core/passes.test.ts 2>&1 | tail -30
+    
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+    
+    
+     Test Files  1 passed (1)
+          Tests  7 passed (7)
+       Start at  14:26:54
+       Duration  155ms (tests 56%, import 27%, transform 15%, worker 2%)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat > src/core/passes/prep-forward.ts <<'EOF'
+import type { Plan } from '../schema.js';
+import type { Capacity } from '../timeline.js';
+
+export function prepForwardPass(
+  _plan: Plan,
+  _cap: Capacity,
+  _starts: ReadonlyMap<string, number>,
+): Map<string, number> {
+  return new Map();
+}
+EOF
+cat > src/core/passes/right-justify.ts <<'EOF'
+import type { Plan } from '../schema.js';
+import type { Capacity } from '../timeline.js';
+
+export function rightJustifyPass(
+  _plan: Plan,
+  _cap: Capacity,
+  _starts: ReadonlyMap<string, number>,
+): Map<string, number> {
+  return new Map();
+}
+EOF
+python3 - <<'EOF'
+p='test/core/passes.test.ts'
+s=open(p).read()
+s=s.replace("import { backwardPass } from '../../src/core/passes/backward.js';\n","import { backwardPass } from '../../src/core/passes/backward.js';\nimport { prepForwardPass } from '../../src/core/passes/prep-forward.js';\nimport { rightJustifyPass } from '../../src/core/passes/right-justify.js';\n")
+s=s.replace("  BURNER_ONLY_KITCHEN,\n","  BURNER_ONLY_KITCHEN,\n  COLD_SAUCE,\n")
+s+='''
+const withStarts = (base: Starts, moves: Starts): Starts => ({ ...base, ...moves });
+
+const pass2 = (plan: Plan, kitchen: Kitchen, starts: Starts): Starts =>
+  plain(prepForwardPass(canonicalPlan(plan), capacityOf(kitchen), new Map(Object.entries(starts))));
+
+const pass3 = (plan: Plan, kitchen: Kitchen, starts: Starts): Starts =>
+  plain(rightJustifyPass(canonicalPlan(plan), capacityOf(kitchen), new Map(Object.entries(starts))));
+
+// Pass 1 starts, written out from the design tables (not computed).
+const H1_PASS1: Starts = {
+  'chicken.carve': -5,
+  'chicken.prep': -110,
+  'chicken.rest': -25,
+  'chicken.roast': -100,
+  'gravy.roux': -20,
+  'gravy.simmer': -18,
+  'gravy.strain': -8,
+  'greens.boil': -10,
+  'greens.shred': -15,
+  'greens.toss': -6,
+};
+const H2_PASS1: Starts = withStarts(H1_PASS1, {
+  'gravy.roux': -22,
+  'gravy.simmer': -20,
+});
+const H3_PASS1: Starts = {
+  'pie.assemble': -55,
+  'pie.bake': -40,
+  'potatoes.peel': -95,
+  'potatoes.roast': -85,
+};
+const H4_PASS1: Starts = {
+  'flatbread.cook': -14,
+  'flatbread.mix': -84,
+  'flatbread.rise': -74,
+  'hummus.blend': -24,
+  'salad.chop': -34,
+  'salad.dressing': -39,
+  'salad.toss': -2,
+};
+const H5_PASS1: Starts = {
+  'bread.bake': -8,
+  'bread.shape': -17,
+  'jelly.set': -60,
+  'salad.chop': -12,
+  'salad.toss': -2,
+};
+
+describe('R4 prep-forward pass (design H1 to H5)', () => {
+  it('R4.2 H1: only greens.shred (keeps) moves, to -100', () => {
+    expect(pass2(SUNDAY_ROAST, HOME_KITCHEN, H1_PASS1)).toEqual(
+      withStarts(H1_PASS1, { 'greens.shred': -100 }),
+    );
+  });
+  it('R4.2 H2: only greens.shred moves, to -100, with one burner', () => {
+    expect(pass2(SUNDAY_ROAST, ONE_BURNER_KITCHEN, H2_PASS1)).toEqual(
+      withStarts(H2_PASS1, { 'greens.shred': -100 }),
+    );
+  });
+  it('R4.2 H3: pie.assemble moves to -85, behind potatoes.peel on the cook', () => {
+    expect(pass2(TIGHT_OVEN, HOME_KITCHEN, H3_PASS1)).toEqual(
+      withStarts(H3_PASS1, { 'pie.assemble': -85 }),
+    );
+  });
+  it('R4.2 R9.6 H4: hummus (keeps terminal), chop and dressing move to the front', () => {
+    expect(pass2(MEZZE, HOME_KITCHEN, H4_PASS1)).toEqual(
+      withStarts(H4_PASS1, {
+        'hummus.blend': -74,
+        'salad.chop': -64,
+        'salad.dressing': -54,
+      }),
+    );
+  });
+  it('R4.2 H5: only salad.chop moves, to -60', () => {
+    expect(pass2(PREP_AHEAD, NO_BURNER_KITCHEN, H5_PASS1)).toEqual(
+      withStarts(H5_PASS1, { 'salad.chop': -60 }),
+    );
+  });
+  it('R9.5 H6: sauce.whisk starts at its hot prerequisite end, -13', () => {
+    const start: Starts = { 'fish.fry': -8, 'sauce.reduce': -23, 'sauce.whisk': -13 };
+    expect(pass2(COLD_SAUCE, BURNER_ONLY_KITCHEN, start)).toEqual(start);
+  });
+});
+
+describe('R5 right-justify pass (design H1 to H5)', () => {
+  const H1_PASS2 = withStarts(H1_PASS1, { 'greens.shred': -100 });
+  const H2_PASS2 = withStarts(H2_PASS1, { 'greens.shred': -100 });
+  const H3_PASS2 = withStarts(H3_PASS1, { 'pie.assemble': -85 });
+  const H4_PASS2 = withStarts(H4_PASS1, {
+    'hummus.blend': -74,
+    'salad.chop': -64,
+    'salad.dressing': -54,
+  });
+  const H5_PASS2 = withStarts(H5_PASS1, { 'salad.chop': -60 });
+
+  it('R5.1 H1: nothing moves', () => {
+    expect(pass3(SUNDAY_ROAST, HOME_KITCHEN, H1_PASS2)).toEqual(H1_PASS2);
+  });
+  it('R5.1 H2: nothing moves', () => {
+    expect(pass3(SUNDAY_ROAST, ONE_BURNER_KITCHEN, H2_PASS2)).toEqual(H2_PASS2);
+  });
+  it('R5.1 H3: nothing moves', () => {
+    expect(pass3(TIGHT_OVEN, HOME_KITCHEN, H3_PASS2)).toEqual(H3_PASS2);
+  });
+  it('R5.1 H4: nothing moves', () => {
+    expect(pass3(MEZZE, HOME_KITCHEN, H4_PASS2)).toEqual(H4_PASS2);
+  });
+  it('R5.1 H5: only bread.shape moves, to -13', () => {
+    expect(pass3(PREP_AHEAD, NO_BURNER_KITCHEN, H5_PASS2)).toEqual(
+      withStarts(H5_PASS2, { 'bread.shape': -13 }),
+    );
+  });
+});
+'''
+open(p,'w').write(s)
+EOF
+npx prettier --write test/core/passes.test.ts src/core/passes >/dev/null; npx vitest run --project examples test/core/passes.test.ts 2>&1 | grep -E "✓|×|FAIL|Tests " | head -30
+         × R4.2 H1: only greens.shred (keeps) moves, to -100 4ms
+         × R4.2 H2: only greens.shred moves, to -100, with one burner 0ms
+         × R4.2 H3: pie.assemble moves to -85, behind potatoes.peel on the cook 0ms
+         × R4.2 R9.6 H4: hummus (keeps terminal), chop and dressing move to the front 0ms
+         × R4.2 H5: only salad.chop moves, to -60 0ms
+         × R9.5 H6: sauce.whisk starts at its hot prerequisite end, -13 0ms
+         × R5.1 H1: nothing moves 0ms
+         × R5.1 H2: nothing moves 0ms
+         × R5.1 H3: nothing moves 0ms
+         × R5.1 H4: nothing moves 0ms
+         × R5.1 H5: only bread.shape moves, to -13 0ms
+    ⎯⎯⎯⎯⎯⎯ Failed Tests 11 ⎯⎯⎯⎯⎯⎯⎯
+     FAIL  |examples| test/core/passes.test.ts > R4 prep-forward pass (design H1 to H5) > R4.2 H1: only greens.shred (keeps) moves, to -100
+     FAIL  |examples| test/core/passes.test.ts > R4 prep-forward pass (design H1 to H5) > R4.2 H2: only greens.shred moves, to -100, with one burner
+     FAIL  |examples| test/core/passes.test.ts > R4 prep-forward pass (design H1 to H5) > R4.2 H3: pie.assemble moves to -85, behind potatoes.peel on the cook
+     FAIL  |examples| test/core/passes.test.ts > R4 prep-forward pass (design H1 to H5) > R4.2 R9.6 H4: hummus (keeps terminal), chop and dressing move to the front
+     FAIL  |examples| test/core/passes.test.ts > R4 prep-forward pass (design H1 to H5) > R4.2 H5: only salad.chop moves, to -60
+     FAIL  |examples| test/core/passes.test.ts > R4 prep-forward pass (design H1 to H5) > R9.5 H6: sauce.whisk starts at its hot prerequisite end, -13
+     FAIL  |examples| test/core/passes.test.ts > R5 right-justify pass (design H1 to H5) > R5.1 H1: nothing moves
+     FAIL  |examples| test/core/passes.test.ts > R5 right-justify pass (design H1 to H5) > R5.1 H2: nothing moves
+     FAIL  |examples| test/core/passes.test.ts > R5 right-justify pass (design H1 to H5) > R5.1 H3: nothing moves
+     FAIL  |examples| test/core/passes.test.ts > R5 right-justify pass (design H1 to H5) > R5.1 H4: nothing moves
+     FAIL  |examples| test/core/passes.test.ts > R5 right-justify pass (design H1 to H5) > R5.1 H5: only bread.shape moves, to -13
+          Tests  11 failed | 7 passed (18)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat > src/core/passes/prep-forward.ts <<'EOF'
+import { topologicalOrder } from '../graph.js';
+import type { Plan, Step } from '../schema.js';
+import { createTimeline, earliestFit, resourcesOf } from '../timeline.js';
+import type { Capacity } from '../timeline.js';
+
+/**
+ * Pass 2. Moves every step whose result keeps (terminal or not), in topological order, to the
+ * earliest start at or after both `T0` (the earliest start so far) and the latest end of its
+ * prerequisites where its resources are free. Steps whose result does not keep stay put, and
+ * no step moves later. `plan` must be canonical and valid.
+ */
+export function prepForwardPass(
+  plan: Plan,
+  cap: Capacity,
+  starts: ReadonlyMap<string, number>,
+): Map<string, number> {
+  const order = topologicalOrder(plan);
+  if (!order.ok) throw new Error('prepForwardPass: the plan has a cycle');
+  const byId = new Map<string, Step>(plan.steps.map((s) => [s.id, s]));
+  const next = new Map(starts);
+  const startOf = (id: string): number => {
+    const value = next.get(id);
+    if (value === undefined) throw new Error(`prepForwardPass: no start for ${id}`);
+    return value;
+  };
+  const t0 = Math.min(...next.values());
+  const tl = createTimeline(cap);
+  for (const step of plan.steps) {
+    tl.add(resourcesOf(step), startOf(step.id), startOf(step.id) + step.minutes);
+  }
+  for (const id of order.value) {
+    const step = byId.get(id);
+    if (step === undefined || step.holdMin !== null) continue;
+    const rs = resourcesOf(step);
+    const current = startOf(id);
+    tl.remove(rs, current, current + step.minutes);
+    const lower = Math.max(
+      t0,
+      ...step.after.map((p) => startOf(p) + (byId.get(p)?.minutes ?? 0)),
+    );
+    const moved = earliestFit(tl, rs, step.minutes, lower, current);
+    next.set(id, moved);
+    tl.add(rs, moved, moved + step.minutes);
+  }
+  return new Map([...next.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+}
+EOF
+cat > src/core/passes/right-justify.ts <<'EOF'
+import { successors } from '../graph.js';
+import { compareIds } from '../schema.js';
+import type { Plan, Step } from '../schema.js';
+import { createTimeline, latestFit, resourcesOf } from '../timeline.js';
+import type { Capacity } from '../timeline.js';
+
+/**
+ * Pass 3. Moves every step whose result does not keep, latest end first (ties by id), to the
+ * latest end at or before its deadline (the earliest current successor start, or 0) where its
+ * resources are free. Steps whose result keeps stay put, and no step moves earlier.
+ * `plan` must be canonical and valid.
+ */
+export function rightJustifyPass(
+  plan: Plan,
+  cap: Capacity,
+  starts: ReadonlyMap<string, number>,
+): Map<string, number> {
+  const succ = successors(plan);
+  const next = new Map(starts);
+  const startOf = (id: string): number => {
+    const value = next.get(id);
+    if (value === undefined) throw new Error(`rightJustifyPass: no start for ${id}`);
+    return value;
+  };
+  const endOf = (step: Step): number => startOf(step.id) + step.minutes;
+  const tl = createTimeline(cap);
+  for (const step of plan.steps) tl.add(resourcesOf(step), startOf(step.id), endOf(step));
+
+  const order = plan.steps
+    .filter((s) => s.holdMin !== null)
+    .map((s) => ({ step: s, end: endOf(s) }))
+    .sort((a, b) => b.end - a.end || compareIds(a.step.id, b.step.id));
+  for (const { step } of order) {
+    const rs = resourcesOf(step);
+    const currentEnd = endOf(step);
+    tl.remove(rs, startOf(step.id), currentEnd);
+    const users = succ.get(step.id) ?? [];
+    const deadline = users.length === 0 ? 0 : Math.min(...users.map(startOf));
+    const end = latestFit(tl, rs, step.minutes, deadline, currentEnd - step.minutes);
+    next.set(step.id, end - step.minutes);
+    tl.add(rs, end - step.minutes, end);
+  }
+  return new Map([...next.entries()].sort(([a], [b]) => compareIds(a, b)));
+}
+EOF
+npx prettier --write src/core/passes >/dev/null; npx vitest run --project examples test/core/passes.test.ts 2>&1 | grep -E "✓|×|AssertionError|Tests |Error" | head -30
+          Tests  18 passed (18)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -i 's/\.sort((\[a\], \[b\]) => (a < b ? -1 : a > b ? 1 : 0))/.sort(([a], [b]) => compareIds(a, b))/' src/core/passes/prep-forward.ts && sed -i "s/import type { Plan, Step } from '..\/schema.js';/import { compareIds } from '..\/schema.js';\nimport type { Plan, Step } from '..\/schema.js';/" src/core/passes/prep-forward.ts && head -8 src/core/passes/prep-forward.ts; grep -n "hold_exceeded" -B3 -A12 src/core/schema.ts | head -70; grep -n "export function sortIssues" -A12 src/core/sanity.ts
+    … (34 earlier lines not shown)
+    --
+    154-  'appliance_mismatch',
+    155-  'long_hands_on',
+    156-  'short_hands_free',
+    157:  'hold_exceeded',
+    158-];
+    159-
+    160-/** Order on ids by UTF-16 code units: -1, 0 or 1. Never localeCompare. */
+    161-export function compareIds(a: string, b: string): number {
+    162-  // String comparison operators compare UTF-16 code units, which is what R3.8 asks for.
+    163-  if (a < b) return -1;
+    164-  if (a > b) return 1;
+    165-  return 0;
+    166-}
+    167-
+    168-/** Dishes and steps sorted by id (stable), each after list sorted by id and deduplicated. */
+    169-export function canonicalPlan(plan: Plan): Plan {
+    68:export function sortIssues(issues: readonly Issue[]): Issue[] {
+    69-  const seen = new Set<string>();
+    70-  const distinct: Issue[] = [];
+    71-  for (const issue of issues) {
+    72-    const key = issueKey(issue);
+    73-    if (seen.has(key)) continue;
+    74-    seen.add(key);
+    75-    distinct.push(issue);
+    76-  }
+    77-  return distinct.toSorted(compareIssues);
+    78-}
+    79-
+    80-export function hasErrors(issues: readonly Issue[]): boolean {
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/core/passes/prep-forward.ts'
+s=open(p).read()
+s=s.replace("(a < b ? -1 : a > b ? 1 : 0)","compareIds(a, b)")
+s=s.replace("import type { Plan, Step } from '../schema.js';","import { compareIds } from '../schema.js';\nimport type { Plan, Step } from '../schema.js';")
+open(p,'w').write(s)
+EOF
+grep -n "issueKey\|const variant" -A8 src/core/sanity.ts src/core/schema.ts | head -40
+    src/core/sanity.ts:38:function issueKey(issue: Issue): string {
+    src/core/sanity.ts-39-  const entries = Object.entries(issue as Record<string, unknown>).sort(([a], [b]) =>
+    src/core/sanity.ts-40-    compareIds(a, b),
+    src/core/sanity.ts-41-  );
+    src/core/sanity.ts-42-  return JSON.stringify(entries);
+    src/core/sanity.ts-43-}
+    src/core/sanity.ts-44-
+    src/core/sanity.ts-45-function compareIssues(a: Issue, b: Issue): number {
+    src/core/sanity.ts-46-  const severity = (i: Issue): number => (i.severity === 'error' ? 0 : 1);
+    --
+    src/core/sanity.ts:72:    const key = issueKey(issue);
+    src/core/sanity.ts-73-    if (seen.has(key)) continue;
+    src/core/sanity.ts-74-    seen.add(key);
+    src/core/sanity.ts-75-    distinct.push(issue);
+    src/core/sanity.ts-76-  }
+    src/core/sanity.ts-77-  return distinct.toSorted(compareIssues);
+    src/core/sanity.ts-78-}
+    src/core/sanity.ts-79-
+    src/core/sanity.ts-80-export function hasErrors(issues: readonly Issue[]): boolean {
+    --
+    src/core/schema.ts:73:const variant = <S extends 'error' | 'warning', C extends string, F extends z.ZodRawShape>(
+    src/core/schema.ts-74-  severity: S,
+    src/core/schema.ts-75-  code: C,
+    src/core/schema.ts-76-  fields: F,
+    src/core/schema.ts-77-) =>
+    src/core/schema.ts-78-  z.strictObject({
+    src/core/schema.ts-79-    severity: z.literal(severity),
+    src/core/schema.ts-80-    code: z.literal(code),
+    src/core/schema.ts-81-    message,
+    exit 0
+
+Mark T5, T6 tests done after confirming; now T7 stubs and tests.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat > src/core/passes/lanes.ts <<'EOF'
+import type { Plan, StepLanes } from '../schema.js';
+import type { Capacity } from '../timeline.js';
+
+export function assignLanes(
+  _plan: Plan,
+  _cap: Capacity,
+  _starts: ReadonlyMap<string, number>,
+): Map<string, StepLanes> {
+  return new Map();
+}
+EOF
+cat > src/core/passes/readout.ts <<'EOF'
+import type { HoldExceededIssue, Plan } from '../schema.js';
+import type { Capacity } from '../timeline.js';
+
+export interface Readout {
+  slackMin: Map<string, number>;
+  waitMin: Map<string, number | null>;
+  warnings: HoldExceededIssue[];
+}
+
+export function readout(
+  _plan: Plan,
+  _cap: Capacity,
+  _starts: ReadonlyMap<string, number>,
+): Readout {
+  return { slackMin: new Map(), waitMin: new Map(), warnings: [] };
+}
+
+export function holdExceededMessage(
+  _stepId: string,
+  _terminal: boolean,
+  _waitMin: number,
+  _holdMin: number,
+): string {
+  return '';
+}
+EOF
+python3 - <<'EOF'
+p='test/core/passes.test.ts'
+s=open(p).read()
+s=s.replace("import { prepForwardPass }","import { assignLanes } from '../../src/core/passes/lanes.js';\nimport { prepForwardPass }")
+s=s.replace("import { rightJustifyPass }","import { holdExceededMessage, readout } from '../../src/core/passes/readout.js';\nimport { rightJustifyPass }")
+s=s.replace("  BARE_KITCHEN,\n","  BARE_KITCHEN,\n  BIG_KITCHEN,\n")
+s=s.replace("  TIGHT_OVEN,\n}","  TIGHT_OVEN,\n  TWO_CHOPS,\n}")
+s+='''
+// Final starts (after pass 3), from the design tables.
+const H1_FINAL: Starts = withStarts(H1_PASS1, { 'greens.shred': -100 });
+const H2_FINAL: Starts = withStarts(H2_PASS1, { 'greens.shred': -100 });
+const H3_FINAL: Starts = withStarts(H3_PASS1, { 'pie.assemble': -85 });
+const H4_FINAL: Starts = withStarts(H4_PASS1, {
+  'hummus.blend': -74,
+  'salad.chop': -64,
+  'salad.dressing': -54,
+});
+const H5_FINAL: Starts = withStarts(H5_PASS1, { 'salad.chop': -60, 'bread.shape': -13 });
+
+/** [burner, oven, cook] per step id, null for none. */
+type Lanes = Record<string, [number | null, number | null, number | null]>;
+
+const lanesOf = (plan: Plan, kitchen: Kitchen, starts: Starts): Lanes =>
+  Object.fromEntries(
+    [...assignLanes(canonicalPlan(plan), capacityOf(kitchen), new Map(Object.entries(starts)))]
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([id, l]) => [id, [l.burner, l.oven, l.cook]]),
+  );
+
+describe('R6 lanes (design H1 to H5, B O C columns)', () => {
+  it('R6.2 H1: greens.boil on burner 2, gravy.simmer keeps the burner of gravy.roux', () => {
+    expect(lanesOf(SUNDAY_ROAST, HOME_KITCHEN, H1_FINAL)).toEqual({
+      'chicken.carve': [null, null, 1],
+      'chicken.prep': [null, null, 1],
+      'chicken.rest': [null, null, null],
+      'chicken.roast': [null, 1, null],
+      'gravy.roux': [1, null, 1],
+      'gravy.simmer': [1, null, null],
+      'gravy.strain': [null, null, 1],
+      'greens.boil': [2, null, null],
+      'greens.shred': [null, null, 1],
+      'greens.toss': [null, null, 1],
+    });
+  });
+  it('R6.1 H2: with one burner greens.boil is on burner 1', () => {
+    expect(lanesOf(SUNDAY_ROAST, ONE_BURNER_KITCHEN, H2_FINAL)).toEqual({
+      'chicken.carve': [null, null, 1],
+      'chicken.prep': [null, null, 1],
+      'chicken.rest': [null, null, null],
+      'chicken.roast': [null, 1, null],
+      'gravy.roux': [1, null, 1],
+      'gravy.simmer': [1, null, null],
+      'gravy.strain': [null, null, 1],
+      'greens.boil': [1, null, null],
+      'greens.shred': [null, null, 1],
+      'greens.toss': [null, null, 1],
+    });
+  });
+  it('R6.1 H3: both oven steps on oven 1, one after the other', () => {
+    expect(lanesOf(TIGHT_OVEN, HOME_KITCHEN, H3_FINAL)).toEqual({
+      'pie.assemble': [null, null, 1],
+      'pie.bake': [null, 1, null],
+      'potatoes.peel': [null, null, 1],
+      'potatoes.roast': [null, 1, null],
+    });
+  });
+  it('R6.2 H4: salad.toss on the cook of salad.dressing', () => {
+    expect(lanesOf(MEZZE, HOME_KITCHEN, H4_FINAL)).toEqual({
+      'flatbread.cook': [1, null, 1],
+      'flatbread.mix': [null, null, 1],
+      'flatbread.rise': [null, null, null],
+      'hummus.blend': [null, null, 1],
+      'salad.chop': [null, null, 1],
+      'salad.dressing': [null, null, 1],
+      'salad.toss': [null, null, 1],
+    });
+  });
+  it('R1.8 H5: no burner lane when the kitchen has no burner', () => {
+    expect(lanesOf(PREP_AHEAD, NO_BURNER_KITCHEN, H5_FINAL)).toEqual({
+      'bread.bake': [null, 1, null],
+      'bread.shape': [null, null, 1],
+      'jelly.set': [null, null, null],
+      'salad.chop': [null, null, 1],
+      'salad.toss': [null, null, 1],
+    });
+  });
+  it('R9.3 H6: TWO_CHOPS x BIG_KITCHEN uses cook 1 and cook 2, not 5 and 6', () => {
+    expect(lanesOf(TWO_CHOPS, BIG_KITCHEN, { 'a.chop': -10, 'b.chop': -10 })).toEqual({
+      'a.chop': [null, null, 1],
+      'b.chop': [null, null, 2],
+    });
+  });
+});
+
+type Reading = Record<string, { slack: number; wait: number | null }>;
+
+const readingOf = (plan: Plan, kitchen: Kitchen, starts: Starts) => {
+  const r = readout(canonicalPlan(plan), capacityOf(kitchen), new Map(Object.entries(starts)));
+  const reading: Reading = {};
+  for (const [id, slack] of [...r.slackMin].sort(([a], [b]) => (a < b ? -1 : 1))) {
+    reading[id] = { slack, wait: r.waitMin.get(id) ?? -1 };
+  }
+  return { reading, warnings: r.warnings };
+};
+
+const TOSS_WARNING_MESSAGE =
+  'Step potatoes.roast will be ready 40 minutes before serving and can wait only 10 minutes. More ovens, burners or cooks may help.';
+
+describe('R7 readout (design H1 to H6)', () => {
+  it('R7.1 R7.4 R2.7 H1: slack, wait, chicken.roast wait 5 measured to gravy.roux', () => {
+    const { reading, warnings } = readingOf(SUNDAY_ROAST, HOME_KITCHEN, H1_FINAL);
+    expect(reading).toEqual({
+      'chicken.carve': { slack: 0, wait: 0 },
+      'chicken.prep': { slack: 0, wait: null },
+      'chicken.rest': { slack: 0, wait: 0 },
+      'chicken.roast': { slack: 0, wait: 5 },
+      'gravy.roux': { slack: 0, wait: 0 },
+      'gravy.simmer': { slack: 0, wait: 0 },
+      'gravy.strain': { slack: 0, wait: 6 },
+      'greens.boil': { slack: 0, wait: 0 },
+      'greens.shred': { slack: 75, wait: null },
+      'greens.toss': { slack: 0, wait: 5 },
+    });
+    expect(warnings).toEqual([]);
+  });
+  it('R7.1 H2: greens.shred slack 73, gravy.simmer slack 0 and wait 2', () => {
+    const { reading, warnings } = readingOf(SUNDAY_ROAST, ONE_BURNER_KITCHEN, H2_FINAL);
+    expect(reading['greens.shred']).toEqual({ slack: 73, wait: null });
+    expect(reading['gravy.simmer']).toEqual({ slack: 0, wait: 2 });
+    expect(reading['chicken.roast']).toEqual({ slack: 0, wait: 3 });
+    expect(warnings).toEqual([]);
+  });
+  it('R7.3 H3: one hold_exceeded for potatoes.roast with the exact message', () => {
+    const { reading, warnings } = readingOf(TIGHT_OVEN, HOME_KITCHEN, H3_FINAL);
+    expect(reading).toEqual({
+      'pie.assemble': { slack: 30, wait: null },
+      'pie.bake': { slack: 0, wait: 0 },
+      'potatoes.peel': { slack: 0, wait: null },
+      'potatoes.roast': { slack: 0, wait: 40 },
+    });
+    expect(warnings).toEqual([
+      {
+        severity: 'warning',
+        code: 'hold_exceeded',
+        message: TOSS_WARNING_MESSAGE,
+        stepId: 'potatoes.roast',
+        waitMin: 40,
+        holdMin: 10,
+      },
+    ]);
+  });
+  it('R7.1 H4: packed prep is critical, dressing has slack 35', () => {
+    const { reading, warnings } = readingOf(MEZZE, HOME_KITCHEN, H4_FINAL);
+    expect(reading).toEqual({
+      'flatbread.cook': { slack: 0, wait: 2 },
+      'flatbread.mix': { slack: 0, wait: null },
+      'flatbread.rise': { slack: 0, wait: 0 },
+      'hummus.blend': { slack: 0, wait: null },
+      'salad.chop': { slack: 0, wait: null },
+      'salad.dressing': { slack: 35, wait: null },
+      'salad.toss': { slack: 0, wait: 0 },
+    });
+    expect(warnings).toEqual([]);
+  });
+  it('R7.3 H5: shape wait 0 after right-justify, no warning; chop slack 37', () => {
+    const { reading, warnings } = readingOf(PREP_AHEAD, NO_BURNER_KITCHEN, H5_FINAL);
+    expect(reading).toEqual({
+      'bread.bake': { slack: 0, wait: 0 },
+      'bread.shape': { slack: 0, wait: 0 },
+      'jelly.set': { slack: 0, wait: null },
+      'salad.chop': { slack: 37, wait: null },
+      'salad.toss': { slack: 0, wait: 0 },
+    });
+    expect(warnings).toEqual([]);
+  });
+  it('R7.3 H6: TWO_CHOPS x BARE_KITCHEN, b.chop waits 10 over a hold of 5', () => {
+    const { reading, warnings } = readingOf(TWO_CHOPS, BARE_KITCHEN, {
+      'a.chop': -10,
+      'b.chop': -20,
+    });
+    expect(reading).toEqual({
+      'a.chop': { slack: 0, wait: 0 },
+      'b.chop': { slack: 0, wait: 10 },
+    });
+    expect(warnings).toEqual([
+      {
+        severity: 'warning',
+        code: 'hold_exceeded',
+        message:
+          'Step b.chop will be ready 10 minutes before serving and can wait only 5 minutes. More ovens, burners or cooks may help.',
+        stepId: 'b.chop',
+        waitMin: 10,
+        holdMin: 5,
+      },
+    ]);
+  });
+  it('R7.3 a step that is not terminal: wait to the step that uses it, wording and slack', () => {
+    const plan: Plan = {
+      title: 'Two waits',
+      dishes: [{ id: 'a', name: 'A' }],
+      steps: [
+        {
+          id: 'a.y',
+          dish: 'a',
+          title: 'Leave it to set',
+          minutes: 5,
+          appliance: 'none',
+          handsOn: false,
+          after: ['a.x'],
+          holdMin: null,
+        },
+        {
+          id: 'a.x',
+          dish: 'a',
+          title: 'Leave it to cool',
+          minutes: 5,
+          appliance: 'none',
+          handsOn: false,
+          after: [],
+          holdMin: 5,
+        },
+      ],
+    };
+    const { reading, warnings } = readingOf(plan, HOME_KITCHEN, { 'a.x': -20, 'a.y': -8 });
+    expect(reading).toEqual({
+      'a.x': { slack: 7, wait: 7 },
+      'a.y': { slack: 3, wait: null },
+    });
+    expect(warnings.map((w) => w.message)).toEqual([
+      'Step a.x will be ready 7 minutes before the step that uses it and can wait only 5 minutes. More ovens, burners or cooks may help.',
+    ]);
+  });
+  it('R7.3 holdExceededMessage uses the singular for 1 minute', () => {
+    expect(holdExceededMessage('a.x', true, 1, 0)).toBe(
+      'Step a.x will be ready 1 minute before serving and can wait only 0 minutes. More ovens, burners or cooks may help.',
+    );
+    expect(holdExceededMessage('a.x', false, 2, 1)).toBe(
+      'Step a.x will be ready 2 minutes before the step that uses it and can wait only 1 minute. More ovens, burners or cooks may help.',
+    );
+  });
+});
+'''
+open(p,'w').write(s)
+EOF
+npx prettier --write test/core/passes.test.ts src/core/passes >/dev/null; npx vitest run --project examples test/core/passes.test.ts 2>&1 | grep -E "×|Tests |rror" | head -30
+         × R6.2 H1: greens.boil on burner 2, gravy.simmer keeps the burner of gravy.roux 3ms
+         × R6.1 H2: with one burner greens.boil is on burner 1 0ms
+         × R6.1 H3: both oven steps on oven 1, one after the other 0ms
+         × R6.2 H4: salad.toss on the cook of salad.dressing 0ms
+         × R1.8 H5: no burner lane when the kitchen has no burner 0ms
+         × R9.3 H6: TWO_CHOPS x BIG_KITCHEN uses cook 1 and cook 2, not 5 and 6 0ms
+         × R7.1 R7.4 R2.7 H1: slack, wait, chicken.roast wait 5 measured to gravy.roux 0ms
+         × R7.1 H2: greens.shred slack 73, gravy.simmer slack 0 and wait 2 0ms
+         × R7.3 H3: one hold_exceeded for potatoes.roast with the exact message 0ms
+         × R7.1 H4: packed prep is critical, dressing has slack 35 0ms
+         × R7.3 H5: shape wait 0 after right-justify, no warning; chop slack 37 0ms
+         × R7.3 H6: TWO_CHOPS x BARE_KITCHEN, b.chop waits 10 over a hold of 5 0ms
+         × R7.3 a step that is not terminal: wait to the step that uses it, wording and slack 0ms
+         × R7.3 holdExceededMessage uses the singular for 1 minute 0ms
+    ⎯⎯⎯⎯⎯⎯ Failed Tests 14 ⎯⎯⎯⎯⎯⎯⎯
+    AssertionError: expected {} to deeply equal { …(10) }
+    AssertionError: expected {} to deeply equal { …(10) }
+    AssertionError: expected {} to deeply equal { …(4) }
+    AssertionError: expected {} to deeply equal { …(7) }
+    AssertionError: expected {} to deeply equal { …(5) }
+    AssertionError: expected {} to deeply equal { 'a.chop': [ null, null, 1 ], …(1) }
+    AssertionError: expected {} to deeply equal { 'chicken.carve': { …(2) }, …(9) }
+    AssertionError: expected undefined to deeply equal { slack: 73, wait: null }
+    AssertionError: expected {} to deeply equal { 'pie.assemble': { …(2) }, …(3) }
+    AssertionError: expected {} to deeply equal { 'flatbread.cook': { …(2) }, …(6) }
+    AssertionError: expected {} to deeply equal { …(5) }
+    AssertionError: expected {} to deeply equal { …(2) }
+    AssertionError: expected {} to deeply equal { 'a.x': { slack: 7, wait: 7 }, …(1) }
+    AssertionError: expected '' to be 'Step a.x will be ready 1 minute befor…' // Object.is equality
+          Tests  14 failed | 18 passed (32)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat > src/core/passes/lanes.ts <<'EOF'
+import { compareIds } from '../schema.js';
+import type { Plan, Step, StepLanes } from '../schema.js';
+import { resourcesOf } from '../timeline.js';
+import type { Capacity, Resource } from '../timeline.js';
+
+/**
+ * Pass 4. Greedy interval colouring in order of (start, id): for each resource a step uses,
+ * it takes the lane of the prerequisite that ended last (ties by id) when that lane is free,
+ * otherwise the smallest free lane. `plan` must be canonical and valid; `starts` must satisfy
+ * capacity, so a free lane always exists (none free is a bug and throws).
+ */
+export function assignLanes(
+  plan: Plan,
+  cap: Capacity,
+  starts: ReadonlyMap<string, number>,
+): Map<string, StepLanes> {
+  const byId = new Map<string, Step>(plan.steps.map((s) => [s.id, s]));
+  const startOf = (id: string): number => {
+    const value = starts.get(id);
+    if (value === undefined) throw new Error(`assignLanes: no start for ${id}`);
+    return value;
+  };
+  const endOf = (step: Step): number => startOf(step.id) + step.minutes;
+  const lanes = new Map<string, StepLanes>();
+  const laneOf = (id: string, r: Resource): number | null => lanes.get(id)?.[r === 'burner' ? 'burner' : r === 'oven' ? 'oven' : 'cook'] ?? null;
+
+  const order = [...plan.steps].sort(
+    (a, b) => startOf(a.id) - startOf(b.id) || compareIds(a.id, b.id),
+  );
+  const assigned: Step[] = [];
+  for (const step of order) {
+    const chosen: Record<Resource, number | null> = { burner: null, oven: null, cook: null };
+    for (const r of resourcesOf(step)) {
+      const busy = new Set<number>();
+      for (const u of assigned) {
+        if (endOf(u) <= startOf(step.id) || !resourcesOf(u).includes(r)) continue;
+        const lane = laneOf(u.id, r);
+        if (lane !== null) busy.add(lane);
+      }
+      const candidates = step.after
+        .map((p) => byId.get(p))
+        .filter((p): p is Step => p !== undefined && resourcesOf(p).includes(r))
+        .sort((a, b) => endOf(b) - endOf(a) || compareIds(a.id, b.id));
+      let lane: number | null = null;
+      for (const p of candidates) {
+        const l = laneOf(p.id, r);
+        if (l !== null && !busy.has(l)) {
+          lane = l;
+          break;
+        }
+      }
+      for (let l = 1; lane === null && l <= cap[r]; l++) {
+        if (!busy.has(l)) lane = l;
+      }
+      if (lane === null) throw new Error(`assignLanes: no free ${r} lane for ${step.id}`);
+      chosen[r] = lane;
+    }
+    lanes.set(step.id, chosen);
+    assigned.push(step);
+  }
+  return new Map([...lanes.entries()].sort(([a], [b]) => compareIds(a, b)));
+}
+EOF
+cat > src/core/passes/readout.ts <<'EOF'
+import { successors } from '../graph.js';
+import { sortIssues } from '../sanity.js';
+import { compareIds } from '../schema.js';
+import type { HoldExceededIssue, Plan, Step } from '../schema.js';
+import { createTimeline, resourcesOf } from '../timeline.js';
+import type { Capacity } from '../timeline.js';
+
+export interface Readout {
+  slackMin: Map<string, number>;
+  waitMin: Map<string, number | null>;
+  warnings: HoldExceededIssue[];
+}
+
+const minutesText = (n: number): string => `${n} ${n === 1 ? 'minute' : 'minutes'}`;
+
+export function holdExceededMessage(
+  stepId: string,
+  terminal: boolean,
+  waitMin: number,
+  holdMin: number,
+): string {
+  const before = terminal ? 'serving' : 'the step that uses it';
+  return `Step ${stepId} will be ready ${minutesText(waitMin)} before ${before} and can wait only ${minutesText(holdMin)}. More ovens, burners or cooks may help.`;
+}
+
+/**
+ * Pass 5. Slack by the G8 definition (delay one step alone, lanes and holds ignored), waits
+ * measured to the latest successor, and one `hold_exceeded` per step that waits too long.
+ * `plan` must be canonical and valid and `starts` must satisfy G1 to G3.
+ */
+export function readout(plan: Plan, cap: Capacity, starts: ReadonlyMap<string, number>): Readout {
+  const succ = successors(plan);
+  const byId = new Map<string, Step>(plan.steps.map((s) => [s.id, s]));
+  const startOf = (id: string): number => {
+    const value = starts.get(id);
+    if (value === undefined) throw new Error(`readout: no start for ${id}`);
+    return value;
+  };
+  const tl = createTimeline(cap);
+  for (const s of plan.steps) tl.add(resourcesOf(s), startOf(s.id), startOf(s.id) + s.minutes);
+
+  const slackMin = new Map<string, number>();
+  const waitMin = new Map<string, number | null>();
+  const warnings: HoldExceededIssue[] = [];
+  for (const step of plan.steps) {
+    const users = (succ.get(step.id) ?? []).map(startOf);
+    const end = startOf(step.id) + step.minutes;
+    const rs = resourcesOf(step);
+
+    const limit = (users.length === 0 ? 0 : Math.min(...users)) - end;
+    tl.remove(rs, startOf(step.id), end);
+    let slack = limit;
+    for (let d = 1; d <= limit; d++) {
+      if (tl.firstFull(rs, end + d - 1, end + d) !== null) {
+        slack = d - 1;
+        break;
+      }
+    }
+    tl.add(rs, startOf(step.id), end);
+    slackMin.set(step.id, slack);
+
+    const wait = step.holdMin === null ? null : (users.length === 0 ? 0 : Math.max(...users)) - end;
+    waitMin.set(step.id, wait);
+    if (wait !== null && step.holdMin !== null && wait > step.holdMin) {
+      warnings.push({
+        severity: 'warning',
+        code: 'hold_exceeded',
+        message: holdExceededMessage(step.id, users.length === 0, wait, step.holdMin),
+        stepId: step.id,
+        waitMin: wait,
+        holdMin: step.holdMin,
+      });
+    }
+  }
+  void byId;
+  void compareIds;
+  return { slackMin, waitMin, warnings: sortIssues(warnings) as HoldExceededIssue[] };
+}
+EOF
+
+    
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/core/passes/readout.ts'
+s=open(p).read()
+s=s.replace("  void byId;\n  void compareIds;\n","")
+s=s.replace("  const byId = new Map<string, Step>(plan.steps.map((s) => [s.id, s]));\n","")
+s=s.replace("import { compareIds } from '../schema.js';\nimport type { HoldExceededIssue, Plan, Step } from '../schema.js';","import type { HoldExceededIssue, Plan } from '../schema.js';")
+s=s.replace("sortIssues(warnings) as HoldExceededIssue[]","sortIssues(warnings).filter((i): i is HoldExceededIssue => i.code === 'hold_exceeded')")
+open(p,'w').write(s)
+p='src/core/passes/lanes.ts'
+s=open(p).read()
+import re
+s=re.sub(r"  const laneOf = .*\n","  const laneOf = (id: string, r: Resource): number | null => lanes.get(id)?.[r] ?? null;\n",s)
+open(p,'w').write(s)
+p='test/core/passes.test.ts'
+s=open(p).read()
+s=s.replace("reading[id] = { slack, wait: r.waitMin.get(id) ?? -1 };","reading[id] = { slack, wait: r.waitMin.get(id) ?? null };")
+s=s.replace("TOSS_WARNING_MESSAGE","ROAST_WARNING_MESSAGE")
+open(p,'w').write(s)
+EOF
+npx prettier --write test/core/passes.test.ts src/core/passes >/dev/null; npx vitest run --project examples test/core/passes.test.ts 2>&1 | grep -E "×|Tests |rror|expected" | head -30; npm run typecheck 2>&1 | tail -15
+          Tests  32 passed (32)
+    
+    > make-dinner@0.0.0 typecheck
+    > tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+import re
+p='.kiro/specs/scheduler/tasks.md'
+s=open(p).read()
+for t in ['T5.1','T5.2','T6.1','T6.2','T7.1','T7.2','T7.3','T7.4']:
+    s=s.replace(f"- [ ] {t} ",f"- [x] {t} ",1)
+open(p,'w').write(s)
+EOF
+npm test 2>&1 | tail -15; npm run test:props 2>&1 | tail -12; npm run lint 2>&1 | tail -20; npx prettier --check . 2>&1 | tail -5
+    … (3 earlier lines not shown)
+           |                                                                             ^
+        288|   });
+        289| });
+    
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+    
+    
+     Test Files  1 failed | 17 passed (18)
+          Tests  1 failed | 747 passed (748)
+       Start at  14:28:41
+       Duration  1.67s (tests 51%, import 36%, transform 12%, worker 1%)
+    
+    > make-dinner@0.0.0 test:props
+    > vitest run --project props --passWithNoTests
+    
+    
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+    
+    
+     Test Files  4 passed (4)
+          Tests  32 passed (32)
+       Start at  14:28:42
+       Duration  1.22s (tests 93%, import 5%, transform 1%)
+    
+    
+    > make-dinner@0.0.0 lint
+    > eslint .
+    
+    Checking formatting...
+    All matched files use Prettier code style!
+    exit 0
+
+T5, T6 and T7 are implemented and ticked (T5.1, T5.2, T6.1, T6.2, T7.1 to T7.4). All the example tests match the hand-worked tables H1 to H6, so I found no errors in the tables. I did not commit.
+
+## What changed
+- **`src/core/passes/backward.ts`**: pass 1, the backward pass.
+- **`src/core/passes/prep-forward.ts`**: pass 2, prep-forward.
+- **`src/core/passes/right-justify.ts`**: pass 3, right-justify.
+- **`src/core/passes/lanes.ts`**: `assignLanes`.
+- **`src/core/passes/readout.ts`**: `readout` and `holdExceededMessage`.
+- **`test/core/passes.test.ts`**: new, 32 example tests.
+- **`.kiro/specs/scheduler/tasks.md`**: ticked the eight sub-tasks above. T5, T6 and T7 have no parent line to tick.
+
+## Checks run
+Each sub-task's proving command was `npx vitest run --project examples test/core/passes.test.ts`. Before each implementation the new tests failed on assertions against stub return values, not on imports or types.
+
+| Command | Result |
+| --- | --- |
+| `npx vitest run --project examples test/core/passes.test.ts` | 32 passed, 0 failed, 0 skipped |
+| `npm test` | 747 passed, 1 failed, 0 skipped |
+| `npm run test:props` | 32 passed, 0 failed, 0 skipped |
+| `npm run typecheck` | clean, exit 0 |
+| `npm run lint` | clean, no output |
+| `npx prettier --check .` | all files formatted |
+
+The one failure in `npm test` is the `coverage` check in `test/meta/guarantees.test.ts`. It is expected: no G-id properties exist yet, because T8 and T9.1 come later. The other checks in that file pass.
+
+## Decisions I made
+- **Test inputs:** the pass tests feed the passes literal starts copied from the design tables, not the previous pass's output, so each pass is tested on its own. The backward-pass tests do compute pass 1 from the fixtures.
+- **Hold tie-break:** in the backward pass the second key (shortest hold first, keeps last) only applies to terminal steps. Non-terminal steps get rank 0, as the design says. The code uses 481 for a keeps hold, since the schema caps `holdMin` at 480.
+- **Unreachable states:** the passes throw on states that can't happen with valid input, such as a missing start or a cycle. This follows N2.
+- **Unit tests only:** `readout` and `assignLanes` return their own types and are not wired into `schedule` yet, which is T8.
+- **Extra readout case:** I added one hand-made plan to cover the non-terminal `hold_exceeded` message. Its wait is 7 and its slack is 7 and 3.
+
+## Not verified
+- Nothing runs the passes on generated plans yet, so none of G1 to G8 or the P-SC properties is tested. Those are T8.
+- `schedule()` is not written, so `LONG_DAY` end to end is untested. Only its pass-1 starts are checked, and that ran well inside the timeout.
+- I did not run `npm run test:e2e` or `npm run build`.
+
+## Open questions
+None. The guarantee coverage check will keep failing until T8 and T9.1 add the G properties.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npm test 2>&1 | grep -E "FAIL|×|Tests |Test Files|missing|no property" | head; npm run typecheck >/dev/null 2>&1; echo typecheck=$?; npm run lint >/dev/null 2>&1; echo lint=$?; npm run test:props 2>&1 | grep -E "Tests "
+         × coverage: every id of every required family has a property whose title starts with it 3ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+     FAIL  |examples| test/meta/guarantees.test.ts > coverage of the guarantees by properties > coverage: every id of every required family has a property whose title starts with it
+    AssertionError: no property title starts with: G1, G2, G3, G4, G4.1, G4.2, G4.3, G5, G5.1, G5.2, G5.3, G6, G7, G7.1, G7.2, G8: expected [ 'G1', 'G2', 'G3', 'G4', …(12) ] to deeply equal []
+        286|     const missing = uncoveredIds(steeringIds, titles, required);
+        287|     expect(missing, `no property title starts with: ${missing.join(', …
+     Test Files  1 failed | 17 passed (18)
+          Tests  1 failed | 747 passed (748)
+    typecheck=0
+    lint=0
+          Tests  32 passed (32)
+    exit 0
+
+The on-stop hook failed because of one test, and it is the failure I expected.
+
+- **Failing test:** `coverage: every id of every required family has a property whose title starts with it` in `test/meta/guarantees.test.ts`. Its message is `no property title starts with: G1, G2, G3, G4, G4.1, G4.2, G4.3, G5, G5.1, G5.2, G5.3, G6, G7, G7.1, G7.2, G8`.
+- **Why it fails:** the G properties belong to T8.3 to T8.15, and T9.1 ticks the coverage check. All three were outside this session. Writing placeholder properties or loosening the check would weaken a guarantee check, so I did not.
+- **Other checks:** the rest of `npm test` passes (747 passed, 1 failed, 0 skipped). `npm run test:props` has 32 passed. `npm run typecheck` and `npm run lint` exit 0.
+
+The hook will stay red until T8 adds the G properties.
+
+--- run success (end_turn); credits reported by this session: 7.25 ---

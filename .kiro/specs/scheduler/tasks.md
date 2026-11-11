@@ -100,20 +100,20 @@ A task is ticked only after its command passed in the same session. Commands run
 
 ## T5. Backward pass
 
-- [ ] T5.1 Example tests: `backwardPass` gives the "pass 1" starts of H1 to H5 written out in the
+- [x] T5.1 Example tests: `backwardPass` gives the "pass 1" starts of H1 to H5 written out in the
   test (placement order checked through the H1 and H3 ties: `chicken.carve` before
   `greens.toss`, `pie.bake` before `potatoes.roast`); `SOLO_BURNER` and `LONG_DAY` starts.
   Files: `test/core/passes.test.ts`, `src/core/passes/backward.ts` (stub).
   Covers: R3.1–R3.6, R9.7.
   Command: `npx vitest run --project examples test/core/passes.test.ts`
-- [ ] T5.2 Implement `backwardPass` until T5.1 passes.
+- [x] T5.2 Implement `backwardPass` until T5.1 passes.
   Files: `src/core/passes/backward.ts`.
   Covers: R3.1–R3.6, N2.
   Command: `npx vitest run --project examples test/core/passes.test.ts`
 
 ## T6. Prep-forward and right-justify passes
 
-- [ ] T6.1 Example tests: `prepForwardPass` on the pass 1 starts of H1 to H5 gives the moves the
+- [x] T6.1 Example tests: `prepForwardPass` on the pass 1 starts of H1 to H5 gives the moves the
   design states (shred to −100, assemble to −85, hummus, chop, dressing, `salad.chop` to −60)
   and leaves every hot step; `rightJustifyPass` then moves only `bread.shape` (to −13) in H5 and
   nothing in H1 to H4; `COLD_SAUCE` keeps `sauce.whisk` at −13.
@@ -121,25 +121,25 @@ A task is ticked only after its command passed in the same session. Commands run
   `src/core/passes/right-justify.ts` (stubs).
   Covers: R4.1–R4.3, R5.1, R5.2, R9.5, R9.6.
   Command: `npx vitest run --project examples test/core/passes.test.ts`
-- [ ] T6.2 Implement `prepForwardPass` and `rightJustifyPass` until T6.1 passes.
+- [x] T6.2 Implement `prepForwardPass` and `rightJustifyPass` until T6.1 passes.
   Files: `src/core/passes/prep-forward.ts`, `src/core/passes/right-justify.ts`.
   Covers: R4.1–R4.3, R5.1, R5.2.
   Command: `npx vitest run --project examples test/core/passes.test.ts`
 
 ## T7. Lanes and readout
 
-- [ ] T7.1 Example tests: `assignLanes` on the final H1 to H5 starts gives the B, O and C columns
+- [x] T7.1 Example tests: `assignLanes` on the final H1 to H5 starts gives the B, O and C columns
   (`greens.boil` on burner 2 in H1 and burner 1 in H2, `gravy.simmer` on the burner of
   `gravy.roux`, `salad.toss` on the cook of `salad.dressing`); `TWO_CHOPS` × `BIG_KITCHEN` gives
   cook 1 and cook 2.
   Files: `test/core/passes.test.ts`, `src/core/passes/lanes.ts` (stub).
   Covers: R6.1, R6.2, R9.3.
   Command: `npx vitest run --project examples test/core/passes.test.ts`
-- [ ] T7.2 Implement `assignLanes` until T7.1 passes.
+- [x] T7.2 Implement `assignLanes` until T7.1 passes.
   Files: `src/core/passes/lanes.ts`.
   Covers: R6.1, R6.2.
   Command: `npx vitest run --project examples test/core/passes.test.ts`
-- [ ] T7.3 Example tests: `readout` on the final H1 to H6 starts gives the slack, wait and
+- [x] T7.3 Example tests: `readout` on the final H1 to H6 starts gives the slack, wait and
   warning values (`greens.shred` 75 in H1 and 73 in H2, `potatoes.roast` warning with the exact
   message, `b.chop` warning, the non-terminal message wording on a hand-made case, `1 minute`
   singular); `chicken.roast` wait 5 from `gravy.roux` while its deadline came from
@@ -147,7 +147,7 @@ A task is ticked only after its command passed in the same session. Commands run
   Files: `test/core/passes.test.ts`, `src/core/passes/readout.ts` (stub).
   Covers: R7.1–R7.4, R2.7.
   Command: `npx vitest run --project examples test/core/passes.test.ts`
-- [ ] T7.4 Implement `readout` and `holdExceededMessage` until T7.3 passes.
+- [x] T7.4 Implement `readout` and `holdExceededMessage` until T7.3 passes.
   Files: `src/core/passes/readout.ts`.
   Covers: R7.1–R7.4.
   Command: `npx vitest run --project examples test/core/passes.test.ts`
