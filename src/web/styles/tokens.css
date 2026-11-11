@@ -1,0 +1,82 @@
+/*
+ * Design tokens. Defined once, here (ui.md). Light is the default; dark applies under
+ * prefers-color-scheme: dark, or [data-theme=dark]. [data-theme=light] forces light.
+ * The two dark blocks must hold identical values; `npm run check:contrast` enforces it.
+ * Changing a colour means running `npm run check:contrast`.
+ */
+
+:root {
+  color-scheme: light;
+
+  --color-bg: #f6f1e7;
+  --color-surface: #fffdf8;
+  --color-raised: #ede5d6;
+  --color-ink: #1f1b16;
+  --color-ink-muted: #5c5346;
+  --color-rule: #d9cfbf;
+  --color-border: #8a7f70;
+  --color-accent: #b23a0a;
+  --color-on-accent: #ffffff;
+  --color-warn: #8a5a00;
+  --color-done: #2f6b3a;
+  --color-focus: #1d4ed8;
+
+  --font-text:
+    Seravek, 'Gill Sans Nova', Ubuntu, Calibri, 'DejaVu Sans', source-sans-pro, sans-serif;
+  --font-mono:
+    ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, Consolas, 'Liberation Mono',
+    monospace;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  --radius: 6px;
+  --duration: 150ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --color-bg: #1a1816;
+    --color-surface: #24211e;
+    --color-raised: #2e2a26;
+    --color-ink: #f2ebdd;
+    --color-ink-muted: #b5aa98;
+    --color-rule: #3a3530;
+    --color-border: #7a7064;
+    --color-accent: #fb923c;
+    --color-on-accent: #1a1816;
+    --color-warn: #f5c35b;
+    --color-done: #8bcb95;
+    --color-focus: #93b4ff;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-bg: #1a1816;
+  --color-surface: #24211e;
+  --color-raised: #2e2a26;
+  --color-ink: #f2ebdd;
+  --color-ink-muted: #b5aa98;
+  --color-rule: #3a3530;
+  --color-border: #7a7064;
+  --color-accent: #fb923c;
+  --color-on-accent: #1a1816;
+  --color-warn: #f5c35b;
+  --color-done: #8bcb95;
+  --color-focus: #93b4ff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration: 0ms;
+  }
+}

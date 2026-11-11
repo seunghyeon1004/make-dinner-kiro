@@ -1,0 +1,16 @@
+.git
+.kiro
+.DS_Store
+node_modules
+dist
+public/assets
+coverage
+test-results
+playwright-report
+.env
+.env.*
+!.env.example
+*.log
+docs
+test
+e2e

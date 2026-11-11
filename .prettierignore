@@ -1,0 +1,6 @@
+.kiro/
+docs/kiro-evidence/
+recordings/
+public/assets/
+dist/
+package-lock.json

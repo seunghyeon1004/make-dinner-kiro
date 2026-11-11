@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: make-dinner
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: PARSE_RATE_PER_IP
+        value: '5'
+      - key: PARSE_RATE_WINDOW_SEC
+        value: '600'
+      - key: PARSE_DAILY_CAP
+        value: '200'
+      - key: TRUST_PROXY
+        value: 'true'

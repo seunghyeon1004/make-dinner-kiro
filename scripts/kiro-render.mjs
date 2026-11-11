@@ -10,7 +10,6 @@ const TAIL_LINES = Number(process.env.KIRO_RENDER_TAIL ?? 30);
 const home = process.env.HOME ?? '';
 const tidy = (s) =>
   String(s)
-    // eslint-disable-next-line no-control-regex
     .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '')
     .replaceAll(home, '~');
 
@@ -68,7 +67,9 @@ for await (const line of rl) {
       calls.set(update.toolCallId, call);
       if (update.status !== 'completed' && update.status !== 'failed') break;
       flushText();
-      console.log(`[tool:${call.kind ?? 'other'}${update.status === 'failed' ? ' FAILED' : ''}] ${tidy(describe(call))}`);
+      console.log(
+        `[tool:${call.kind ?? 'other'}${update.status === 'failed' ? ' FAILED' : ''}] ${tidy(describe(call))}`,
+      );
       if (call.kind === 'execute') {
         const out = call.rawOutput?.output ?? call.rawOutput?.message ?? '';
         for (const l of tail(out)) console.log(`    ${l}`);
@@ -79,7 +80,9 @@ for await (const line of rl) {
     case 'session_info_update':
       if (kiro.kind === 'steering_inclusion') {
         flushText();
-        console.log(`[steering] ${tidy(JSON.stringify(kiro.steeringInclusion ?? kiro)).slice(0, 600)}`);
+        console.log(
+          `[steering] ${tidy(JSON.stringify(kiro.steeringInclusion ?? kiro)).slice(0, 600)}`,
+        );
       } else if (kiro.kind === 'session_usage') {
         credits = kiro.credits?.[0]?.usage ?? credits;
       }
@@ -89,4 +92,6 @@ for await (const line of rl) {
   }
 }
 flushText();
-console.log(`--- run ${status}; credits reported by this session: ${credits === null ? 'none' : credits.toFixed(2)} ---`);
+console.log(
+  `--- run ${status}; credits reported by this session: ${credits === null ? 'none' : credits.toFixed(2)} ---`,
+);
