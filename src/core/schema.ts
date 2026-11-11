@@ -147,3 +147,28 @@ export const WARNING_CODES: readonly WarningCode[] = [
   'long_hands_on',
   'short_hands_free',
 ];
+
+/** Order on ids by UTF-16 code units: -1, 0 or 1. Never localeCompare. */
+export function compareIds(a: string, b: string): number {
+  // String comparison operators compare UTF-16 code units, which is what R3.8 asks for.
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+}
+
+/** Dishes and steps sorted by id (stable), each after list sorted by id and deduplicated. */
+export function canonicalPlan(plan: Plan): Plan {
+  const byId = (a: { id: string }, b: { id: string }): number => compareIds(a.id, b.id);
+  return {
+    title: plan.title,
+    dishes: plan.dishes.map((d) => ({ ...d })).toSorted(byId),
+    steps: plan.steps
+      .map((step): Step => {
+        const { detail, ...rest } = step;
+        const after = [...new Set(step.after)].sort(compareIds);
+        // `detail` is written only when it has a value, so the key is absent otherwise.
+        return detail === undefined ? { ...rest, after } : { ...rest, detail, after };
+      })
+      .toSorted(byId),
+  };
+}

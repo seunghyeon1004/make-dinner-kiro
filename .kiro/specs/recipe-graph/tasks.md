@@ -88,10 +88,22 @@ A task is ticked only after its command passed in the same session. Commands run
   Files: `test/support/arbitraries.ts`.
   Covers: R10.1–R10.3.
   Command: `npx vitest run --project examples test/meta/arbitraries.test.ts && npm run typecheck`
+- [ ] T2.7 (added by hand after session 3 reported it) Failing properties must report a
+  counterexample. Today the `draw` helper passes a fresh closure to `fc.gen()` on every draw,
+  so fast-check's shrinking runs out of memory and the worker crashes instead of printing the
+  failing plan. Write a test in `test/meta/arbitraries.test.ts` that runs a deliberately false
+  property over `arbPlan()` with `fc.check` and asserts it returns a failed result with a
+  shrunk counterexample (no crash, within the default timeout); see it fail (crash or
+  timeout); then fix the generators (stable builder functions, or plain `chain`/`map`
+  composition instead of `fc.gen()`), keeping every generated plan valid and the
+  distributions at least as wide.
+  Files: `test/support/arbitraries.ts`, `test/meta/arbitraries.test.ts`.
+  Covers: R10.1, testing.md "A counterexample found by a property becomes a named example".
+  Command: `npx vitest run --project examples test/meta/arbitraries.test.ts && npm run test:props`
 
 ## T3. Graph helpers
 
-- [ ] T3.1 Example tests: `compareIds('a-b', 'a.b') === -1`, `compareIds('Z', 'a') === -1`,
+- [x] T3.1 Example tests: `compareIds('a-b', 'a.b') === -1`, `compareIds('Z', 'a') === -1`,
   `compareIds('a.b', 'a.b') === 0`; the hand-worked facts of the three fixtures for all five
   helpers; a 3-cycle entered at its middle step reports `['a.x', 'a.y', 'a.z']`; two
   disjoint cycles give two paths in first-id order; a self-loop gives `[id]` from
@@ -100,23 +112,23 @@ A task is ticked only after its command passed in the same session. Commands run
   Files: `test/core/graph.test.ts`, `src/core/graph.ts` (stub).
   Covers: R3.1–R3.8.
   Command: `npx vitest run --project examples test/core/graph.test.ts`
-- [ ] T3.2 Property P-RG3 topological order.
+- [x] T3.2 Property P-RG3 topological order.
   Files: `test/core/graph.pbt.ts`.
   Covers: R3.4.
   Command: `npx vitest run --project props test/core/graph.pbt.ts`
-- [ ] T3.3 Property P-RG4 cycles.
+- [x] T3.3 Property P-RG4 cycles.
   Files: `test/core/graph.pbt.ts`.
   Covers: R3.5, R3.6.
   Command: `npx vitest run --project props test/core/graph.pbt.ts`
-- [ ] T3.4 Property P-RG5 successors.
+- [x] T3.4 Property P-RG5 successors.
   Files: `test/core/graph.pbt.ts`.
   Covers: R3.2, R3.3.
   Command: `npx vitest run --project props test/core/graph.pbt.ts`
-- [ ] T3.5 Property P-RG6 chain.
+- [x] T3.5 Property P-RG6 chain.
   Files: `test/core/graph.pbt.ts`.
   Covers: R3.7.
   Command: `npx vitest run --project props test/core/graph.pbt.ts`
-- [ ] T3.6 Implement `compareIds` (in `schema.ts`) and the graph helpers, iterative,
+- [x] T3.6 Implement `compareIds` (in `schema.ts`) and the graph helpers, iterative,
   until T3.1 to T3.5 pass.
   Files: `src/core/schema.ts`, `src/core/graph.ts`.
   Covers: R3.1–R3.8, N2.
@@ -124,7 +136,7 @@ A task is ticked only after its command passed in the same session. Commands run
 
 ## T4. Canonical form
 
-- [ ] T4.1 Example tests: `canonicalPlan` on a
+- [x] T4.1 Example tests: `canonicalPlan` on a
   hand-shuffled `SUNDAY_ROAST` with one duplicated `after` entry equals the plan written
   out in id order in the test; equal ids keep input order; the input object is unchanged
   (checked against a deep copy taken before the call); a `detail: undefined` key is
@@ -132,18 +144,18 @@ A task is ticked only after its command passed in the same session. Commands run
   Files: `test/core/schema.test.ts`.
   Covers: R8.1, R8.2.
   Command: `npx vitest run --project examples test/core/schema.test.ts`
-- [ ] T4.2 Property P-RG1 canonical, except the `checkPlan` clause, which is added in T6.6.
+- [x] T4.2 Property P-RG1 canonical, except the `checkPlan` clause, which is added in T6.6.
   Files: `test/core/schema.pbt.ts`.
   Covers: R8.1–R8.3, R8.4 (idempotence).
   Command: `npx vitest run --project props test/core/schema.pbt.ts`
-- [ ] T4.3 Implement `canonicalPlan` until T4.1 and T4.2 pass.
+- [x] T4.3 Implement `canonicalPlan` until T4.1 and T4.2 pass.
   Files: `src/core/schema.ts`.
   Covers: R8.1–R8.4.
   Command: `npx vitest run --project examples test/core/schema.test.ts && npx vitest run --project props test/core/schema.pbt.ts`
 
 ## T5. Parsing
 
-- [ ] T5.1 Example tests for `parsePlan` and `parseKitchen`, asserting exact issues
+- [x] T5.1 Example tests for `parsePlan` and `parseKitchen`, asserting exact issues
   (every field, message included): `null`, `42`, `''`, `[]`, `{}`; each of `empty_plan`
   (once when both arrays are empty), `too_many_dishes`, `too_many_steps`,
   `minutes_out_of_range` and `invalid_field` firing and not firing; `stepId` and `dishId`
@@ -153,11 +165,11 @@ A task is ticked only after its command passed in the same session. Commands run
   Files: `test/core/sanity.test.ts`, `src/core/sanity.ts` (stub).
   Covers: R2.1–R2.8, R7.1, R7.2.
   Command: `npx vitest run --project examples test/core/sanity.test.ts`
-- [ ] T5.2 Property P-RG8 JSON round trip.
+- [x] T5.2 Property P-RG8 JSON round trip.
   Files: `test/core/schema.pbt.ts`.
   Covers: R1.1, R2.2.
   Command: `npx vitest run --project props test/core/schema.pbt.ts`
-- [ ] T5.3 Implement `sortIssues`, `hasErrors`, `parsePlan` and `parseKitchen`, mapping
+- [x] T5.3 Implement `sortIssues`, `hasErrors`, `parsePlan` and `parseKitchen`, mapping
   zod issues by path only, until T5.1 and T5.2 pass.
   Files: `src/core/sanity.ts`.
   Covers: R2.1–R2.8, R7.1–R7.3.

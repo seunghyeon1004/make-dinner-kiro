@@ -2309,3 +2309,1108 @@ sed -n 1,60p test/support/fixtures.ts; sed -n 40,60p test/support/oracles.ts
           Tests   (8)
          Errors  1 error
     exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && for t in "P-RG3 topological order: on valid default" "P-RG3 topological order: on valid large" "P-RG4 cycles: on cycle" "P-RG4 cycles: on self" "P-RG4 cycles: on valid" "P-RG5" "P-RG6 chain: on valid default" ; do echo "== $t"; FC_NUM_RUNS=20 timeout 100 npx vitest run --project props test/core/graph.pbt.ts -t "$t" 2>&1 | grep -E "✓|×|AssertionError|Tests |OOM" | head -5; done
+    == P-RG3 topological order: on valid default
+     1: 0x1007bd1d4 node::OOMErrorHandler(char const*, v8::OOMDetails const&) [~/.nvm/versions/node/v24.5.0/bin/node]
+     2: 0x1009a75fc v8::internal::V8::FatalProcessOutOfMemory(v8::internal::Isolate*, char const*, v8::OOMDetails const&) [~/.nvm/versions/node/v24.5.0/bin/node]
+          Tests  7 skipped (8)
+    == P-RG3 topological order: on valid large
+     1: 0x1026911d4 node::OOMErrorHandler(char const*, v8::OOMDetails const&) [~/.nvm/versions/node/v24.5.0/bin/node]
+     2: 0x10287b5fc v8::internal::V8::FatalProcessOutOfMemory(v8::internal::Isolate*, char const*, v8::OOMDetails const&) [~/.nvm/versions/node/v24.5.0/bin/node]
+          Tests  7 skipped (8)
+    == P-RG4 cycles: on cycle
+     1: 0x100bed1d4 node::OOMErrorHandler(char const*, v8::OOMDetails const&) [~/.nvm/versions/node/v24.5.0/bin/node]
+     2: 0x100dd75fc v8::internal::V8::FatalProcessOutOfMemory(v8::internal::Isolate*, char const*, v8::OOMDetails const&) [~/.nvm/versions/node/v24.5.0/bin/node]
+          Tests  7 skipped (8)
+    == P-RG4 cycles: on self
+     1: 0x104ccd1d4 node::OOMErrorHandler(char const*, v8::OOMDetails const&) [~/.nvm/versions/node/v24.5.0/bin/node]
+     2: 0x104eb75fc v8::internal::V8::FatalProcessOutOfMemory(v8::internal::Isolate*, char const*, v8::OOMDetails const&) [~/.nvm/versions/node/v24.5.0/bin/node]
+          Tests  7 skipped (8)
+    == P-RG4 cycles: on valid
+          Tests  1 passed | 7 skipped (8)
+    == P-RG5
+     1: 0x1006691d4 node::OOMErrorHandler(char const*, v8::OOMDetails const&) [~/.nvm/versions/node/v24.5.0/bin/node]
+     2: 0x1008535fc v8::internal::V8::FatalProcessOutOfMemory(v8::internal::Isolate*, char const*, v8::OOMDetails const&) [~/.nvm/versions/node/v24.5.0/bin/node]
+          Tests  7 skipped (8)
+    == P-RG6 chain: on valid default
+     1: 0x1021dd1d4 node::OOMErrorHandler(char const*, v8::OOMDetails const&) [~/.nvm/versions/node/v24.5.0/bin/node]
+     2: 0x1023c75fc v8::internal::V8::FatalProcessOutOfMemory(v8::internal::Isolate*, char const*, v8::OOMDetails const&) [~/.nvm/versions/node/v24.5.0/bin/node]
+          Tests  7 skipped (8)
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && FC_NUM_RUNS=5 NODE_OPTIONS=--max-old-space-size=8192 timeout 110 npx vitest run --project props test/core/graph.pbt.ts -t "P-RG6 chain: on valid default" 2>&1 | grep -vE "^\s+[0-9]+: 0x" | head -30
+    
+     RUN  v5.1.0 ~/hackathons-2026/kiroween/makedinner
+    
+     ❯ |props| test/core/graph.pbt.ts (8 tests | 1 failed | 7 skipped) 10287ms
+       ❯ P-RG6 chain (2)
+         × P-RG6 chain: on valid default plans longestChainMinutes equals the oracle and lies between the largest and the total minutes 10286ms
+    
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    
+     FAIL  |props| test/core/graph.pbt.ts > P-RG6 chain > P-RG6 chain: on valid default plans longestChainMinutes equals the oracle and lies between the largest and the total minutes
+    RangeError: Map maximum size exceeded
+     ❯ safeMapSet node_modules/fast-check/lib/fast-check.js:841:67
+     ❯ stableArbitraryGeneratorCache node_modules/fast-check/lib/fast-check.js:2812:4
+     ❯ memoedValueFunction node_modules/fast-check/lib/fast-check.js:2787:24
+     ❯ draw test/support/arbitraries.ts:32:55
+         30|
+         31| /** Draws one value of `arb` inside `fc.gen()`. */
+         32| const draw = <T>(g: Draw, arb: fc.Arbitrary<T>): T => g(() => arb);
+           |                                                       ^
+         33|
+         34| const ALNUM: readonly string[] = [...'abcdefghijklmnopqrstuvwxyz012345…
+     ❯ test/support/arbitraries.ts:222:22
+     ❯ mapperWithCloneIfNeeded node_modules/fast-check/lib/fast-check.js:445:22
+     ❯ valueMapper node_modules/fast-check/lib/fast-check.js:451:37
+     ❯ MapArbitrary.bindValueMapper node_modules/fast-check/lib/fast-check.js:464:33
+     ❯ mapHelper node_modules/fast-check/lib/fast-check.js:59:27
+    
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed 's/fcParams()/{ ...fcParams(), endOnFailure: true }/' test/core/graph.pbt.ts > test/core/graph-red.pbt.ts && timeout 110 npx vitest run --project props test/core/graph-red.pbt.ts 2>&1 | grep -E "^\s+(✓|×)|AssertionError|Tests |Error:" | head -30; rm test/core/graph-red.pbt.ts
+         × P-RG3 topological order: on valid default plans it is ok, complete, respects precedence and equals the oracle 7ms
+         × P-RG3 topological order: on valid large plans it is ok, complete, respects precedence and equals the oracle 2ms
+         × P-RG4 cycles: on cycle cases findCycles matches the oracle groups and topologicalOrder returns the first path 2ms
+         × P-RG4 cycles: on self_dependency cases topologicalOrder is err with [id] and findCycles is empty 2ms
+         × P-RG5 successors: successors and terminalSteps equal the oracle on valid and graph-rule plans 1ms
+         × P-RG6 chain: on valid default plans longestChainMinutes equals the oracle and lies between the largest and the total minutes 1ms
+         × P-RG6 chain: on valid large plans longestChainMinutes equals the oracle and lies between the largest and the total minutes 4ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+    Error: Property failed after 1 tests
+    Caused by: AssertionError: expected false to be true // Object.is equality
+    Error: Property failed after 1 tests
+    Caused by: AssertionError: expected false to be true // Object.is equality
+    Error: Property failed after 1 tests
+    Caused by: AssertionError: expected 0 to be greater than 0
+    Error: Property failed after 1 tests
+    Caused by: AssertionError: expected { ok: false, …(1) } to deeply equal { ok: false, …(1) }
+    Error: Property failed after 1 tests
+    Caused by: AssertionError: expected {} to deeply equal { …(11) }
+    Error: Property failed after 1 tests
+    Caused by: AssertionError: expected false to be true // Object.is equality
+    Error: Property failed after 1 tests
+    Caused by: AssertionError: expected false to be true // Object.is equality
+          Tests  7 failed | 1 passed (8)
+    exit 0
+
+All seven properties fail on assertions, so the red state is confirmed. Now the implementation.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/core/schema.ts'
+s=open(p).read()
+s=s.replace("""export function compareIds(_a: string, _b: string): number {
+  return 0;
+}""","""export function compareIds(a: string, b: string): number {
+  // String comparison operators compare UTF-16 code units, which is what R3.8 asks for.
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+}""")
+open(p,'w').write(s)
+EOF
+cat > src/core/graph.ts <<'EOF'
+import { err, ok, type Result } from './result.js';
+import { compareIds, type Plan } from './schema.js';
+
+export interface CycleError {
+  kind: 'cycle';
+  path: string[];
+}
+
+/** The graph every helper reads: one node per distinct step id (R3.1). */
+interface Graph {
+  /** Distinct step ids in `compareIds` order. */
+  ids: string[];
+  /** Sorted, distinct prerequisites that are step ids. A self-dependency stays in as a self-loop. */
+  prereqs: Map<string, string[]>;
+  /** Sorted successors, self-loops included. */
+  succ: Map<string, string[]>;
+  /** Largest `minutes` over the occurrences of the id. */
+  minutes: Map<string, number>;
+}
+
+function buildGraph(plan: Plan): Graph {
+  const minutes = new Map<string, number>();
+  const rawAfter = new Map<string, Set<string>>();
+  for (const step of plan.steps) {
+    minutes.set(step.id, Math.max(minutes.get(step.id) ?? 0, step.minutes));
+    const set = rawAfter.get(step.id) ?? new Set<string>();
+    for (const p of step.after) set.add(p);
+    rawAfter.set(step.id, set);
+  }
+  const ids = [...minutes.keys()].sort(compareIds);
+  const prereqs = new Map<string, string[]>();
+  const succSets = new Map<string, Set<string>>();
+  for (const id of ids) succSets.set(id, new Set());
+  for (const id of ids) {
+    const list = [...(rawAfter.get(id) ?? [])].filter((p) => minutes.has(p)).sort(compareIds);
+    prereqs.set(id, list);
+    for (const p of list) succSets.get(p)?.add(id);
+  }
+  const succ = new Map<string, string[]>();
+  for (const id of ids) succ.set(id, [...(succSets.get(id) ?? [])].sort(compareIds));
+  return { ids, prereqs, succ, minutes };
+}
+
+const listOf = (map: Map<string, string[]>, id: string): string[] => map.get(id) ?? [];
+
+export function successors(plan: Plan): ReadonlyMap<string, readonly string[]> {
+  return buildGraph(plan).succ;
+}
+
+export function terminalSteps(plan: Plan): string[] {
+  const g = buildGraph(plan);
+  return g.ids.filter((id) => listOf(g.succ, id).length === 0);
+}
+
+/** Nodes reachable from `start` along prerequisite-to-step edges, self-loops ignored. */
+function reachFrom(g: Graph, start: string): Set<string> {
+  const seen = new Set<string>();
+  const queue = [start];
+  for (let head = 0; head < queue.length; head++) {
+    const v = queue[head] ?? '';
+    for (const s of listOf(g.succ, v)) {
+      if (s === v || seen.has(s)) continue;
+      seen.add(s);
+      queue.push(s);
+    }
+  }
+  return seen;
+}
+
+function cyclesOf(g: Graph): string[][] {
+  const reach = new Map<string, Set<string>>();
+  for (const id of g.ids) reach.set(id, reachFrom(g, id));
+  const assigned = new Set<string>();
+  const paths: string[][] = [];
+  for (const m of g.ids) {
+    if (assigned.has(m)) continue;
+    const group = new Set<string>([m]);
+    for (const y of reach.get(m) ?? []) {
+      if (y !== m && reach.get(y)?.has(m) === true) group.add(y);
+    }
+    for (const id of group) assigned.add(id);
+    if (group.size < 2) continue;
+    // Shortest cycle through m: BFS inside the group, successors in id order, first parent kept.
+    const parent = new Map<string, string>();
+    const queue = [m];
+    let last: string | undefined;
+    for (let head = 0; head < queue.length && last === undefined; head++) {
+      const v = queue[head] ?? '';
+      if (v !== m && listOf(g.succ, v).includes(m)) {
+        last = v;
+        break;
+      }
+      for (const s of listOf(g.succ, v)) {
+        if (s === v || !group.has(s) || s === m || parent.has(s)) continue;
+        parent.set(s, v);
+        queue.push(s);
+      }
+    }
+    const path: string[] = [];
+    for (let v = last; v !== undefined; v = parent.get(v)) path.unshift(v);
+    paths.push([m, ...path.slice(path[0] === m ? 1 : 0)]);
+  }
+  return paths;
+}
+
+export function findCycles(plan: Plan): string[][] {
+  return cyclesOf(buildGraph(plan));
+}
+
+function orderOf(g: Graph): Result<string[], CycleError> {
+  const indegree = new Map<string, number>();
+  for (const id of g.ids) indegree.set(id, listOf(g.prereqs, id).length);
+  let ready = g.ids.filter((id) => indegree.get(id) === 0);
+  const order: string[] = [];
+  while (ready.length > 0) {
+    const next = ready[0] ?? '';
+    ready = ready.slice(1);
+    order.push(next);
+    for (const s of listOf(g.succ, next)) {
+      const left = (indegree.get(s) ?? 0) - 1;
+      indegree.set(s, left);
+      if (left === 0) ready.push(s);
+    }
+    ready.sort(compareIds);
+  }
+  if (order.length === g.ids.length) return ok(order);
+  const selfLoop = g.ids.find((id) => listOf(g.prereqs, id).includes(id));
+  const first = cyclesOf(g)[0];
+  if (selfLoop !== undefined && (first === undefined || compareIds(selfLoop, first[0] ?? '') < 0)) {
+    return err({ kind: 'cycle', path: [selfLoop] });
+  }
+  return err({ kind: 'cycle', path: first ?? [] });
+}
+
+export function topologicalOrder(plan: Plan): Result<string[], CycleError> {
+  return orderOf(buildGraph(plan));
+}
+
+export function longestChainMinutes(plan: Plan): Result<number, CycleError> {
+  const g = buildGraph(plan);
+  const order = orderOf(g);
+  if (!order.ok) return order;
+  const chain = new Map<string, number>();
+  let longest = 0;
+  for (const id of order.value) {
+    let before = 0;
+    for (const p of listOf(g.prereqs, id)) before = Math.max(before, chain.get(p) ?? 0);
+    const total = (g.minutes.get(id) ?? 0) + before;
+    chain.set(id, total);
+    longest = Math.max(longest, total);
+  }
+  return ok(longest);
+}
+EOF
+npx vitest run --project examples test/core/graph.test.ts 2>&1 | grep -E "×|AssertionError|Tests " ; npx vitest run --project props test/core/graph.pbt.ts 2>&1 | grep -E "✓|×|Error|Tests "
+          Tests  16 passed (16)
+          Tests  8 passed (8)
+    exit 0
+
+Both pass. A quick tidy of the path assembly, then typecheck and lint.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/core/graph.ts'
+s=open(p).read()
+s=s.replace("    paths.push([m, ...path.slice(path[0] === m ? 1 : 0)]);","    paths.push(path); // the parent chain ends at m, so path starts with m")
+open(p,'w').write(s)
+EOF
+npx vitest run --project examples test/core/graph.test.ts 2>&1 | grep -E "×|Tests "; npx vitest run --project props test/core/graph.pbt.ts 2>&1 | grep -E "×|Tests "; npm run typecheck 2>&1 | tail -5; npx eslint src/core test/core 2>&1 | tail -15; npx prettier --check src/core test/core 2>&1 | tail -4
+          Tests  16 passed (16)
+          Tests  8 passed (8)
+    
+    > make-dinner@0.0.0 typecheck
+    > tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.tools.json --noEmit
+    
+    Checking formatting...
+    [warn] test/core/graph.test.ts
+    [warn] Code style issues found in the above file. Run Prettier with --write to fix.
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx prettier --write test/core/graph.test.ts >/dev/null && npx vitest run --project examples test/core/graph.test.ts 2>&1 | grep -E "×|Tests " && python3 - <<'EOF'
+import re
+p='.kiro/specs/recipe-graph/tasks.md'
+s=open(p).read()
+for t in ['T3.1','T3.2','T3.3','T3.4','T3.5','T3.6']:
+    s=s.replace(f'- [ ] {t} ',f'- [x] {t} ')
+open(p,'w').write(s)
+EOF
+grep -n "T3\.[0-9] " .kiro/specs/recipe-graph/tasks.md | head
+          Tests  16 passed (16)
+    94:- [x] T3.1 Example tests: `compareIds('a-b', 'a.b') === -1`, `compareIds('Z', 'a') === -1`,
+    103:- [x] T3.2 Property P-RG3 topological order.
+    107:- [x] T3.3 Property P-RG4 cycles.
+    111:- [x] T3.4 Property P-RG5 successors.
+    115:- [x] T3.5 Property P-RG6 chain.
+    119:- [x] T3.6 Implement `compareIds` (in `schema.ts`) and the graph helpers, iterative,
+    120:  until T3.1 to T3.5 pass.
+    exit 0
+
+T3 is ticked. Now T4, starting with the fixture and the existing schema test.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 60,145p test/support/fixtures.ts; sed -n 1,30p test/core/schema.test.ts; tail -30 test/core/schema.test.ts
+    … (116 earlier lines not shown)
+        expect(roux?.after).toEqual(['chicken.roast']);
+        expect(roux?.appliance).toBe('burner');
+      });
+    
+      it('the fixture steps are not written in topological order', () => {
+        for (const fixture of [SUNDAY_ROAST, MEZZE, TIGHT_OVEN]) {
+          const position = new Map(fixture.steps.map((s, i) => [s.id, i]));
+          const backwards = fixture.steps.some((s) =>
+            s.after.some((p) => (position.get(p) ?? -1) > (position.get(s.id) ?? -1)),
+          );
+          expect(backwards).toBe(true);
+        }
+      });
+    
+      it('every after entry names a step of the same fixture', () => {
+        for (const fixture of [SUNDAY_ROAST, MEZZE, TIGHT_OVEN]) {
+          const ids = new Set(fixture.steps.map((s) => s.id));
+          for (const s of fixture.steps) {
+            for (const p of s.after) expect(ids.has(p)).toBe(true);
+          }
+        }
+      });
+    
+      it('kitchens', () => {
+        expect(KitchenSchema.safeParse(HOME_KITCHEN).success).toBe(true);
+        expect(KitchenSchema.safeParse(TWO_COOK_KITCHEN).success).toBe(true);
+        expect(HOME_KITCHEN).toEqual({ burners: 4, ovens: 1, cooks: 1 });
+        expect(TWO_COOK_KITCHEN).toEqual({ burners: 4, ovens: 1, cooks: 2 });
+      });
+    });
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/core/schema.ts'
+s=open(p).read()
+s+="""
+/** Dishes and steps sorted by id (stable), each after list sorted by id and deduplicated. */
+export function canonicalPlan(plan: Plan): Plan {
+  return plan;
+}
+"""
+open(p,'w').write(s)
+p='test/core/schema.test.ts'
+s=open(p).read()
+s=s.replace("import {\n  ERROR_CODES,","import {\n  canonicalPlan,\n  ERROR_CODES,",1)
+s+="""
+describe('canonicalPlan (R8.1, R8.2)', () => {
+  const reversedRoast = (): Plan => ({
+    title: SUNDAY_ROAST.title,
+    // dishes in reverse id order
+    dishes: [...SUNDAY_ROAST.dishes].reverse(),
+    // steps in the fixture's own (non-topological) order, with gravy.roux listing its
+    // prerequisites unsorted and chicken.roast twice
+    steps: SUNDAY_ROAST.steps.map((s) =>
+      s.id === 'gravy.roux' ? { ...s, after: ['chicken.roast', 'chicken.prep', 'chicken.roast'] } : s,
+    ),
+  });
+
+  it('R8.1 a shuffled SUNDAY_ROAST with a duplicated after entry equals the plan written in id order', () => {
+    const expected: Plan = {
+      title: 'Sunday roast',
+      dishes: [
+        { id: 'chicken', name: 'Roast chicken' },
+        { id: 'gravy', name: 'Gravy' },
+        { id: 'greens', name: 'Spring greens' },
+      ],
+      steps: [
+        {
+          id: 'chicken.carve',
+          dish: 'chicken',
+          title: 'Carve the chicken',
+          minutes: 5,
+          appliance: 'none',
+          handsOn: true,
+          after: ['chicken.rest'],
+          holdMin: 5,
+        },
+        {
+          id: 'chicken.prep',
+          dish: 'chicken',
+          title: 'Season and truss the chicken',
+          minutes: 10,
+          appliance: 'none',
+          handsOn: true,
+          after: [],
+          holdMin: null,
+        },
+        {
+          id: 'chicken.rest',
+          dish: 'chicken',
+          title: 'Rest the chicken under foil',
+          minutes: 20,
+          appliance: 'none',
+          handsOn: false,
+          after: ['chicken.roast'],
+          holdMin: 30,
+        },
+        {
+          id: 'chicken.roast',
+          dish: 'chicken',
+          title: 'Roast the chicken',
+          minutes: 75,
+          appliance: 'oven',
+          handsOn: false,
+          after: ['chicken.prep'],
+          holdMin: 5,
+        },
+        {
+          id: 'gravy.roux',
+          dish: 'gravy',
+          title: 'Make a roux in the roasting tin',
+          detail: 'Use the juices left in the tin once the chicken is out.',
+          minutes: 2,
+          appliance: 'burner',
+          handsOn: true,
+          after: ['chicken.prep', 'chicken.roast'],
+          holdMin: 5,
+        },
+        {
+          id: 'gravy.simmer',
+          dish: 'gravy',
+          title: 'Add stock and let the gravy thicken',
+          minutes: 10,
+          appliance: 'burner',
+          handsOn: false,
+          after: ['gravy.roux'],
+          holdMin: 5,
+        },
+        {
+          id: 'gravy.strain',
+          dish: 'gravy',
+          title: 'Strain the gravy into a jug',
+          minutes: 2,
+          appliance: 'none',
+          handsOn: true,
+          after: ['gravy.simmer'],
+          holdMin: 15,
+        },
+        {
+          id: 'greens.boil',
+          dish: 'greens',
+          title: 'Cook the greens in salted water',
+          minutes: 4,
+          appliance: 'burner',
+          handsOn: false,
+          after: ['greens.shred'],
+          holdMin: 0,
+        },
+        {
+          id: 'greens.shred',
+          dish: 'greens',
+          title: 'Shred the greens',
+          minutes: 5,
+          appliance: 'none',
+          handsOn: true,
+          after: [],
+          holdMin: null,
+        },
+        {
+          id: 'greens.toss',
+          dish: 'greens',
+          title: 'Toss the greens with butter',
+          minutes: 1,
+          appliance: 'none',
+          handsOn: true,
+          after: ['greens.boil'],
+          holdMin: 5,
+        },
+      ],
+    };
+    expect(canonicalPlan(reversedRoast())).toEqual(expected);
+  });
+
+  it('R8.2 equal ids keep their input order', () => {
+    const step = (title: string): Plan['steps'][number] => ({
+      id: 'a.x',
+      dish: 'a',
+      title,
+      minutes: 5,
+      appliance: 'none',
+      handsOn: true,
+      after: [],
+      holdMin: null,
+    });
+    const plan: Plan = {
+      title: 'Equal ids',
+      dishes: [
+        { id: 'a', name: 'second' },
+        { id: 'a', name: 'first' },
+      ],
+      steps: [step('second'), step('first')],
+    };
+    const result = canonicalPlan(plan);
+    expect(result.steps.map((s) => s.title)).toEqual(['second', 'first']);
+    expect(result.dishes.map((d) => d.name)).toEqual(['second', 'first']);
+  });
+
+  it('R8.2 does not change the input plan', () => {
+    const input = reversedRoast();
+    const before = structuredClone(input);
+    const result = canonicalPlan(input);
+    expect(input).toStrictEqual(before);
+    expect(result).not.toBe(input);
+    expect(result.steps).not.toBe(input.steps);
+  });
+
+  it('R8.1 drops a detail whose value is undefined and keeps a real one', () => {
+    const plan: Plan = {
+      title: 'Detail',
+      dishes: [{ id: 'a', name: 'A' }],
+      steps: [
+        {
+          id: 'a.x',
+          dish: 'a',
+          title: 'X',
+          detail: undefined,
+          minutes: 5,
+          appliance: 'none',
+          handsOn: true,
+          after: [],
+          holdMin: null,
+        },
+        {
+          id: 'a.y',
+          dish: 'a',
+          title: 'Y',
+          detail: 'Slowly.',
+          minutes: 5,
+          appliance: 'none',
+          handsOn: true,
+          after: [],
+          holdMin: null,
+        },
+      ],
+    };
+    const [x, y] = canonicalPlan(plan).steps;
+    expect(x !== undefined && 'detail' in x).toBe(false);
+    expect(y?.detail).toBe('Slowly.');
+  });
+});
+"""
+open(p,'w').write(s)
+EOF
+grep -n "^import type\|  Plan," test/core/schema.test.ts | head -3
+npx prettier --write test/core/schema.test.ts >/dev/null; npx tsc -p tsconfig.test.json --noEmit 2>&1 | head; npx vitest run --project examples test/core/schema.test.ts 2>&1 | grep -E "×|AssertionError|Tests "
+    2:import type { z } from 'zod';
+    25:import type {
+    32:  Plan,
+         × R8.1 a shuffled SUNDAY_ROAST with a duplicated after entry equals the plan written in id order 5ms
+         × R8.2 does not change the input plan 1ms
+         × R8.1 drops a detail whose value is undefined and keeps a real one 0ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+    AssertionError: expected { title: 'Sunday roast', …(2) } to deeply equal { title: 'Sunday roast', …(2) }
+    AssertionError: expected { title: 'Sunday roast', …(2) } not to be { title: 'Sunday roast', …(2) } // Object.is equality
+    AssertionError: expected true to be false // Object.is equality
+          Tests  3 failed | 224 passed (227)
+    exit 0
+
+Red on three assertions. Now the P-RG1 property, without the `checkPlan` clause, which belongs to T6.6.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && cat > test/core/schema.pbt.ts <<'EOF'
+import fc from 'fast-check';
+import { describe, expect, it } from 'vitest';
+import { canonicalPlan, PlanSchema, type ErrorCode, type Plan } from '../../src/core/schema.js';
+import { arbBrokenPlan, arbPlan, arbShuffledPlan } from '../support/arbitraries.js';
+import { fcParams } from '../support/fc-params.js';
+
+/** The rules whose input still parses (design: "graph-rule arbBrokenPlan cases"). */
+const GRAPH_RULES: readonly ErrorCode[] = [
+  'unknown_dependency',
+  'self_dependency',
+  'cycle',
+  'duplicate_step_id',
+  'duplicate_dish_id',
+  'unknown_dish',
+  'dish_without_steps',
+];
+
+const arbGraphRulePlan = fc
+  .constantFrom(...GRAPH_RULES)
+  .chain((rule) => arbBrokenPlan(rule))
+  .map((c): Plan => PlanSchema.parse(c.input));
+
+/** `after` as the set it means: distinct entries in code-unit order. */
+const asSet = (after: readonly string[]): string[] => [...new Set(after)].sort();
+
+/** Each step with its `after` as a set, as one comparable string per step, sorted. */
+const stepKeys = (plan: Plan): string[] =>
+  plan.steps.map((s) => JSON.stringify({ ...s, after: asSet(s.after) })).sort();
+
+const hasUniqueIds = (plan: Plan): boolean =>
+  new Set(plan.steps.map((s) => s.id)).size === plan.steps.length &&
+  new Set(plan.dishes.map((d) => d.id)).size === plan.dishes.length;
+
+describe('P-RG1 canonical', () => {
+  it('P-RG1 canonical: idempotent, sorted by id, after lists sorted and duplicate-free, same steps, input unchanged', () => {
+    fc.assert(
+      fc.property(fc.oneof(arbPlan(), arbPlan({ large: true }), arbGraphRulePlan), (plan) => {
+        const before = structuredClone(plan);
+        const canon = canonicalPlan(plan);
+        expect(plan).toStrictEqual(before);
+        expect(canonicalPlan(canon)).toStrictEqual(canon);
+        expect(canon.title).toBe(plan.title);
+        for (let i = 1; i < canon.steps.length; i++) {
+          expect((canon.steps[i - 1]?.id ?? '') <= (canon.steps[i]?.id ?? '')).toBe(true);
+        }
+        for (let i = 1; i < canon.dishes.length; i++) {
+          expect((canon.dishes[i - 1]?.id ?? '') <= (canon.dishes[i]?.id ?? '')).toBe(true);
+        }
+        for (const step of canon.steps) {
+          expect(step.after).toEqual(asSet(step.after));
+          expect(Object.values(step).every((v) => v !== undefined)).toBe(true);
+        }
+        expect(stepKeys(canon)).toEqual(stepKeys(plan));
+        expect(canon.dishes.map((d) => JSON.stringify(d)).sort()).toEqual(
+          plan.dishes.map((d) => JSON.stringify(d)).sort(),
+        );
+      }),
+      fcParams(),
+    );
+  });
+
+  it('P-RG1 canonical: plans with unique ids that differ only in order have deep-equal canonical forms', () => {
+    fc.assert(
+      fc.property(
+        fc.oneof(arbPlan(), arbGraphRulePlan).chain((plan) =>
+          arbShuffledPlan(plan).map((shuffled) => ({ plan, shuffled })),
+        ),
+        ({ plan, shuffled }) => {
+          fc.pre(hasUniqueIds(plan));
+          expect(canonicalPlan(shuffled)).toStrictEqual(canonicalPlan(plan));
+        },
+      ),
+      fcParams(),
+    );
+  });
+});
+EOF
+npx prettier --write test/core/schema.pbt.ts >/dev/null
+sed 's/fcParams()/{ ...fcParams(), endOnFailure: true }/' test/core/schema.pbt.ts > test/core/schema-red.pbt.ts && timeout 110 npx vitest run --project props test/core/schema-red.pbt.ts 2>&1 | grep -E "^\s+(✓|×)|Caused by|Tests " ; rm test/core/schema-red.pbt.ts
+         × P-RG1 canonical: idempotent, sorted by id, after lists sorted and duplicate-free, same steps, input unchanged 9ms
+         × P-RG1 canonical: plans with unique ids that differ only in order have deep-equal canonical forms 5ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+    Caused by: AssertionError: expected false to be true // Object.is equality
+    Caused by: AssertionError: expected { title: 'vB0)WV^Es', …(2), …(1) } to strictly equal { title: 'vB0)WV^Es', …(2), …(1) }
+          Tests  2 failed (2)
+    exit 0
+
+Red on assertions. Implementing `canonicalPlan`.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='src/core/schema.ts'
+s=open(p).read()
+s=s.replace("""export function canonicalPlan(plan: Plan): Plan {
+  return plan;
+}""","""export function canonicalPlan(plan: Plan): Plan {
+  const byId = (a: { id: string }, b: { id: string }): number => compareIds(a.id, b.id);
+  return {
+    title: plan.title,
+    dishes: plan.dishes.map((d) => ({ ...d })).toSorted(byId),
+    steps: plan.steps
+      .map((step): Step => {
+        const { detail, ...rest } = step;
+        const after = [...new Set(step.after)].sort(compareIds);
+        // `detail` is written only when it has a value, so the key is absent otherwise.
+        return detail === undefined ? { ...rest, after } : { ...rest, detail, after };
+      })
+      .toSorted(byId),
+  };
+}""")
+open(p,'w').write(s)
+EOF
+npx prettier --write src/core/schema.ts >/dev/null; npx vitest run --project examples test/core/schema.test.ts 2>&1 | grep -E "×|Tests "; npx vitest run --project props test/core/schema.pbt.ts 2>&1 | grep -E "×|Tests |Error"; npm run typecheck 2>&1 | grep -E "error" | head
+          Tests  227 passed (227)
+     1: 0x104df51d4 node::OOMErrorHandler(char const*, v8::OOMDetails const&) [~/.nvm/versions/node/v24.5.0/bin/node]
+    ⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+    ⎯⎯⎯⎯⎯⎯ Unhandled Error ⎯⎯⎯⎯⎯⎯⎯
+    Error: [vitest-pool]: Worker forks emitted error.
+     ❯ EventEmitter.onTaskError node_modules/vitest/dist/chunks/index.Di8au7q4.js:5926:21
+    Caused by: Error: Worker exited unexpectedly with signal SIGABRT during started state while running test file ~/hackathons-2026/kiroween/makedinner/test/core/schema.pbt.ts
+          Tests   (2)
+         Errors  1 error
+    exit 0
+
+A property is failing for real, and shrinking runs out of memory. I'll get the counterexample without shrinking.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed 's/fcParams()/{ ...fcParams(), endOnFailure: true }/' test/core/schema.pbt.ts > test/core/schema-red.pbt.ts && timeout 110 npx vitest run --project props test/core/schema-red.pbt.ts 2>&1 | grep -E "^\s+(✓|×)|Caused by|Tests |seed|Counterexample|Property failed" | cut -c1-600; rm test/core/schema-red.pbt.ts
+         × P-RG1 canonical: idempotent, sorted by id, after lists sorted and duplicate-free, same steps, input unchanged 11ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    Error: Property failed after 1 tests
+    { seed: -1882891745, path: "0", endOnFailure: true }
+    Counterexample: [{"title":"y&","dishes":[{"id":"s6k6g-3srl-eoi369","name":"x"},{"id":"faf-w7iw","name":"z"},{"id":"xx00jf","name":"3~H,@s"}],"steps":[{"id":"s6k6g-3srl-eoi369.qx4-ot","dish":"s6k6g-3srl-eoi369","title":"_","detail":"{;/Wj?:T,9f!","minutes":1,"appliance":"none","handsOn":false,"after":["faf-w7iw.n56-y1","xx00jf.9v-t-5y"],"holdMin":null},{"id":"xx00jf.g","dish":"xx00jf","title":"N","minutes":3,"appliance":"burner","handsOn":false,"after":["xx00jf.rbb-y"],"holdMin":26},{"id":"faf-w7iw.z-n7","dish":"faf-w7iw","title":"roaster","minutes":7,"appliance":"burner","handsOn":true,"after"
+    Caused by: AssertionError: expected [ …(80) ] to deeply equal [ …(80) ]
+          Tests  1 failed | 1 passed (2)
+    exit 0
+
+The implementation is fine. My test compared JSON strings, which depend on key order, and `canonicalPlan` writes `detail` last. I'll compare with sorted keys instead.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/core/schema.pbt.ts'
+s=open(p).read()
+s=s.replace("""/** Each step with its `after` as a set, as one comparable string per step, sorted. */
+const stepKeys = (plan: Plan): string[] =>
+  plan.steps.map((s) => JSON.stringify({ ...s, after: asSet(s.after) })).sort();""","""/** JSON with the keys in sorted order, so that key order does not matter. */
+const keyed = (value: object): string => JSON.stringify(value, Object.keys(value).sort());
+
+/** Each step with its `after` as a set, as one comparable string per step, sorted. */
+const stepKeys = (plan: Plan): string[] =>
+  plan.steps.map((s) => keyed({ ...s, after: asSet(s.after) })).sort();""")
+s=s.replace("expect(canon.dishes.map((d) => JSON.stringify(d)).sort()).toEqual(\n          plan.dishes.map((d) => JSON.stringify(d)).sort(),","expect(canon.dishes.map(keyed).sort()).toEqual(\n          plan.dishes.map(keyed).sort(),")
+open(p,'w').write(s)
+EOF
+npx prettier --write test/core/schema.pbt.ts >/dev/null; grep -n "keyed" test/core/schema.pbt.ts | head; npx vitest run --project props test/core/schema.pbt.ts 2>&1 | grep -E "×|Tests |Error"; npx vitest run --project examples test/core/schema.test.ts 2>&1 | grep -E "×|Tests "; npm run typecheck 2>&1 | grep -E "error" | head
+    27:const keyed = (value: object): string => JSON.stringify(value, Object.keys(value).sort());
+    31:  plan.steps.map((s) => keyed({ ...s, after: asSet(s.after) })).sort();
+    57:        expect(canon.dishes.map(keyed).sort()).toEqual(plan.dishes.map(keyed).sort());
+          Tests  2 passed (2)
+          Tests  227 passed (227)
+    exit 0
+
+T4 passes, so I'll tick it. T5 is next, so I need the zod issue shapes before writing the tests.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -i -E 's/^- \[ \] (T4\.[123]) /- [x] \1 /' .kiro/specs/recipe-graph/tasks.md && grep -n "T4\.[0-9] " .kiro/specs/recipe-graph/tasks.md; ls src/core; cat > /tmp/z.mjs <<'EOF'
+import { PlanSchema, KitchenSchema } from '~/hackathons-2026/kiroween/makedinner/src/core/schema.ts';
+const show=(v,s=PlanSchema)=>{const r=s.safeParse(v); console.log(JSON.stringify(v).slice(0,80), '=>', r.success?'ok':JSON.stringify(r.error.issues.map(i=>[i.code,i.path])))};
+show(null);show(42);show('');show([]);show({});
+const step={id:'a.x',dish:'a',title:'T',minutes:5,appliance:'none',handsOn:true,after:[],holdMin:null};
+const base={title:'P',dishes:[{id:'a',name:'A'}],steps:[step]};
+show({...base,dishes:[]});show({...base,steps:[]});show({...base,dishes:[],steps:[]});
+show({...base,steps:[{...step,minutes:0}]});show({...base,steps:[{...step,minutes:undefined}]});
+show({...base,steps:[{...step,extra:1}]});
+show({...base,steps:[{...step,after:['bad']}]});
+show({...base,steps:[{...step,minutes:'5'}]});
+show({...base,steps:'x'});
+show({...base,steps:[null]});
+show({...base,steps:[{...step,id:'bad'}], extra: 1});
+show({burners:1,ovens:1,cooks:0},KitchenSchema);
+show({...base,steps:Array(81).fill(step)});
+show({...base,dishes:Array(13).fill({id:'a',name:'A'})});
+EOF
+npx tsx /tmp/z.mjs
+    sed: 1: "s/^- \[ \] (T4\.[123])  ...": \1 not defined in the RE
+    graph.ts
+    index.ts
+    result.ts
+    schema.ts
+    null => [["invalid_type",[]]]
+    42 => [["invalid_type",[]]]
+    "" => [["invalid_type",[]]]
+    [] => [["invalid_type",[]]]
+    {} => [["invalid_type",["title"]],["invalid_type",["dishes"]],["invalid_type",["steps"]]]
+    {"title":"P","dishes":[],"steps":[{"id":"a.x","dish":"a","title":"T","minutes":5 => [["too_small",["dishes"]]]
+    {"title":"P","dishes":[{"id":"a","name":"A"}],"steps":[]} => [["too_small",["steps"]]]
+    {"title":"P","dishes":[],"steps":[]} => [["too_small",["dishes"]],["too_small",["steps"]]]
+    {"title":"P","dishes":[{"id":"a","name":"A"}],"steps":[{"id":"a.x","dish":"a","t => [["too_small",["steps",0,"minutes"]]]
+    {"title":"P","dishes":[{"id":"a","name":"A"}],"steps":[{"id":"a.x","dish":"a","t => [["invalid_type",["steps",0,"minutes"]]]
+    {"title":"P","dishes":[{"id":"a","name":"A"}],"steps":[{"id":"a.x","dish":"a","t => [["unrecognized_keys",["steps",0]]]
+    {"title":"P","dishes":[{"id":"a","name":"A"}],"steps":[{"id":"a.x","dish":"a","t => [["invalid_format",["steps",0,"after",0]]]
+    {"title":"P","dishes":[{"id":"a","name":"A"}],"steps":[{"id":"a.x","dish":"a","t => [["invalid_type",["steps",0,"minutes"]]]
+    {"title":"P","dishes":[{"id":"a","name":"A"}],"steps":"x"} => [["invalid_type",["steps"]]]
+    {"title":"P","dishes":[{"id":"a","name":"A"}],"steps":[null]} => [["invalid_type",["steps",0]]]
+    {"title":"P","dishes":[{"id":"a","name":"A"}],"steps":[{"id":"bad","dish":"a","t => [["invalid_format",["steps",0,"id"]],["unrecognized_keys",[]]]
+    {"burners":1,"ovens":1,"cooks":0} => [["too_small",["cooks"]]]
+    {"title":"P","dishes":[{"id":"a","name":"A"}],"steps":[{"id":"a.x","dish":"a","t => [["too_big",["steps"]]]
+    {"title":"P","dishes":[{"id":"a","name":"A"},{"id":"a","name":"A"},{"id":"a","na => [["too_big",["dishes"]]]
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+import re
+p='.kiro/specs/recipe-graph/tasks.md'
+s=open(p).read()
+for t in ['T4.1','T4.2','T4.3']:
+    s=s.replace(f'- [ ] {t} ',f'- [x] {t} ')
+open(p,'w').write(s)
+EOF
+grep -n "T4\.[0-9] " .kiro/specs/recipe-graph/tasks.md
+cat > src/core/sanity.ts <<'EOF'
+import { err, type Result } from './result.js';
+import type { Issue, Kitchen, Plan } from './schema.js';
+
+export function parsePlan(_input: unknown): Result<Plan, Issue[]> {
+  return err([]);
+}
+
+export function parseKitchen(_input: unknown): Result<Kitchen, Issue[]> {
+  return err([]);
+}
+
+export function sortIssues(_issues: readonly Issue[]): Issue[] {
+  return [];
+}
+
+export function hasErrors(_issues: readonly Issue[]): boolean {
+  return false;
+}
+EOF
+    127:- [x] T4.1 Example tests: `canonicalPlan` on a
+    135:- [x] T4.2 Property P-RG1 canonical, except the `checkPlan` clause, which is added in T6.6.
+    139:- [x] T4.3 Implement `canonicalPlan` until T4.1 and T4.2 pass.
+    exit 0
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/test/core/sanity.test.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx prettier --write test/core/sanity.test.ts >/dev/null; npx tsc -p tsconfig.test.json --noEmit 2>&1 | head; npx vitest run --project examples test/core/sanity.test.ts 2>&1 | grep -E "^\s+(×|✓)|Tests " | cut -c1-160
+    … (8 earlier lines not shown)
+         × R2.3 empty dishes gives one empty_plan issue 0ms
+         × R2.3 empty steps gives one empty_plan issue 0ms
+         × R2.3 both arrays empty give empty_plan once, not twice 0ms
+         × R2.4 14 dishes give too_many_dishes with count and limit; 12 dishes do not 0ms
+         × R2.4 81 steps give too_many_steps with count and limit; 80 steps do not 0ms
+         × R2.5 minutes 481 gives minutes_out_of_range with the step id 0ms
+         × R2.5 minutes 0 fires 0ms
+         × R2.5 minutes 2.5 fires 0ms
+         × R2.5 minutes "5" fires 0ms
+         × R2.5 minutes null fires 0ms
+         × R2.5 a missing minutes fires 0ms
+         × R2.5 minutes 1 does not fire 0ms
+         × R2.5 minutes 480 does not fire 0ms
+         × R2.5 R2.7 a step with an invalid id gets no stepId and is named by position 0ms
+         × R2.6 R2.7 a bad appliance names the field by its 0-based path and carries the stepId 0ms
+         × R2.6 R2.7 the fourth step is named "Step 4" and its field is steps[3] 0ms
+         × R2.6 a bad prerequisite is named with its index in after 0ms
+         × R2.7 a dish with a valid id carries the dishId; one with an invalid id is named by position 0ms
+         × R2.6 an unknown key is reported on its object without naming the key 0ms
+         × R2.6 an unknown key on the plan itself is reported for the plan 0ms
+         × R7.2 messages contain no title, name or detail text from the input 0ms
+         × R2.8 HOME_KITCHEN parses to itself 0ms
+         × R2.8 the bounds hold at their edges: 0 and 8 burners, 1 and 6 cooks are fine 0ms
+         × R2.8 cooks 0 gives one invalid_field issue 0ms
+         × R2.8 {} gives one issue per field, and null gives one for the kitchen 0ms
+         × R2.8 an unknown key is reported for the kitchen without naming it 0ms
+         × R7.3 puts errors first, then orders by code and stepId, and drops exact duplicates 0ms
+         × R5.4 hasErrors counts errors only 0ms
+    ⎯⎯⎯⎯⎯⎯ Failed Tests 36 ⎯⎯⎯⎯⎯⎯⎯
+          Tests  36 failed (36)
+    exit 0
+
+Two mistakes in my tests. `it.each` spreads a bare `[]`, and the dish order should follow the design's sort key, which puts the issue with no `dishId` first. Fixing both.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/core/sanity.test.ts'
+s=open(p).read()
+s=s.replace("it.each([null, 42, '', []])('R2.1 %j gives one invalid_field issue for the plan', (input) => {","it.each([[null], [42], [''], [[]]])('R2.1 %j gives one invalid_field issue for the plan', (input) => {")
+a=s.index("  it('R2.7 a dish with a valid id carries")
+b=s.index("  it('R2.6 an unknown key is reported on its object")
+blk=s[a:b]
+i0=blk.index("      {\n        severity: 'error',\n        code: 'invalid_field',\n        field: 'dishes[0].name'")
+i1=blk.index("      {\n        severity: 'error',\n        code: 'invalid_field',\n        field: 'dishes[1].id'")
+end=blk.index("    ]);")
+first=blk[i0:i1]; second=blk[i1:end]
+blk=blk[:i0]+second+first+blk[end:]
+s=s[:a]+blk+s[b:]
+open(p,'w').write(s)
+EOF
+npx prettier --write test/core/sanity.test.ts >/dev/null; npx vitest run --project examples test/core/sanity.test.ts 2>&1 | grep -E "AssertionError|Error:|Tests " | sort | uniq -c | head
+       1       Tests  36 failed (36)
+       1 ⎯⎯⎯⎯⎯⎯ Failed Tests 36 ⎯⎯⎯⎯⎯⎯⎯
+       1 AssertionError: expected [] to deeply equal [ 'burners', 'cooks', 'ovens' ]
+       2 AssertionError: expected [] to deeply equal [ 'empty_plan' ]
+       2 AssertionError: expected [] to deeply equal [ 'minutes_out_of_range' ]
+       1 AssertionError: expected [] to deeply equal [ [ 'invalid_field', …(2) ], …(1) ]
+       1 AssertionError: expected [] to deeply equal [ { severity: 'error', …(2) } ]
+       2 AssertionError: expected [] to deeply equal [ { severity: 'error', …(3) } ]
+       2 AssertionError: expected [] to deeply equal [ { severity: 'error', …(3) }, …(1) ]
+       1 AssertionError: expected [] to deeply equal [ { severity: 'error', …(3) }, …(2) ]
+    exit 0
+
+Red on assertions. Now the P-RG8 property, appended to `schema.pbt.ts`.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/core/schema.pbt.ts'
+s=open(p).read()
+s=s.replace("import { canonicalPlan,","import { parsePlan } from '../../src/core/sanity.js';\nimport { canonicalPlan,",1) if "import { canonicalPlan," in s else s
+s=s.replace("import { canonicalPlan, PlanSchema","import { parsePlan } from '../../src/core/sanity.js';\nimport { canonicalPlan, PlanSchema",1)
+s+="""
+describe('P-RG8 JSON round trip', () => {
+  for (const [label, arb] of [
+    ['default', arbPlan()],
+    ['large', arbPlan({ large: true })],
+  ] as const) {
+    it(`P-RG8 JSON round trip: parsePlan(JSON.parse(JSON.stringify(p))) is ok and strictly deep-equals p (${label})`, () => {
+      fc.assert(
+        fc.property(arb, (plan) => {
+          const result = parsePlan(JSON.parse(JSON.stringify(plan)));
+          expect(result.ok).toBe(true);
+          if (result.ok) expect(result.value).toStrictEqual(plan);
+        }),
+        fcParams(),
+      );
+    });
+  }
+});
+"""
+open(p,'w').write(s)
+EOF
+npx prettier --write test/core/schema.pbt.ts >/dev/null
+sed 's/fcParams()/{ ...fcParams(), endOnFailure: true }/' test/core/schema.pbt.ts > test/core/schema-red.pbt.ts && timeout 110 npx vitest run --project props test/core/schema-red.pbt.ts 2>&1 | grep -E "^\s+(✓|×)|Caused by|Tests " | cut -c1-200; rm test/core/schema-red.pbt.ts
+          Tests  no tests
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && head -8 test/core/schema.pbt.ts; sed 's/fcParams()/{ ...fcParams(), endOnFailure: true }/' test/core/schema.pbt.ts > test/core/schema-red.pbt.ts; npx vitest run --project props test/core/schema-red.pbt.ts 2>&1 | tail -15; rm test/core/schema-red.pbt.ts
+    import fc from 'fast-check';
+    import { describe, expect, it } from 'vitest';
+    import { parsePlan } from '../../src/core/sanity.js';
+    import { parsePlan } from '../../src/core/sanity.js';
+    import { canonicalPlan, PlanSchema, type ErrorCode, type Plan } from '../../src/core/schema.js';
+    import { arbBrokenPlan, arbPlan, arbShuffledPlan } from '../support/arbitraries.js';
+    import { fcParams } from '../support/fc-params.js';
+    
+      Plugin: vite:oxc
+      File: ~/hackathons-2026/kiroween/makedinner/test/core/schema-red.pbt.ts
+     ❯ transformWithOxc node_modules/vite/dist/node/chunks/node.js:7673:19
+     ❯ TransformPluginContext.transform node_modules/vite/dist/node/chunks/node.js:7747:26
+     ❯ EnvironmentPluginContainer.transform node_modules/vite/dist/node/chunks/node.js:8636:51
+     ❯ loadAndTransform node_modules/vite/dist/node/chunks/node.js:20112:26
+    
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+    
+    
+     Test Files  1 failed (1)
+          Tests  no tests
+       Start at  13:55:10
+       Duration  66ms (worker 96%, environment 4%)
+    exit 0
+
+My script added the import twice. Removing the duplicate and re-running the red check.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/core/schema.pbt.ts'
+s=open(p).read()
+l="import { parsePlan } from '../../src/core/sanity.js';\n"
+s=s.replace(l+l,l)
+open(p,'w').write(s)
+EOF
+sed 's/fcParams()/{ ...fcParams(), endOnFailure: true }/' test/core/schema.pbt.ts > test/core/schema-red.pbt.ts; npx vitest run --project props test/core/schema-red.pbt.ts 2>&1 | grep -E "^\s+(✓|×)|Caused by|Tests " | cut -c1-200; rm test/core/schema-red.pbt.ts
+         × P-RG8 JSON round trip: parsePlan(JSON.parse(JSON.stringify(p))) is ok and strictly deep-equals p (default) 4ms
+         × P-RG8 JSON round trip: parsePlan(JSON.parse(JSON.stringify(p))) is ok and strictly deep-equals p (large) 1ms
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+    Caused by: AssertionError: expected false to be true // Object.is equality
+    Caused by: AssertionError: expected false to be true // Object.is equality
+          Tests  2 failed | 2 passed (4)
+    exit 0
+
+Red on assertions. Implementing `sanity.ts`.
+
+[tool:edit] Write File ~/hackathons-2026/kiroween/makedinner/src/core/sanity.ts
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && npx prettier --write src/core/sanity.ts >/dev/null; npx tsc -p tsconfig.core.json --noEmit 2>&1 | head -20; npx vitest run --project examples test/core/sanity.test.ts 2>&1 | grep -E "^\s+×|AssertionError|Tests |Expected|Received|^\s+[-+] " | head -50
+          Tests  36 passed (36)
+    exit 0
+
+All 36 pass. The phrase selection came out convoluted, so I'll simplify it.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+import re
+p='src/core/sanity.ts'
+s=open(p).read()
+a=s.index("    let phrase = located.phrase;")
+b=s.index("    const message = `${located.location}")
+s=s[:a]+"""    let phrase = located.phrase;
+    if (phrase === undefined) {
+      if (unrecognized) phrase = UNRECOGNIZED;
+      else if (path.length === 0) {
+        phrase = 'this value must be an object with a title, dishes and steps';
+      } else if (path.length === 1 && typeof first === 'string') phrase = PLAN_PHRASES[first];
+    }
+"""+s[b:]
+s=s.replace("const pick = (table: Record<string, string>, own: string | undefined): string | undefined => {","const pick = (table: Record<string, string>): string | undefined => {")
+s=s.replace("    return own ?? table[third];","    return table[third];")
+s=s.replace("pick(STEP_PHRASES, undefined)","pick(STEP_PHRASES)").replace("pick(DISH_PHRASES, undefined)","pick(DISH_PHRASES)")
+open(p,'w').write(s)
+EOF
+npx prettier --write src/core/sanity.ts >/dev/null; npx vitest run --project examples test/core/sanity.test.ts 2>&1 | grep -E "^\s+×|Tests "; npx vitest run --project props test/core/schema.pbt.ts 2>&1 | grep -E "×|Tests |Error"
+          Tests  36 passed (36)
+          Tests  4 passed (4)
+    exit 0
+
+Both pass. Now the wider run: each task's proving commands, then `npm test`, `npm run test:props`, typecheck, lint and prettier.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && unset ANTHROPIC_API_KEY; echo "## T5.3 cmd"; npx vitest run --project examples test/core/sanity.test.ts 2>&1 | grep -E "Tests |Test Files" ; npx vitest run --project props test/core/schema.pbt.ts 2>&1 | grep -E "Tests |Test Files"; echo "## npm test"; npm test 2>&1 | grep -E "×|Tests |Test Files"; echo "## test:props"; npm run test:props 2>&1 | grep -E "×|Tests |Test Files"; echo "## typecheck"; npm run typecheck >/dev/null 2>&1; echo exit $?; echo "## lint"; npm run lint 2>&1 | tail -15; echo "## prettier"; npx prettier --check . 2>&1 | tail -5
+    ## T5.3 cmd
+     Test Files  1 passed (1)
+          Tests  36 passed (36)
+     Test Files  1 passed (1)
+          Tests  4 passed (4)
+    ## npm test
+     Test Files  13 passed (13)
+          Tests  483 passed (483)
+    ## test:props
+     Test Files  2 passed (2)
+          Tests  12 passed (12)
+    ## typecheck
+    exit 0
+    ## lint
+    
+    > make-dinner@0.0.0 lint
+    > eslint .
+    
+    
+    ~/hackathons-2026/kiroween/makedinner/test/core/sanity.test.ts
+      152:22  error  '_minutes' is assigned a value but never used  @typescript-eslint/no-unused-vars
+    
+    ✖ 1 problem (1 error, 0 warnings)
+    
+    ## prettier
+    Checking formatting...
+    All matched files use Prettier code style!
+    exit 0
+
+One lint error, in my test. I'll fix it without a disable comment.
+
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && sed -n 148,158p test/core/sanity.test.ts
+        expect(issuesOf(raw({}, { minutes })).map((i) => i.code)).toEqual(['minutes_out_of_range']);
+      });
+    
+      it('R2.5 a missing minutes fires', () => {
+        const { minutes: _minutes, ...withoutMinutes } = STEP;
+        expect(issuesOf(raw({ steps: [withoutMinutes] })).map((i) => i.code)).toEqual([
+          'minutes_out_of_range',
+        ]);
+      });
+    
+      it.each([1, 480])('R2.5 minutes %i does not fire', (minutes) => {
+    exit 0
+[tool:execute] $ cd ~/hackathons-2026/kiroween/makedinner && python3 - <<'EOF'
+p='test/core/sanity.test.ts'
+s=open(p).read()
+s=s.replace("    const { minutes: _minutes, ...withoutMinutes } = STEP;\n","    const withoutMinutes = Object.fromEntries(\n      Object.entries(STEP).filter(([key]) => key !== 'minutes'),\n    );\n")
+open(p,'w').write(s)
+t='.kiro/specs/recipe-graph/tasks.md'
+x=open(t).read()
+for n in ['T5.1','T5.2','T5.3']:
+    x=x.replace(f'- [ ] {n} ',f'- [x] {n} ')
+open(t,'w').write(x)
+EOF
+npx prettier --write test/core/sanity.test.ts >/dev/null; npm run lint 2>&1 | tail -4; npx prettier --check . 2>&1 | tail -2; npm test 2>&1 | grep -E "×|Tests |Test Files"; npm run test:props 2>&1 | grep -E "×|Tests |Test Files"; npm run typecheck >/dev/null 2>&1; echo typecheck exit $?; grep -nE "^- \[.\] T[345]\.[0-9]" .kiro/specs/recipe-graph/tasks.md | cut -c1-30; grep -rnE "\.skip|\.only|\.todo|eslint-disable|ts-ignore|ts-expect-error|as any" src/core test/core | head
+    
+    > make-dinner@0.0.0 lint
+    > eslint .
+    
+    Checking formatting...
+    All matched files use Prettier code style!
+     Test Files  13 passed (13)
+          Tests  483 passed (483)
+     Test Files  2 passed (2)
+          Tests  12 passed (12)
+    typecheck exit 0
+    94:- [x] T3.1 Example tests: `
+    103:- [x] T3.2 Property P-RG3 
+    107:- [x] T3.3 Property P-RG4 
+    111:- [x] T3.4 Property P-RG5 
+    115:- [x] T3.5 Property P-RG6 
+    119:- [x] T3.6 Implement `comp
+    127:- [x] T4.1 Example tests: 
+    135:- [x] T4.2 Property P-RG1 
+    139:- [x] T4.3 Implement `cano
+    146:- [x] T5.1 Example tests f
+    156:- [x] T5.2 Property P-RG8 
+    160:- [x] T5.3 Implement `sort
+    exit 0
+
+T3, T4 and T5 are done and ticked in `tasks.md`. Nothing is committed, and I stopped before T6.
+
+## Files changed
+- `src/core/graph.ts` (new): `successors`, `terminalSteps`, `topologicalOrder`, `findCycles` and `longestChainMinutes`. All are iterative.
+- `src/core/sanity.ts` (new): `parsePlan`, `parseKitchen`, `sortIssues` and `hasErrors`.
+- `src/core/schema.ts`: added `compareIds` and `canonicalPlan`.
+- `test/core/graph.test.ts`, `test/core/graph.pbt.ts`, `test/core/sanity.test.ts`, `test/core/schema.pbt.ts` (all new).
+- `test/core/schema.test.ts`: added the `canonicalPlan` examples.
+- `.kiro/specs/recipe-graph/tasks.md`: ticked T3.1–T3.6, T4.1–T4.3 and T5.1–T5.3.
+
+## Checks run
+For each sub-task I saw the tests fail on an assertion first, then pass after the implementation.
+- `npx vitest run --project examples test/core/graph.test.ts`: 16 passed, 0 failed, 0 skipped.
+- `npx vitest run --project props test/core/graph.pbt.ts`: 8 passed.
+- `npx vitest run --project examples test/core/schema.test.ts`: 227 passed.
+- `npx vitest run --project props test/core/schema.pbt.ts`: 4 passed.
+- `npx vitest run --project examples test/core/sanity.test.ts`: 36 passed.
+- `npm test`: 13 files, 483 passed.
+- `npm run test:props`: 2 files, 12 passed.
+- `npm run typecheck`: exit 0.
+- `npm run lint`: clean, after I fixed one unused variable in my own test.
+- `npx prettier --check .`: clean.
+
+No `.skip`, `.only`, `.todo`, `eslint-disable`, `@ts-ignore` or `as any` in `src/core` or `test/core`. Properties use `fcParams()`, and I didn't lower any run count.
+
+## Problem found in T2 support code (not fixed)
+When a property fails, fast-check's shrinking runs out of memory (`Map maximum size exceeded`, then a SIGABRT). The cause is the `draw` helper in `test/support/arbitraries.ts:32`, which calls `g(() => arb)`. That passes a new closure on every draw, so fast-check's generator cache grows without bound. Passing runs are unaffected, but the first real counterexample would crash the worker instead of reporting.
+
+I saw this once for real, on a mistake in my own test. For the red-state checks I ran temporary copies of the property files with `endOnFailure: true`, then deleted them. Fixing it means editing T2 files, so I left it for you to decide.
+
+## Decisions I made
+- **Message wording:** the design gives only examples, so I used one table. Messages read `<Location>: <phrase>.`, with locations `The plan`, `The kitchen`, `Step <id>`, `Step <n>`, `Dish <id>` and `Dish <n>`. The phrases are fixed strings and never include input text. The wording is fixed by the exact-message assertions in `test/core/sanity.test.ts`.
+- **`field` for a root-level problem:** `plan` or `kitchen`. A plan-level field is `title`, `dishes` or `steps`. A kitchen field is `burners`, `ovens` or `cooks`.
+- **Singular and plural:** "Remove or merge 1 dish" and "1 step", because the count can be exactly 1 over the limit.
+- **Sort order of parse issues:** I followed the design key (errors first, then code, `stepId`, `dishId`, `field`, message). An issue with no `dishId` sorts before one with a `dishId`, so a bad `dishes[1].id` comes before a bad `dishes[0].name`.
+- **Stubs:** `canonicalPlan` was an identity stub, and `sanity.ts` began with `err([])` stubs, so the first runs failed on assertions. I did not add `checkPlan`, `checkKitchen` or `validatePlan`, since they belong to T6.
+- **`sortIssues` and `hasErrors` tests:** I added one small example test each in `sanity.test.ts`, because T5.3 implements them.
+- **My P-RG1 test:** it first compared step JSON strings and failed because `canonicalPlan` writes `detail` last. The implementation was right, so I changed the test to compare with sorted keys.
+- **Tie-breaking in `findCycles`:** the BFS follows the design (successors in id order, first parent kept). The property checks cycle length, the smallest first id and group membership, as the design says.
+
+## Not verified
+- `parsePlan` and `parseKitchen` never throwing on any value is the S1 property (T6.4). I haven't tested it beyond the examples.
+- N3 (cost within the default vitest timeout) held in these runs: 12 property tests at 200 runs each, 80-step plans included.
+- I didn't run e2e, `build` or `check:contrast`. T8.2 covers the full suite.
+
+## Open questions
+- Do you want the `draw` shrinking problem fixed under T2, or as its own task?
+
+--- run success (end_turn); credits reported by this session: 14.65 ---

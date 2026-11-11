@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import type { z } from 'zod';
 import {
+  canonicalPlan,
   ERROR_CODES,
   WARNING_CODES,
   IssueSchema,
@@ -672,5 +673,202 @@ describe('R10.4 fixtures pass the schemas and have the sizes of the design', () 
     expect(KitchenSchema.safeParse(TWO_COOK_KITCHEN).success).toBe(true);
     expect(HOME_KITCHEN).toEqual({ burners: 4, ovens: 1, cooks: 1 });
     expect(TWO_COOK_KITCHEN).toEqual({ burners: 4, ovens: 1, cooks: 2 });
+  });
+});
+
+describe('canonicalPlan (R8.1, R8.2)', () => {
+  const reversedRoast = (): Plan => ({
+    title: SUNDAY_ROAST.title,
+    // dishes in reverse id order
+    dishes: [...SUNDAY_ROAST.dishes].reverse(),
+    // steps in the fixture's own (non-topological) order, with gravy.roux listing its
+    // prerequisites unsorted and chicken.roast twice
+    steps: SUNDAY_ROAST.steps.map((s) =>
+      s.id === 'gravy.roux'
+        ? { ...s, after: ['chicken.roast', 'chicken.prep', 'chicken.roast'] }
+        : s,
+    ),
+  });
+
+  it('R8.1 a shuffled SUNDAY_ROAST with a duplicated after entry equals the plan written in id order', () => {
+    const expected: Plan = {
+      title: 'Sunday roast',
+      dishes: [
+        { id: 'chicken', name: 'Roast chicken' },
+        { id: 'gravy', name: 'Gravy' },
+        { id: 'greens', name: 'Spring greens' },
+      ],
+      steps: [
+        {
+          id: 'chicken.carve',
+          dish: 'chicken',
+          title: 'Carve the chicken',
+          minutes: 5,
+          appliance: 'none',
+          handsOn: true,
+          after: ['chicken.rest'],
+          holdMin: 5,
+        },
+        {
+          id: 'chicken.prep',
+          dish: 'chicken',
+          title: 'Season and truss the chicken',
+          minutes: 10,
+          appliance: 'none',
+          handsOn: true,
+          after: [],
+          holdMin: null,
+        },
+        {
+          id: 'chicken.rest',
+          dish: 'chicken',
+          title: 'Rest the chicken under foil',
+          minutes: 20,
+          appliance: 'none',
+          handsOn: false,
+          after: ['chicken.roast'],
+          holdMin: 30,
+        },
+        {
+          id: 'chicken.roast',
+          dish: 'chicken',
+          title: 'Roast the chicken',
+          minutes: 75,
+          appliance: 'oven',
+          handsOn: false,
+          after: ['chicken.prep'],
+          holdMin: 5,
+        },
+        {
+          id: 'gravy.roux',
+          dish: 'gravy',
+          title: 'Make a roux in the roasting tin',
+          detail: 'Use the juices left in the tin once the chicken is out.',
+          minutes: 2,
+          appliance: 'burner',
+          handsOn: true,
+          after: ['chicken.prep', 'chicken.roast'],
+          holdMin: 5,
+        },
+        {
+          id: 'gravy.simmer',
+          dish: 'gravy',
+          title: 'Add stock and let the gravy thicken',
+          minutes: 10,
+          appliance: 'burner',
+          handsOn: false,
+          after: ['gravy.roux'],
+          holdMin: 5,
+        },
+        {
+          id: 'gravy.strain',
+          dish: 'gravy',
+          title: 'Strain the gravy into a jug',
+          minutes: 2,
+          appliance: 'none',
+          handsOn: true,
+          after: ['gravy.simmer'],
+          holdMin: 15,
+        },
+        {
+          id: 'greens.boil',
+          dish: 'greens',
+          title: 'Cook the greens in salted water',
+          minutes: 4,
+          appliance: 'burner',
+          handsOn: false,
+          after: ['greens.shred'],
+          holdMin: 0,
+        },
+        {
+          id: 'greens.shred',
+          dish: 'greens',
+          title: 'Shred the greens',
+          minutes: 5,
+          appliance: 'none',
+          handsOn: true,
+          after: [],
+          holdMin: null,
+        },
+        {
+          id: 'greens.toss',
+          dish: 'greens',
+          title: 'Toss the greens with butter',
+          minutes: 1,
+          appliance: 'none',
+          handsOn: true,
+          after: ['greens.boil'],
+          holdMin: 5,
+        },
+      ],
+    };
+    expect(canonicalPlan(reversedRoast())).toEqual(expected);
+  });
+
+  it('R8.2 equal ids keep their input order', () => {
+    const step = (title: string): Plan['steps'][number] => ({
+      id: 'a.x',
+      dish: 'a',
+      title,
+      minutes: 5,
+      appliance: 'none',
+      handsOn: true,
+      after: [],
+      holdMin: null,
+    });
+    const plan: Plan = {
+      title: 'Equal ids',
+      dishes: [
+        { id: 'a', name: 'second' },
+        { id: 'a', name: 'first' },
+      ],
+      steps: [step('second'), step('first')],
+    };
+    const result = canonicalPlan(plan);
+    expect(result.steps.map((s) => s.title)).toEqual(['second', 'first']);
+    expect(result.dishes.map((d) => d.name)).toEqual(['second', 'first']);
+  });
+
+  it('R8.2 does not change the input plan', () => {
+    const input = reversedRoast();
+    const before = structuredClone(input);
+    const result = canonicalPlan(input);
+    expect(input).toStrictEqual(before);
+    expect(result).not.toBe(input);
+    expect(result.steps).not.toBe(input.steps);
+  });
+
+  it('R8.1 drops a detail whose value is undefined and keeps a real one', () => {
+    const plan: Plan = {
+      title: 'Detail',
+      dishes: [{ id: 'a', name: 'A' }],
+      steps: [
+        {
+          id: 'a.x',
+          dish: 'a',
+          title: 'X',
+          detail: undefined,
+          minutes: 5,
+          appliance: 'none',
+          handsOn: true,
+          after: [],
+          holdMin: null,
+        },
+        {
+          id: 'a.y',
+          dish: 'a',
+          title: 'Y',
+          detail: 'Slowly.',
+          minutes: 5,
+          appliance: 'none',
+          handsOn: true,
+          after: [],
+          holdMin: null,
+        },
+      ],
+    };
+    const [x, y] = canonicalPlan(plan).steps;
+    expect(x !== undefined && 'detail' in x).toBe(false);
+    expect(y?.detail).toBe('Slowly.');
   });
 });
